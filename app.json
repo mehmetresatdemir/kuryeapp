@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "drive",
+    "slug": "drive",
+    "platforms": ["ios", "android"],
+    "web": {
+      "enabled": false
+    },
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "icon": "./assets/images/icon.png",
+      "config": {
+        "googleMapsApiKey": "AIzaSyDp_lLu5U3bFyMt1ggWM1p2OpblYKMQyQc"
+      }
+    },
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDp_lLu5U3bFyMt1ggWM1p2OpblYKMQyQc"
+        }
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#377a23"
+      },
+      "package": "com.mehmetresatdemir.drive"
+    },
+    
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#377a23"
+        }
+      ],
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "068be49c-6eee-41cb-ad1f-ff5e0b3f3f3d"
+      }
+    },
+    "owner": "mehmetresatdemir"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "kurye-backend",
+  "version": "1.0.0",
+  "description": "Kurye uygulaması backend servisi - Full Stack",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "admin": "node admin-server.js",
+    "admin:dev": "nodemon admin-server.js",
+    "prod": "NODE_ENV=production node src/index.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart kurye-backend",
+    "pm2:stop": "pm2 stop kurye-backend",
+    "pm2:delete": "pm2 delete kurye-backend",
+    "pm2:logs": "pm2 logs kurye-backend",
+    "pm2:status": "pm2 status",
+    "install-global": "npm install -g pm2",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.8.1",
+    "undici": "^7.10.0",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "kurye",
+    "express",
+    "nodejs",
+    "socket.io",
+    "neon",
+    "fullstack"
+  ],
+  "author": "Kurye App",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
