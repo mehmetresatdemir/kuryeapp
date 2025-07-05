@@ -368,23 +368,15 @@
             const restaurantId = document.getElementById('restaurantFilter').value;
             const courierId = document.getElementById('courierFilter').value;
             
-            // Bugünün tarih aralığını ekle
-            const today = new Date();
-            const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
-
             const queryParams = new URLSearchParams({
                 search,
                 status,
                 restaurantId,
                 courierId,
-                startDate: startOfDay.toISOString(),
-                endDate: endOfDay.toISOString(),
+                // Tarih parametresi gönderme - backend bugünün siparişlerini getirecek
             });
 
             console.log('🔄 Bugünün siparişleri yükleniyor...');
-            console.log('📅 StartDate:', startOfDay.toISOString());
-            console.log('📅 EndDate:', endOfDay.toISOString());
             console.log('🌐 API URL:', `${API_BASE}/api/admin/orders?${queryParams}`);
             
             try {
@@ -398,8 +390,12 @@
                 }
                 
                 const result = await response.json();
+                console.log('📦 Full API Response:', result);
                 console.log('✅ Bugünün siparişleri yüklendi:', result.data?.length || 0, 'adet');
+                console.log('📊 Orders data:', result.data);
                 allOrders = result.data || [];
+                console.log('🗃️ allOrders array:', allOrders);
+                console.log('📏 allOrders.length:', allOrders.length);
                 renderTable(allOrders);
                 updateStats(allOrders);
             } catch (error) {

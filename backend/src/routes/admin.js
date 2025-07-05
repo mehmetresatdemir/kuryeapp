@@ -2496,12 +2496,15 @@ router.get('/orders', async (req, res) => {
         let queryParams = [];
         let paramIndex = 1;
 
-        // Date filter (for daily orders)
+        // Date filter (for daily orders) - Default olarak bugünün siparişleri
         if (startDate && endDate) {
             whereConditions.push(`o.created_at >= $${paramIndex} AND o.created_at <= $${paramIndex + 1}`);
             queryParams.push(startDate);
             queryParams.push(endDate);
             paramIndex += 2;
+        } else {
+            // Tarih belirtilmemişse bugünün siparişlerini getir (Türkiye saati)
+            whereConditions.push(`DATE(o.created_at AT TIME ZONE 'Europe/Istanbul') = CURRENT_DATE`);
         }
 
         // Search filter (order ID, restaurant name, or neighborhood)
