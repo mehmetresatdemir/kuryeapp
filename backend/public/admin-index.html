@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Admin Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+        }
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        .title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 3rem;
+        }
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .nav-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .nav-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+        .nav-card-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        .nav-card-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .nav-card-desc {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-item {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        .system-status {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        .status-online { color: #10b981; }
+        .status-offline { color: #ef4444; }
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚚</div>
+        <h1 class="title">Kurye App</h1>
+        <p class="subtitle">Admin Yönetim Paneli</p>
+
+        <!-- Hızlı İstatistikler -->
+        <div class="quick-stats">
+            <div class="stat-item">
+                <div class="stat-value" id="totalOrders">-</div>
+                <div class="stat-label">Aktif Sipariş</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalCouriers">-</div>
+                <div class="stat-label">Çevrimiçi Kurye</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalRestaurants">-</div>
+                <div class="stat-label">Restoran</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="todayRevenue">-</div>
+                <div class="stat-label">Günlük Gelir</div>
+            </div>
+        </div>
+
+        <!-- Navigasyon Kartları -->
+        <div class="nav-grid">
+            <a href="admin-dashboard.html" class="nav-card">
+                <span class="nav-card-icon">📊</span>
+                <div class="nav-card-title">Dashboard</div>
+                <div class="nav-card-desc">Genel sistem durumu ve istatistikler</div>
+            </a>
+
+            <a href="admin-orders.html" class="nav-card">
+                <span class="nav-card-icon">📋</span>
+                <div class="nav-card-title">Sipariş Yönetimi</div>
+                <div class="nav-card-desc">Siparişleri görüntüle ve yönet</div>
+            </a>
+
+            <a href="admin-couriers.html" class="nav-card">
+                <span class="nav-card-icon">🏍️</span>
+                <div class="nav-card-title">Kurye Yönetimi</div>
+                <div class="nav-card-desc">Kuryeleri ekle, düzenle ve yönet</div>
+            </a>
+
+            <a href="admin-restaurants.html" class="nav-card">
+                <span class="nav-card-icon">🏪</span>
+                <div class="nav-card-title">Restoran Yönetimi</div>
+                <div class="nav-card-desc">Restoranlar ve teslimat alanları</div>
+            </a>
+
+            <a href="admin-wallet.html" class="nav-card">
+                <span class="nav-card-icon">💰</span>
+                <div class="nav-card-title">Cüzdan Yönetimi</div>
+                <div class="nav-card-desc">Kullanıcı cüzdanları ve çekim talepleri</div>
+            </a>
+
+            <a href="admin-analytics.html" class="nav-card">
+                <span class="nav-card-icon">📈</span>
+                <div class="nav-card-title">Analiz & Raporlar</div>
+                <div class="nav-card-desc">Detaylı analizler ve performans raporları</div>
+            </a>
+
+            <a href="admin-settings.html" class="nav-card">
+                <span class="nav-card-icon">⚙️</span>
+                <div class="nav-card-title">Sistem Ayarları</div>
+                <div class="nav-card-desc">Sistem konfigürasyonu ve bakım</div>
+            </a>
+        </div>
+
+        <!-- Sistem Durumu -->
+        <div class="system-status">
+            <h4 style="margin-bottom: 1rem; color: #0ea5e9;">🔧 Sistem Durumu</h4>
+            <div class="status-item">
+                <span>API Servisi</span>
+                <span id="apiStatus" class="status-online">🟢 Çalışıyor</span>
+            </div>
+            <div class="status-item">
+                <span>Veritabanı</span>
+                <span id="dbStatus" class="status-online">🟢 Bağlı</span>
+            </div>
+            <div class="status-item">
+                <span>Socket Bağlantısı</span>
+                <span id="socketStatus" class="status-online">🟢 Aktif</span>
+            </div>
+            <div class="status-item">
+                <span>Son Güncelleme</span>
+                <span id="lastUpdate">-</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 Kurye App - Tüm hakları saklıdır</p>
+            <p>Admin Panel v2.0 - Son güncelleme: <span id="versionDate">15.01.2024</span></p>
+        </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form id="login-form">
+          <div class="form-group">
+            <label for="email">E-posta veya Telefon</label>
+            <input type="text" class="form-control" id="identifier" name="identifier" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Şifre</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Giriş Yap</button>
+        </form>
+        <hr>
+        <div class="text-center">
+          <p>Veya hızlı giriş yapın:</p>
+          <button id="quick-login-restaurant" class="btn btn-info mb-2">Test Restoranı Olarak Giriş</button>
+          <button id="quick-login-courier" class="btn btn-warning">Test Kuryesi Olarak Giriş</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            loadQuickStats();
+            checkSystemStatus();
+            
+            // Her 30 saniyede bir güncelle
+            setInterval(() => {
+                loadQuickStats();
+                checkSystemStatus();
+            }, 30000);
+        });
+
+        // Yardımcı fonksiyon: Yetkilendirme başlıklarını al
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
+        // Hızlı istatistikleri yükle
+        async function loadQuickStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/dashboard/quick-stats`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('totalOrders').textContent = data.data.totalOrders;
+                    document.getElementById('totalCouriers').textContent = data.data.onlineCouriers + '/' + data.data.totalCouriers;
+                    document.getElementById('totalRestaurants').textContent = data.data.onlineRestaurants + '/' + data.data.totalRestaurants;
+                    document.getElementById('todayRevenue').textContent = `₺${(data.data.todayRevenue || 0).toFixed(2)}`;
+                } else {
+                    console.error('Hızlı istatistikler yüklenirken hata:', data.message);
+                }
+            } catch (error) {
+                console.error('Hızlı istatistikler yüklenirken ağ hatası:', error);
+            }
+        }
+
+        // Sistem durumunu kontrol et
+        async function checkSystemStatus() {
+            try {
+                const apiRes = await fetch(`${API_BASE}/api/status`);
+                document.getElementById('apiStatus').textContent = apiRes.ok ? '🟢 Çalışıyor' : '🔴 Kapalı';
+                document.getElementById('apiStatus').className = apiRes.ok ? 'status-online' : 'status-offline';
+            } catch (error) {
+                document.getElementById('apiStatus').textContent = '🔴 Kapalı';
+                document.getElementById('apiStatus').className = 'status-offline';
+            }
+
+            try {
+                // Bu, gerçek bir DB bağlantı kontrolü değil, sadece bir örnek.
+                // Gerçek bir kontrol için backend'de ayrı bir endpoint olmalı.
+                const dbRes = await fetch(`${API_BASE}/api/admin/db/status`, {
+                    headers: getAuthHeaders()
+                });
+                document.getElementById('dbStatus').textContent = dbRes.ok ? '🟢 Bağlı' : '🔴 Bağlantı Yok';
+                document.getElementById('dbStatus').className = dbRes.ok ? 'status-online' : 'status-offline';
+            } catch (error) {
+                document.getElementById('dbStatus').textContent = '🔴 Bağlantı Yok';
+                document.getElementById('dbStatus').className = 'status-offline';
+            }
+
+            // Socket.IO durumu, istemci tarafında genellikle otomatik yönetilir
+            const socket = io(API_BASE);
+            socket.on('connect', () => {
+                document.getElementById('socketStatus').textContent = '🟢 Aktif';
+                document.getElementById('socketStatus').className = 'status-online';
+            });
+            socket.on('disconnect', () => {
+                document.getElementById('socketStatus').textContent = '🔴 Bağlantı Yok';
+                document.getElementById('socketStatus').className = 'status-offline';
+            });
+            socket.on('connect_error', (error) => {
+                console.error('Socket bağlantı hatası:', error);
+                document.getElementById('socketStatus').textContent = '🔴 Bağlantı Hatası';
+                document.getElementById('socketStatus').className = 'status-offline';
+            });
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString('tr-TR');
+        }
+
+        // Login Form İşlemleri
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const identifier = document.getElementById('identifier').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/admin-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ identifier, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    alert('Giriş Başarılı!');
+                    window.location.href = '/admin-dashboard.html'; // Başarılı giriş sonrası yönlendirme
+                } else {
+                    alert('Giriş hatası: ' + (data.message || 'Kullanıcı adı veya şifre yanlış.'));
+                }
+            } catch (error) {
+                console.error('Giriş sırasında ağ hatası:', error);
+                alert('Bir ağ hatası oluştu. Lütfen daha sonra tekrar deneyin.');
+            }
+        });
+
+        // Hızlı Giriş Butonları
+        async function quickLogin(role) {
+            let identifier, password;
+            if (role === 'restaurant') {
+                identifier = 'restaurant_test@example.com'; // Test restoranı bilgileri
+                password = 'password';
+            } else if (role === 'courier') {
+                identifier = 'courier_test@example.com'; // Test kurye bilgileri
+                password = 'password';
+            }
+
+            if (!identifier || !password) {
+                alert('Test kullanıcı bilgileri eksik.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/admin-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ identifier, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    alert('Hızlı giriş başarılı!');
+                    window.location.href = '/admin-dashboard.html'; // Başarılı giriş sonrası yönlendirme
+                } else {
+                    alert('Hızlı giriş hatası: ' + (data.message || 'Kullanıcı adı veya şifre yanlış.'));
+                }
+            } catch (error) {
+                console.error('Hızlı giriş sırasında ağ hatası:', error);
+                alert('Bir ağ hatası oluştu. Lütfen daha sonra tekrar deneyin.');
+            }
+        }
+
+        document.getElementById('quick-login-restaurant').addEventListener('click', () => quickLogin('restaurant'));
+        document.getElementById('quick-login-courier').addEventListener('click', () => quickLogin('courier'));
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case '1':
+                        e.preventDefault();
+                        window.location.href = 'admin-dashboard.html';
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        window.location.href = 'admin-orders.html';
+                        break;
+                    case '3':
+                        e.preventDefault();
+                        window.location.href = 'admin-couriers.html';
+                        break;
+                    case '4':
+                        e.preventDefault();
+                        window.location.href = 'admin-restaurants.html';
+                        break;
+                    case '5':
+                        e.preventDefault();
+                        window.location.href = 'admin-analytics.html';
+                        break;
+                    case '6':
+                        e.preventDefault();
+                        window.location.href = 'admin-settings.html';
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

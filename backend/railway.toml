@@ -1,0 +1,23 @@
+[build]
+# Build komutları
+command = "npm install"
+# Hangi dosyalar değiştiğinde rebuild edilecek
+watchPatterns = ["src/**/*.js", "package.json", "*.js", "public/**/*.html", "public/**/*.css", "public/**/*.js"]
+
+[deploy]
+# Start komutunu belirt
+startCommand = "npm start"
+restartPolicyType = "always"
+restartPolicyMaxRetries = 3
+
+[env]
+# Environment değişkenleri
+NODE_ENV = "production"
+PORT = { description = "Railway tarafından otomatik atanır" }
+
+[healthcheck]
+# Health check ayarları
+path = "/health"
+intervalSeconds = 30
+timeoutSeconds = 10
+retries = 3 

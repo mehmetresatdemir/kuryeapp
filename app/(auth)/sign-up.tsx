@@ -1,25 +1,29 @@
-import { useSignUp } from "@clerk/clerk-expo";
+// Sign-up disabled - using custom authentication with pre-created accounts
+// import { useSignUp } from "@clerk/clerk-expo";
 import { Link, router } from "expo-router";
 import { useState } from "react";
-import { Alert, Image, ScrollView, Text, View } from "react-native";
+import { Alert, ImageBackground, ScrollView, Text, View, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
 import { ReactNativeModal } from "react-native-modal";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
 import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
 import OAuth from "@/components/OAuth";
 import { icons, images } from "@/constants";
+import { API_CONFIG, getFullUrl, API_ENDPOINTS } from "@/constants/api";
 import { fetchAPI } from "@/lib/fetch";
-import { TouchableOpacity } from "react-native";
 
 const SignUp = () => {
-  const { isLoaded, signUp, setActive } = useSignUp();
+  // const { isLoaded, signUp, setActive } = useSignUp();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
-    role: "user", // Varsayılan rol olarak "user" ekledik
+    role: "user",
   });
 
   const [verification, setVerification] = useState({
@@ -29,256 +33,390 @@ const SignUp = () => {
   });
 
   const onSignUpPress = async () => {
-    if (!isLoaded) return;
-    try {
-      // Kullanıcı oluştur
-      await signUp.create({
-        emailAddress: form.email,
-        password: form.password,
-      });
-
-      // E-posta doğrulaması hazırla
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-
-      setVerification({
-        ...verification,
-        state: "pending",
-      });
-    } catch (err: any) {
-      console.log("SignUp Error:", JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
-    }
+    // Sign-up disabled for custom authentication
+    Alert.alert(
+      "Kayıt Devre Dışı", 
+      "Şu anda yeni kayıt kabul edilmiyor. Lütfen giriş sayfasından test hesaplarından birini kullanın.",
+      [
+        { text: "Tamam" },
+        { text: "Giriş Sayfası", onPress: () => router.replace("/(auth)/sign-in") }
+      ]
+    );
   };
 
   const onPressVerify = async () => {
-    if (!isLoaded) return;
-    try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code: verification.code,
-      });
-
-      if (completeSignUp.status === "complete") {
-        // Kullanıcıyı kendi veritabanınıza kaydedin
-        try {
-          const response = await fetch("https://red.enucuzal.com/api/user", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: form.name,
-              email: form.email,
-              clerkId: completeSignUp.createdUserId,
-              role: form.role, // Rol bilgisini de gönderiyoruz
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to save user data");
-          }
-
-          console.log("User saved successfully:", response);
-
-          // Clerk oturumunu aktif hale getir
-          await setActive({ session: completeSignUp.createdSessionId });
-
-        // Rolüne göre yönlendirme yap
-        if (form.role === "user") {
-          router.replace("/(root)/(tabs)/home"); // Kullanıcı için ana sayfaya yönlendir
-        } else if (form.role === "driver") {
-          router.replace("/(driver)/(tabs)/driver-home"); // Sürücü için sürücü ana sayfasına yönlendir
-        }
-      } catch (err: any) {
-        console.error("Database Error:", JSON.stringify(err, null, 2));
-        Alert.alert("Error", "Failed to save user data. Please try again.");
-        return;
-      }
-    } else {
-      setVerification({
-        ...verification,
-        error: "Verification failed. Please try again.",
-        state: "failed",
-      });
-    }
-  } catch (err: any) {
-    console.error("Verification Error:", JSON.stringify(err, null, 2));
-    setVerification({
-      ...verification,
-      error: err.errors[0].longMessage,
-      state: "failed",
-    });
-  }
-};
+    // Verification disabled
+    Alert.alert("Info", "Verification is currently disabled.");
+  };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "white" }}>
-      <View style={{ flex: 1, backgroundColor: "white" }}>
-        <View style={{ position: "relative", width: "100%", height: 250 }}>
-          <Image source={images.signUpCar} className="z-0 w-full h-[250px]" />
-
-          <Text
-            style={{
-              fontSize: 24,
-              color: "black",
-              fontWeight: "600",
-              position: "absolute",
-              bottom: 20,
-              left: 20,
-            }}
-          >
-            Create Your Account
-          </Text>
-        </View>
-        <View style={{ padding: 20 }}>
-          <InputField
-            label="Name"
-            placeholder="Enter name"
-            icon={icons.person}
-            value={form.name}
-            onChangeText={(value) => setForm({ ...form, name: value })}
-          />
-          <InputField
-            label="Email"
-            placeholder="Enter email"
-            icon={icons.email}
-            textContentType="emailAddress"
-            value={form.email}
-            onChangeText={(value) => setForm({ ...form, email: value })}
-          />
-          <InputField
-            label="Password"
-            placeholder="Enter password"
-            icon={icons.lock}
-            secureTextEntry={true}
-            textContentType="password"
-            value={form.password}
-            onChangeText={(value) => setForm({ ...form, password: value })}
-          />
-
-          {/* Rol Seçimi */}
-          <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 16, marginBottom: 8, color: "#333" }}>
-              Select Role:
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 10,
-                  backgroundColor: form.role === "user" ? "#6a11cb" : "#f5f5f5",
-                  alignItems: "center",
-                }}
-                onPress={() => setForm({ ...form, role: "user" })}
-              >
-                <Text
-                  style={{
-                    color: form.role === "user" ? "#fff" : "#333",
-                    fontWeight: "500",
-                  }}
-                >
-                  User
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 10,
-                  backgroundColor: form.role === "driver" ? "#6a11cb" : "#f5f5f5",
-                  alignItems: "center",
-                }}
-                onPress={() => setForm({ ...form, role: "driver" })}
-              >
-                <Text
-                  style={{
-                    color: form.role === "driver" ? "#fff" : "#333",
-                    fontWeight: "500",
-                  }}
-                >
-                  Driver
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <CustomButton
-            title="Sign Up"
-            onPress={onSignUpPress}
-            style={{ marginTop: 24 }}
-          />
-          <OAuth />
-          <Link
-            href="/sign-in"
-            style={{ fontSize: 18, textAlign: "center", color: "#666", marginTop: 40 }}
-          >
-            Already have an account?{" "}
-            <Text style={{ color: "#007bff" }}>Log In</Text>
-          </Link>
-        </View>
-        <ReactNativeModal
-          isVisible={verification.state === "pending"}
-          onModalHide={() => {
-            if (verification.state === "success") {
-              setShowSuccessModal(true);
-            }
-          }}
+    <ImageBackground 
+      source={images.signUpCar} 
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <LinearGradient
+        colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
+        style={styles.gradient}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.container}
         >
-          <View
-            style={{
-              backgroundColor: "white",
-              paddingHorizontal: 28,
-              paddingVertical: 36,
-              borderRadius: 16,
-              minHeight: 300,
-            }}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={styles.headerContainer}>
+              <Text style={styles.welcomeText}>Hesap Oluştur</Text>
+              <Text style={styles.subText}>Hemen kayıt olun ve başlayın</Text>
+            </View>
+
+            <View style={styles.formContainer}>
+              <View style={styles.inputContainer}>
+                <InputField
+                  label="Ad Soyad"
+                  placeholder="Adınızı girin"
+                  icon="person-outline"
+                  value={form.name}
+                  onChangeText={(value) => setForm({ ...form, name: value })}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <InputField
+                  label="E-posta"
+                  placeholder="E-posta adresinizi girin"
+                  icon="mail-outline"
+                  textContentType="emailAddress"
+                  value={form.email}
+                  onChangeText={(value) => setForm({ ...form, email: value })}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <View style={styles.passwordContainer}>
+                  <InputField
+                    label="Şifre"
+                    placeholder="Şifrenizi girin"
+                    icon="lock-closed-outline"
+                    secureTextEntry={!showPassword}
+                    textContentType="password"
+                    value={form.password}
+                    onChangeText={(value) => setForm({ ...form, password: value })}
+                    style={[styles.input, { paddingRight: 45 }]}
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeIcon}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons 
+                      name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                      size={20} 
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.roleContainer}>
+                <Text style={styles.roleTitle}>Hesap Türü</Text>
+                <View style={styles.roleButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      form.role === "user" && styles.roleButtonActive
+                    ]}
+                    onPress={() => setForm({ ...form, role: "user" })}
+                  >
+                    <Ionicons 
+                      name="person" 
+                      size={20} 
+                      color={form.role === "user" ? "#FFFFFF" : "#6B7280"} 
+                    />
+                    <Text style={[
+                      styles.roleButtonText,
+                      form.role === "user" && styles.roleButtonTextActive
+                    ]}>Kullanıcı</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      form.role === "driver" && styles.roleButtonActive
+                    ]}
+                    onPress={() => setForm({ ...form, role: "driver" })}
+                  >
+                    <Ionicons 
+                      name="car" 
+                      size={20} 
+                      color={form.role === "driver" ? "#FFFFFF" : "#6B7280"} 
+                    />
+                    <Text style={[
+                      styles.roleButtonText,
+                      form.role === "driver" && styles.roleButtonTextActive
+                    ]}>Sürücü</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.signUpButton}
+                onPress={onSignUpPress}
+              >
+                <LinearGradient
+                  colors={['#3B82F6', '#2563EB']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.signUpGradient}
+                >
+                  <Text style={styles.signUpText}>Kayıt Ol</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={styles.dividerContainer}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>veya</Text>
+                <View style={styles.divider} />
+              </View>
+
+              <OAuth />
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>
+                  Zaten hesabınız var mı?{" "}
+                  <Link href="/sign-in" style={styles.signInLink}>
+                    Giriş Yap
+                  </Link>
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+
+      <ReactNativeModal
+        isVisible={verification.state === "pending"}
+        style={styles.modal}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Doğrulama</Text>
+          <Text style={styles.modalText}>
+            {form.email} adresine doğrulama kodu gönderdik.
+          </Text>
+          <InputField
+            label="Kod"
+            placeholder="Doğrulama kodunu girin"
+            icon="key-outline"
+            value={verification.code}
+            keyboardType="numeric"
+            onChangeText={(code) => setVerification({ ...verification, code })}
+            style={styles.input}
+          />
+          {verification.error && (
+            <Text style={styles.errorText}>{verification.error}</Text>
+          )}
+          <TouchableOpacity
+            style={styles.verifyButton}
+            onPress={onPressVerify}
           >
-            <Text style={{ fontSize: 24, fontWeight: "bold", marginBottom: 8 }}>
-              Verification
-            </Text>
-            <Text style={{ marginBottom: 20 }}>
-              We've sent a verification code to {form.email}.
-            </Text>
-            <InputField
-              label={"Code"}
-              icon={icons.lock}
-              placeholder={"12345"}
-              value={verification.code}
-              keyboardType="numeric"
-              onChangeText={(code) => setVerification({ ...verification, code })}
-            />
-            {verification.error && (
-              <Text style={{ color: "red", fontSize: 14, marginTop: 4 }}>
-                {verification.error}
-              </Text>
-            )}
-            <CustomButton
-              title="Verify Email"
-              onPress={onPressVerify}
-              style={{ marginTop: 20, backgroundColor: "#28a745" }}
-            />
-          </View>
-        </ReactNativeModal>
-        <ReactNativeModal isVisible={showSuccessModal}>
-          <View className="bg-white px-7 py-9 rounded-2xl min-h-[300px]">
-            <Image
-              source={images.check}
-              className="w-[110px] h-[110px] mx-auto my-5"
-            />
-            <Text className="text-3xl font-JakartaBold text-center">Verified</Text>
-            <Text className="text-base text-gray-400 font-Jakarta text-center mt-2">
-              You have successfully verified your account.
-            </Text>
-            <CustomButton
-              title="Browse Home"
-              onPress={() => router.push(`/(root)/(tabs)/home`)}
-              className="mt-5"
-            />
-          </View>
-        </ReactNativeModal>
-      </View>
-    </ScrollView>
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.verifyGradient}
+            >
+              <Text style={styles.verifyText}>Doğrula</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </ReactNativeModal>
+    </ImageBackground>
   );
 };
+
+const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginVertical: 40,
+  },
+  welcomeText: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 8,
+  },
+  subText: {
+    fontSize: 16,
+    color: "#E5E7EB",
+    opacity: 0.8,
+  },
+  formContainer: {
+    backgroundColor: "rgba(214, 210, 210, 0.95)",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "rgba(10, 0, 0, 0.1)",
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    height: 50,
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: "#1F2937",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.1)",
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: [{ translateY: -10 }],
+    zIndex: 1,
+  },
+  roleContainer: {
+    marginBottom: 24,
+  },
+  roleTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B5563",
+    marginBottom: 8,
+  },
+  roleButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#F3F4F6",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.1)",
+  },
+  roleButtonActive: {
+    backgroundColor: "#3B82F6",
+  },
+  roleButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  roleButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  signUpButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 24,
+  },
+  signUpGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signUpText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  dividerText: {
+    color: "#6B7280",
+    paddingHorizontal: 16,
+    fontSize: 14,
+  },
+  footer: {
+    alignItems: "center",
+    marginTop: 1,
+  },
+  footerText: {
+    color: "#4B5563",
+    fontSize: 14,
+  },
+  signInLink: {
+    color: "#3B82F6",
+    fontWeight: "600",
+    padding: 10,
+  },
+  modal: {
+    margin: 0,
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.1)",
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 20,
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  verifyButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 20,
+  },
+  verifyGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifyText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
 
 export default SignUp;

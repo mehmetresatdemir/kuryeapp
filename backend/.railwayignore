@@ -1,0 +1,43 @@
+# Development dosyalar
+node_modules/
+.env.local
+.env.development
+*.log
+
+# Log dosyaları
+logs/
+*.log
+server.log
+
+# Test dosyaları
+test/
+*.test.js
+coverage/
+
+# Development araçları
+.git/
+.github/
+.vscode/
+.idea/
+
+# PM2 dosyaları
+ecosystem.config.js
+.pm2/
+
+# Yedek dosyalar
+*.backup
+*.bak
+*.tmp
+*.swp
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+
+# Documentation (deploy edilebilir ama gerekli değil)
+*.md
+docs/
+
+# Geçici upload dosyaları (uploads klasörü kalmalı ama içindeki geçici dosyalar hariç)
+uploads/*.tmp
+uploads/*.temp 

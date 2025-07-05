@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Status Test</title>
+</head>
+<body>
+    <h1>Admin Status Test</h1>
+    
+    <div>
+        <h3>API Durumu: <span id="apiStatus">🟡 Test ediliyor...</span></h3>
+        <h3>Veritabanı Durumu: <span id="databaseStatus">🟡 Test ediliyor...</span></h3>
+        <h3>Son Güncelleme: <span id="lastUpdate">-</span></h3>
+    </div>
+    
+    <div id="logs" style="margin-top: 20px; padding: 10px; background: #f0f0f0; height: 200px; overflow-y: auto;">
+        <h4>Loglar:</h4>
+    </div>
+
+    <script>
+        const API_BASE = 'http://red.enucuzal.com';
+        
+        function addLog(message) {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleString('tr-TR');
+            logsDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function checkSystemStatus() {
+            addLog('INFO: Sistem durumu kontrol ediliyor...');
+            
+            // API durumunu kontrol et
+            fetch(`${API_BASE}/api/health`)
+                .then(response => {
+                    addLog(`INFO: HTTP Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    addLog(`INFO: Response data: ${JSON.stringify(data, null, 2)}`);
+                    
+                    if (data.status === 'ok' && data.database && data.database.healthy) {
+                        document.getElementById('apiStatus').innerHTML = '🟢 Çalışıyor';
+                        document.getElementById('databaseStatus').innerHTML = '🟢 Çevrimiçi';
+                        addLog('SUCCESS: API ve veritabanı bağlantısı sağlıklı');
+                    } else {
+                        document.getElementById('apiStatus').innerHTML = '🔴 Hata';
+                        document.getElementById('databaseStatus').innerHTML = '🔴 Bağlantı Hatası';
+                        addLog('ERROR: API veya veritabanı bağlantısında sorun');
+                    }
+                })
+                .catch(error => {
+                    console.error('Health check error:', error);
+                    document.getElementById('apiStatus').innerHTML = '🔴 Offline';
+                    document.getElementById('databaseStatus').innerHTML = '🔴 Bağlantı Hatası';
+                    addLog('ERROR: API bağlantısı kurulamadı - ' + error.message);
+                });
+
+            // Son güncelleme zamanını ayarla
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString('tr-TR');
+        }
+        
+        // Sayfa yüklendiğinde test et
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('INFO: Sayfa yüklendi, test başlatılıyor...');
+            checkSystemStatus();
+        });
+        
+        // Her 10 saniyede bir test et
+        setInterval(checkSystemStatus, 10000);
+    </script>
+</body>
+</html> 

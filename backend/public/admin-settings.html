@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Settings</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { background: #5a67d8; }
+        .nav-link.active { background: #4c51bf; }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .card-title { font-size: 1.2rem; font-weight: 600; color: #333; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { 
+            display: block;
+            margin-bottom: 0.5rem; 
+            font-weight: 600; 
+            color: #374151; 
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .form-group small {
+            color: #666;
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 0.5rem;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .settings-section {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .settings-section h4 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #10b981;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .log-container {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .log-entry {
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+        .log-error { color: #ef4444; }
+        .log-warning { color: #f59e0b; }
+        .log-success { color: #10b981; }
+
+        /* Bildirim gönderme stilleri */
+        .status-display {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+
+        .recipient-count {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            text-align: center;
+        }
+
+        .status-display.success {
+            background: #f0fdf4;
+            border-color: #16a34a;
+            color: #16a34a;
+        }
+
+        .status-display.error {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+
+        .status-display.loading {
+            background: #fefce8;
+            border-color: #eab308;
+            color: #a16207;
+        }
+
+        .notification-preview {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+
+        .notification-preview h5 {
+            margin: 0 0 8px 0;
+            font-weight: 600;
+        }
+
+        .notification-preview p {
+            margin: 0;
+            color: #64748b;
+        }
+
+        #specificRecipients {
+            min-height: 120px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .timezone-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-badge.success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .time-display {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .time-display span {
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #059669;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="main-content">
+            <!-- Genel Ayarlar -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">⚙️ Genel Sistem Ayarları</h3>
+                    <button class="btn btn-success" onclick="saveGeneralSettings()">💾 Kaydet</button>
+                </div>
+                <div class="form-grid">
+                    <!-- Turkey time settings kaldırıldı - veritabanı artık Europe/Istanbul timezone'unda -->
+                </div>
+            </div>
+
+            <!-- Bildirim Ayarları -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🔔 Bildirim Ayarları</h3>
+                    <button class="btn btn-success" onclick="saveNotificationSettings()">💾 Kaydet</button>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>📱 Push Bildirimleri (Kurye & Restoran)</h4>
+                        <div class="form-group">
+                            <label>Yeni Sipariş Bildirimi</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="newOrderNotification" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>Sipariş Durum Değişikliği</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="statusChangeNotification" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>Kurye Atama Bildirimi</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="courierAssignNotification" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>Sipariş Yeniden Bildirim Süresi (dakika)</label>
+                            <input type="number" id="orderReminderTime" value="10" min="1" max="60">
+                            <small>Sipariş bu süre boyunca alınmazsa tekrar bildirim gönderilir</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Harita Ayarları -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🗺️ Harita Görünüm Ayarları</h3>
+                    <button class="btn btn-success" onclick="saveMapSettings()">💾 Kaydet</button>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>🎯 Odaklanma & Zoom</h4>
+                        <div class="form-group">
+                            <label>Otomatik Kurye Odaklanma</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoFocusCouriers" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <small>Kurye görünümünde haritayı otomatik olarak tüm kuryeleri gösterecek şekilde ayarla</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Harita Kenar Boşluğu (%)</label>
+                            <input type="range" id="mapPaddingPercent" min="5" max="30" value="10" oninput="updatePaddingValue()">
+                            <small>Değer: <span id="paddingValue">10</span>% - Kuryelerin harita kenarlarından uzaklığı</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Minimum Zoom Seviyesi</label>
+                            <input type="range" id="minZoomLevel" min="8" max="15" value="11" oninput="updateMinZoomValue()">
+                            <small>Değer: <span id="minZoomValue">11</span> - Harita ne kadar yakınlaşabilir (min)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Maksimum Zoom Seviyesi</label>
+                            <input type="range" id="maxZoomLevel" min="15" max="20" value="18" oninput="updateMaxZoomValue()">
+                            <small>Değer: <span id="maxZoomValue">18</span> - Harita ne kadar uzaklaşabilir (max)</small>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>⏱️ Kurye Durum Kontrolleri</h4>
+                        <div class="form-group">
+                            <label>Çevrimiçi Durumu Kontrol Süresi (dakika)</label>
+                            <input type="number" id="onlineCheckMinutes" value="5" min="1" max="60">
+                            <small>Kurye son ne kadar süre içinde aktif olmuşsa çevrimiçi sayılsın</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Harita Güncelleme Sıklığı (saniye)</label>
+                            <input type="number" id="mapRefreshInterval" value="30" min="10" max="300">
+                            <small>Haritadaki kurye konumları ne sıklıkla güncellensin</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Gelişmiş Kurye İkonları</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="advancedCourierIcons" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <small>Kurye durumuna göre özel icon ve animasyonlar göster</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kurye Ayarları -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🏍️ Kurye Yönetimi Ayarları</h3>
+                    <button class="btn btn-success" onclick="saveCourierSettings()">💾 Kaydet</button>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>👥 Kurye Limitleri & Davranışları</h4>
+                        <div class="form-group">
+                            <label>Kurye Başına Maksimum Sipariş</label>
+                            <input type="number" id="maxOrdersPerCourier" value="5" min="1" max="20">
+                            <small>Bir kuryenin aynı anda kaç sipariş alabileceği.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Yeni Sipariş Bloklama Süresi (saniye)</label>
+                            <input type="number" id="orderAcceptanceBlockTime" value="10" min="0" max="120">
+                            <small>Yeni sipariş düştükten sonra kuryelerin kabul etmesi için geçmesi gereken süre.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bildirim Gönderme -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📢 Bildirim Gönder</h3>
+                    <button class="btn btn-primary" onclick="sendNotification()">📤 Gönder</button>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>👥 Alıcı Seçimi</h4>
+                        <div class="form-group">
+                            <label>Bildirim Türü</label>
+                            <select id="notificationType" onchange="updateRecipientOptions()" class="form-control">
+                                <option value="couriers">🚚 Kuryelere</option>
+                                <option value="restaurants">🍽️ Restorantlara</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Alıcı Kapsamı</label>
+                            <select id="recipientScope" onchange="updateSpecificRecipients()" class="form-control">
+                                <option value="all">📡 Hepsine</option>
+                                <option value="online">🟢 Sadece Çevrimiçi Olanlara</option>
+                                <option value="specific">🎯 Belirli Kişilere</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="specificRecipientsGroup" style="display: none;">
+                            <label>Alıcıları Seçin</label>
+                            <select id="specificRecipients" multiple class="form-control" style="height: 120px;">
+                                <!-- Dinamik olarak doldurulacak -->
+                            </select>
+                            <small>Ctrl/Cmd tuşu ile birden fazla seçim yapabilirsiniz</small>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>📝 Bildirim İçeriği</h4>
+                        <div class="form-group">
+                            <label>Başlık</label>
+                            <input type="text" id="notificationTitle" placeholder="Bildirim başlığını girin..." class="form-control" maxlength="50">
+                            <small>Maksimum 50 karakter</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Mesaj</label>
+                            <textarea id="notificationMessage" placeholder="Bildirim mesajını girin..." class="form-control" rows="4" maxlength="200"></textarea>
+                            <small>Maksimum 200 karakter</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Öncelik Seviyesi</label>
+                            <select id="notificationPriority" class="form-control">
+                                <option value="normal">📋 Normal</option>
+                                <option value="high">⚠️ Yüksek</option>
+                                <option value="urgent">🚨 Acil</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="notificationSound" checked> 
+                                🔊 Ses ile birlikte gönder
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>📊 Gönderim Durumu</h4>
+                        <div id="notificationStatus" class="status-display">
+                            <span id="statusText">Bildirim gönderilmeyi bekliyor...</span>
+                        </div>
+                        <div id="recipientCount" class="recipient-count">
+                            <span>📊 Seçili alıcı sayısı: <strong id="selectedCount">0</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sistem Bilgileri -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">💾 Sistem Bilgileri & Bakım</h3>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>📊 Sistem Durumu</h4>
+                        <div class="form-group">
+                            <label>Veritabanı Durumu</label>
+                            <span id="databaseStatus" style="color: #10b981;">🟢 Çevrimiçi</span>
+                        </div>
+                        <div class="form-group">
+                            <label>API Durumu</label>
+                            <span id="apiStatus" style="color: #10b981;">🟢 Çalışıyor</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Socket.IO Durumu</label>
+                            <span id="socketStatus" style="color: #f59e0b;">🟡 Bağlanıyor...</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Son Güncelleme</label>
+                            <span id="lastUpdate">2024-01-15 14:30:00</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>🔧 Bakım İşlemleri</h4>
+                        <div class="form-group">
+                            <button class="btn btn-warning" onclick="clearCache()">🗑️ Önbellek Temizle</button>
+                            <small>Sistem önbelleğini temizler</small>
+                        </div>
+                        <div class="form-group">
+                            <button class="btn btn-primary" onclick="backupDatabase()">💾 Veritabanı Yedekle</button>
+                            <small>Veritabanının yedeğini oluşturur</small>
+                        </div>
+                        <div class="form-group">
+                            <button class="btn btn-danger" onclick="restartSystem()">🔄 Sistemi Yeniden Başlat</button>
+                            <small>Tüm servisleri yeniden başlatır</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sistem Logları -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📋 Sistem Logları</h3>
+                    <button class="btn btn-primary" onclick="refreshLogs()">🔄 Yenile</button>
+                </div>
+                <div class="log-container" id="systemLogs">
+                    <div class="log-entry">[2024-01-15 14:30:00] INFO: Sistem başlatıldı</div>
+                    <div class="log-entry log-success">[2024-01-15 14:30:15] SUCCESS: Veritabanı bağlantısı kuruldu</div>
+                    <div class="log-entry">[2024-01-15 14:30:30] INFO: Admin paneli yüklendi</div>
+                    <div class="log-entry log-warning">[2024-01-15 14:31:00] WARNING: Yüksek CPU kullanımı tespit edildi</div>
+                    <div class="log-entry">[2024-01-15 14:31:15] INFO: Yeni sipariş alındı #12345</div>
+                    <div class="log-entry log-success">[2024-01-15 14:31:30] SUCCESS: Kurye atandı</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+        const socket = io();
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            loadGeneralSettings();
+            loadNotificationSettings();
+            loadMapSettings();
+            loadCourierSettings();
+            updateSpecificRecipients(); // Initial load for notification recipients
+            
+            // Auto refresh time every 5 seconds
+            setInterval(testTimeSettings, 5000);
+            
+            // Initial status check
+            checkSystemStatus();
+            
+            // Auto refresh system status every 30 seconds
+            setInterval(checkSystemStatus, 30000);
+        });
+
+        // System status check
+        async function checkSystemStatus() {
+            try {
+                // Database status
+                const dbResponse = await fetch(`${API_BASE}/api/admin/status/database`, {
+                    headers: getAuthHeaders()
+                });
+                const dbData = await dbResponse.json();
+                document.getElementById('databaseStatus').innerHTML = dbData.success ? 
+                    '🟢 Çevrimiçi' : '🔴 Çevrimdışı';
+                document.getElementById('databaseStatus').style.color = dbData.success ? '#10b981' : '#ef4444';
+
+                // API status
+                const apiResponse = await fetch(`${API_BASE}/api/admin/status/api`, {
+                    headers: getAuthHeaders()
+                });
+                const apiData = await apiResponse.json();
+                document.getElementById('apiStatus').innerHTML = apiData.success ? 
+                    '🟢 Çalışıyor' : '🔴 Durduruldu';
+                document.getElementById('apiStatus').style.color = apiData.success ? '#10b981' : '#ef4444';
+
+                // Socket status
+                document.getElementById('socketStatus').innerHTML = socket.connected ? 
+                    '🟢 Bağlı' : '🔴 Bağlantı Kesildi';
+                document.getElementById('socketStatus').style.color = socket.connected ? '#10b981' : '#ef4444';
+
+                // Last update
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleString('tr-TR');
+
+            } catch (error) {
+                console.error('Sistem durumu kontrol edilirken hata:', error);
+            }
+        }
+
+        // Timestamp operations use database timezone directly
+        async function loadGeneralSettings() {
+            // Timestamp operations use database timezone directly
+        }
+
+        async function saveGeneralSettings() {
+            alert('Veritabanı zaten Europe/Istanbul timezone\'u kullanıyor!');
+        }
+
+        // Zaman Ayarlarını Test Et - İyileştirilmiş versiyon
+        async function testTimeSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/time-status`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Timestamp operations use database timezone directly
+                    const now = new Date();
+                    document.getElementById('databaseTime').textContent = now.toLocaleTimeString('tr-TR');
+                    // turkeyTime element removed - using database timezone directly
+                    document.getElementById('adjustedTime').textContent = now.toLocaleTimeString('tr-TR');
+                    document.getElementById('timeDifferenceStatus').textContent = 'Veritabanı Europe/Istanbul timezone kullanıyor';
+                } else {
+                    // Timestamp operations use database timezone directly
+                    const now = new Date();
+                    document.getElementById('databaseTime').textContent = now.toLocaleTimeString('tr-TR');
+                    // turkeyTime element removed - using database timezone directly
+                    document.getElementById('adjustedTime').textContent = now.toLocaleTimeString('tr-TR');
+                    document.getElementById('timeDifferenceStatus').textContent = 'Veritabanı Europe/Istanbul timezone kullanıyor';
+                }
+            } catch (error) {
+                // Timestamp operations use database timezone directly
+                const now = new Date();
+                document.getElementById('databaseTime').textContent = now.toLocaleTimeString('tr-TR');
+                // turkeyTime element removed - using database timezone directly
+                document.getElementById('adjustedTime').textContent = now.toLocaleTimeString('tr-TR');
+                document.getElementById('timeDifferenceStatus').textContent = 'Veritabanı Europe/Istanbul timezone kullanıyor';
+            }
+        }
+
+        // Bildirim Ayarlarını Yükle
+        async function loadNotificationSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/notifications`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    document.getElementById('newOrderNotification').checked = data.settings.new_order_notification !== false;
+                    document.getElementById('statusChangeNotification').checked = data.settings.status_change_notification !== false;
+                    document.getElementById('courierAssignNotification').checked = data.settings.courier_assign_notification !== false;
+                    document.getElementById('orderReminderTime').value = data.settings.order_reminder_time || 10;
+                }
+            } catch (error) {
+                console.error('Bildirim ayarları yüklenirken hata:', error);
+                // Set default values
+                document.getElementById('newOrderNotification').checked = true;
+                document.getElementById('statusChangeNotification').checked = true;
+                document.getElementById('courierAssignNotification').checked = true;
+                document.getElementById('orderReminderTime').value = 10;
+            }
+        }
+
+        // Bildirim Ayarlarını Kaydet
+        async function saveNotificationSettings() {
+            const settings = {
+                new_order_notification: document.getElementById('newOrderNotification').checked,
+                status_change_notification: document.getElementById('statusChangeNotification').checked,
+                courier_assign_notification: document.getElementById('courierAssignNotification').checked,
+                order_reminder_time: parseInt(document.getElementById('orderReminderTime').value)
+            };
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/notifications`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(settings)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Bildirim ayarları başarıyla kaydedildi!');
+                } else {
+                    alert('Ayarlar kaydedilirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Bildirim ayarları kaydedilirken ağ hatası:', error);
+                alert('Bir ağ hatası oluştu.');
+            }
+        }
+
+        // Harita Ayarlarını Yükle
+        async function loadMapSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/map`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    document.getElementById('autoFocusCouriers').checked = data.settings.auto_focus_couriers !== false;
+                    document.getElementById('mapPaddingPercent').value = data.settings.map_padding_percent || 10;
+                    document.getElementById('minZoomLevel').value = data.settings.min_zoom_level || 11;
+                    document.getElementById('maxZoomLevel').value = data.settings.max_zoom_level || 18;
+                    document.getElementById('onlineCheckMinutes').value = data.settings.online_check_minutes || 5;
+                    document.getElementById('mapRefreshInterval').value = data.settings.map_refresh_interval || 30;
+                    document.getElementById('advancedCourierIcons').checked = data.settings.advanced_courier_icons !== false;
+                    updatePaddingValue();
+                    updateMinZoomValue();
+                    updateMaxZoomValue();
+                }
+            } catch (error) {
+                console.error('Harita ayarları yüklenirken hata:', error);
+                // Set default values
+                document.getElementById('autoFocusCouriers').checked = true;
+                document.getElementById('mapPaddingPercent').value = 10;
+                document.getElementById('minZoomLevel').value = 11;
+                document.getElementById('maxZoomLevel').value = 18;
+                document.getElementById('onlineCheckMinutes').value = 5;
+                document.getElementById('mapRefreshInterval').value = 30;
+                document.getElementById('advancedCourierIcons').checked = true;
+                updatePaddingValue();
+                updateMinZoomValue();
+                updateMaxZoomValue();
+            }
+        }
+
+        // Harita Ayarlarını Kaydet
+        async function saveMapSettings() {
+            const settings = {
+                auto_focus_couriers: document.getElementById('autoFocusCouriers').checked,
+                map_padding_percent: parseInt(document.getElementById('mapPaddingPercent').value),
+                min_zoom_level: parseInt(document.getElementById('minZoomLevel').value),
+                max_zoom_level: parseInt(document.getElementById('maxZoomLevel').value),
+                online_check_minutes: parseInt(document.getElementById('onlineCheckMinutes').value),
+                map_refresh_interval: parseInt(document.getElementById('mapRefreshInterval').value),
+                advanced_courier_icons: document.getElementById('advancedCourierIcons').checked
+            };
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/map`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(settings)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Harita ayarları başarıyla kaydedildi!');
+                } else {
+                    alert('Ayarlar kaydedilirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Harita ayarları kaydedilirken ağ hatası:', error);
+                alert('Bir ağ hatası oluştu.');
+            }
+        }
+
+        // Kurye Ayarlarını Yükle
+        async function loadCourierSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/courier`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    document.getElementById('maxOrdersPerCourier').value = data.settings.max_orders_per_courier || 5;
+                    document.getElementById('orderAcceptanceBlockTime').value = data.settings.order_acceptance_block_time || 10;
+                }
+            } catch (error) {
+                console.error('Kurye ayarları yüklenirken hata:', error);
+                // Set default values
+                document.getElementById('maxOrdersPerCourier').value = 5;
+                document.getElementById('orderAcceptanceBlockTime').value = 10;
+            }
+        }
+
+        // Kurye Ayarlarını Kaydet - İyileştirilmiş versiyon
+        async function saveCourierSettings() {
+            const maxOrders = parseInt(document.getElementById('maxOrdersPerCourier').value);
+            const blockTime = parseInt(document.getElementById('orderAcceptanceBlockTime').value);
+            
+            const settings = {
+                max_orders_per_courier: maxOrders,
+                order_acceptance_block_time: blockTime
+            };
+            
+            try {
+                console.log('Kurye ayarları kaydediliyor:', settings);
+                
+                const response = await fetch(`${API_BASE}/api/admin/settings/courier`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                console.log('Kurye ayarları kaydet yanıtı:', data);
+                
+                if (data.success) {
+                    alert(`Kurye ayarları başarıyla kaydedildi!\nMaksimum sipariş: ${maxOrders}\nBloklama süresi: ${blockTime} saniye`);
+                    
+                    // Tüm bağlı kuryelere yeni ayarları gönder
+                    socket.emit('admin_settings_updated', {
+                        type: 'courier_settings',
+                        settings: settings
+                    });
+                    
+                } else {
+                    alert('Ayarlar kaydedilirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Kurye ayarları kaydedilirken ağ hatası:', error);
+                alert('Bir ağ hatası oluştu.');
+            }
+        }
+
+        // Bildirim gönderme fonksiyonu
+        async function sendNotification() {
+            const type = document.getElementById('notificationType').value;
+            const scope = document.getElementById('recipientScope').value;
+            const title = document.getElementById('notificationTitle').value;
+            const message = document.getElementById('notificationMessage').value;
+            const priority = document.getElementById('notificationPriority').value;
+            const withSound = document.getElementById('notificationSound').checked;
+            const specificRecipients = Array.from(document.getElementById('specificRecipients').selectedOptions).map(option => option.value);
+
+            if (!title || !message) {
+                alert('Başlık ve mesaj boş bırakılamaz.');
+                return;
+            }
+
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = 'Gönderiliyor...';
+            statusText.parentElement.className = 'status-display loading';
+
+            const payload = {
+                type, scope, title, message, priority, withSound
+            };
+
+            if (scope === 'specific') {
+                payload.recipients = specificRecipients;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/send-notification`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    statusText.textContent = `Bildirim başarıyla gönderildi! (${data.sentCount || 0} kişiye)`;
+                    statusText.parentElement.className = 'status-display success';
+                } else {
+                    statusText.textContent = `Bildirim gönderilirken hata: ${data.message || 'Bilinmeyen hata'}`;
+                    statusText.parentElement.className = 'status-display error';
+                }
+            } catch (error) {
+                console.error('Bildirim gönderilirken ağ hatası:', error);
+                statusText.textContent = 'Bildirim gönderilirken ağ hatası oluştu.';
+                statusText.parentElement.className = 'status-display error';
+            }
+        }
+
+        // Alıcı seçeneklerini güncelle (kuryeler/restoranlar)
+        async function updateRecipientOptions() {
+            const notificationType = document.getElementById('notificationType').value;
+            const specificRecipientsSelect = document.getElementById('specificRecipients');
+            specificRecipientsSelect.innerHTML = ''; // Clear existing options
+
+            try {
+                const endpoint = notificationType === 'couriers' ? `${API_BASE}/api/admin/couriers` : `${API_BASE}/api/admin/restaurants-for-admin`;
+                const response = await fetch(endpoint, { headers: getAuthHeaders() });
+                const data = await response.json();
+
+                if (data.success) {
+                    data.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = item.name || item.firma_adi; // Adjust based on data structure
+                        specificRecipientsSelect.appendChild(option);
+                    });
+                } else {
+                    console.error('Alıcılar yüklenirken hata:', data.message);
+                }
+            } catch (error) {
+                console.error('Alıcılar yüklenirken ağ hatası:', error);
+            }
+            updateSpecificRecipients(); // Update visibility and count
+        }
+
+        // Belirli alıcılar seçimi görünürlüğünü ve sayısını güncelle
+        function updateSpecificRecipients() {
+            const scope = document.getElementById('recipientScope').value;
+            const specificGroup = document.getElementById('specificRecipientsGroup');
+            const selectedCountSpan = document.getElementById('selectedCount');
+            const specificRecipientsSelect = document.getElementById('specificRecipients');
+
+            if (scope === 'specific') {
+                specificGroup.style.display = 'block';
+                selectedCountSpan.textContent = specificRecipientsSelect.selectedOptions.length;
+            } else {
+                specificGroup.style.display = 'none';
+                selectedCountSpan.textContent = 'Tümü';
+            }
+        }
+
+        // Event listener for specificRecipients selection change
+        document.getElementById('specificRecipients').addEventListener('change', () => {
+            updateSpecificRecipients();
+        });
+
+        // Önbellek temizle
+        async function clearCache() {
+            if (!confirm('Sistem önbelleğini temizlemek istediğinizden emin misiniz? Bu işlem sistem performansını geçici olarak etkileyebilir.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/maintenance/clear-cache`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Önbellek başarıyla temizlendi!');
+                    refreshLogs();
+                } else {
+                    alert('Önbellek temizlenirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Önbellek temizlenirken ağ hatası:', error);
+                alert('Önbellek temizlenirken bir ağ hatası oluştu.');
+            }
+        }
+
+        // Veritabanı yedekle
+        async function backupDatabase() {
+            if (!confirm('Veritabanının yedeğini oluşturmak istediğinizden emin misiniz? Bu işlem zaman alabilir.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/maintenance/backup-database`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert(`Veritabanı yedeği başarıyla oluşturuldu!\nYedek dosyası: ${data.backupFile || 'backup.sql'}`);
+                    refreshLogs();
+                } else {
+                    alert('Veritabanı yedeklenirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Veritabanı yedeklenirken ağ hatası:', error);
+                alert('Veritabanı yedeklenirken bir ağ hatası oluştu.');
+            }
+        }
+
+        // Sistemi yeniden başlat
+        async function restartSystem() {
+            if (!confirm('Tüm servisleri yeniden başlatmak istediğinizden emin misiniz? Bu işlem sırasında sistem erişilemez olacak.')) {
+                return;
+            }
+            
+            const secondConfirm = confirm('DİKKAT: Bu işlem tüm aktif bağlantıları keser ve sistemi yeniden başlatır. Emin misiniz?');
+            if (!secondConfirm) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/maintenance/restart-system`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Sistem yeniden başlatılıyor... Lütfen birkaç dakika bekleyin ve sayfayı yenileyin.');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    alert('Sistem yeniden başlatılırken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Sistem yeniden başlatılırken ağ hatası:', error);
+                alert('Sistem yeniden başlatılırken bir ağ hatası oluştu.');
+            }
+        }
+
+        // Logları yenile
+        async function refreshLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/logs`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                const logContainer = document.getElementById('systemLogs');
+                if (data.success && data.logs) {
+                    logContainer.innerHTML = '';
+                    data.logs.forEach(log => {
+                        const logEntry = document.createElement('div');
+                        logEntry.className = `log-entry ${log.type || ''}`;
+                        logEntry.textContent = `[${log.timestamp}] ${log.level || 'INFO'}: ${log.message}`;
+                        logContainer.appendChild(logEntry);
+                    });
+                    logContainer.scrollTop = logContainer.scrollHeight; // Scroll to bottom
+                } else {
+                    logContainer.innerHTML = '<div class="log-entry log-error">Loglar yüklenemedi: ' + (data.message || 'Bilinmeyen hata') + '</div>';
+                }
+            } catch (error) {
+                console.error('Loglar yüklenirken ağ hatası:', error);
+                const logContainer = document.getElementById('systemLogs');
+                logContainer.innerHTML = '<div class="log-entry log-error">Loglar yüklenirken ağ hatası oluştu.</div>';
+            }
+        }
+
+        // Range input value updates
+        function updatePaddingValue() {
+            document.getElementById('paddingValue').textContent = document.getElementById('mapPaddingPercent').value;
+        }
+        function updateMinZoomValue() {
+            document.getElementById('minZoomValue').textContent = document.getElementById('minZoomLevel').value;
+        }
+        function updateMaxZoomValue() {
+            document.getElementById('maxZoomValue').textContent = document.getElementById('maxZoomLevel').value;
+        }
+
+        // Socket.IO event listeners
+        socket.on('connect', () => {
+            console.log('Socket.IO bağlantısı kuruldu');
+            checkSystemStatus();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Socket.IO bağlantısı kesildi');
+            checkSystemStatus();
+        });
+
+        socket.on('system_log', (logData) => {
+            const logContainer = document.getElementById('systemLogs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${logData.type || ''}`;
+            logEntry.textContent = `[${new Date().toLocaleString('tr-TR')}] ${logData.level || 'INFO'}: ${logData.message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
+    </script>
+</body>
+</html> 

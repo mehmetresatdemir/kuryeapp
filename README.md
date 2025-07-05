@@ -1,50 +1,61 @@
-# Welcome to your Expo app 👋
+# Bursa-Go 🛵
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Bursa için kurye ve teslimat uygulaması. React Native (Expo) ile geliştirilmiş modern bir kurye hizmeti platformu.
 
-## Get started
+## Özellikler
 
-1. Install dependencies
+- 📱 **Restoran Uygulaması**: Siparişlerin oluşturulması ve yönetimi
+- 🛵 **Kurye Uygulaması**: Sipariş kabul etme ve teslimat süreci
+- 🗺️ **Harita Entegrasyonu**: Google Maps ile gerçek zamanlı lokasyon takibi
+- 💬 **Anlık Bildirimler**: Socket.io ile gerçek zamanlı iletişim
+- 💳 **Ödeme Seçenekleri**: Nakit, kredi kartı ve hediye çeki desteği
+- 📊 **Dashboard**: Kazanç takibi ve sipariş istatistikleri
 
+## Kurulum
+
+1. Bağımlılıkları yükleyin:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. Backend'i başlatın:
    ```bash
-    npx expo start
+   cd backend
+   node index.js
    ```
 
-In the output, you'll find options to open the app in a
+3. Uygulamayı başlatın:
+   ```bash
+   npx expo start
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Kullanım
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **iOS Simulator**: `i` tuşuna basın
+- **Android Emulator**: `a` tuşuna basın
+- **Expo Go**: QR kodu tarayın
 
-## Get a fresh project
+## Teknolojiler
 
-When you're ready, run:
+- React Native (Expo)
+- TypeScript
+- Node.js & Express
+- PostgreSQL (Neon)
+- Socket.io
+- Google Maps API
+- Expo Notifications
 
-```bash
-npm run reset-project
+## Proje Yapısı
+
+```
+/app          # React Native uygulama kodu
+/backend      # Node.js backend servisi
+/assets       # Resim ve icon dosyaları
+/components   # Yeniden kullanılabilir bileşenler
+/constants    # API endpoints ve sabitler
+/types        # TypeScript type tanımları
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Lisans
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Bu proje özel kullanım içindir.

@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Restaurants</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { background: #5a67d8; }
+        .nav-link.active { background: #4c51bf; }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .card-title { font-size: 1.2rem; font-weight: 600; color: #333; }
+        .table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background: #f8fafc;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+        }
+        td { padding: 0.75rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .btn {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 0.25rem;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .refresh-btn:hover { background: #059669; }
+        .actions { display: flex; gap: 0.5rem; }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: black; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .form-group label { font-weight: 600; color: #374151; }
+        .form-group input, .form-group select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .delivery-area-form {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border: 1px solid #e5e7eb;
+        }
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .badge-active { background: #d1fae5; color: #065f46; }
+        .badge-inactive { background: #fee2e2; color: #991b1b; }
+        .loading { text-align: center; color: #666; font-style: italic; }
+        
+        /* Map container */
+        .map-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .left-panel {
+            width: 100%;
+        }
+        .right-panel {
+            width: 100%;
+        }
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .location-info {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border: 1px solid #e5e7eb;
+        }
+        .location-badge {
+            background: #10b981;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .location-none {
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .btn-location {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-location:hover {
+            background: #d97706;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+    <!-- Google Maps API script will be loaded dynamically -->
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="main-content">
+            <div class="map-container">
+                <div class="left-panel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🏪 Restoran Listesi</h3>
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="refresh-btn" onclick="loadRestaurants()">🔄 Yenile</button>
+                                <button class="btn btn-success" onclick="showAddRestaurantModal()">➕ Restoran Ekle</button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Restoran Adı</th>
+                                        <th>Email</th>
+                                        <th>Şifre</th>
+                                        <th>Phone</th>
+                                        <th>Yetkili</th>
+                                        <th>Konum</th>
+                                        <th>Teslimat Alanları</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="restaurantsTable">
+                                    <tr><td colspan="9" class="loading">Yükleniyor...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="right-panel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🗺️ Restoran Konumları</h3>
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="refresh-btn" onclick="loadRestaurantMarkers()">🔄 Yenile</button>
+                            </div>
+                        </div>
+                        <div id="map"></div>
+                        <div class="location-info">
+                            <p><strong>📍 Kullanım:</strong> Haritada kırmızı işaretler restoranları gösterir. Restoran seçip konum atamak için işlemler bölümündeki "📍 Konum" butonunu kullanın.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Restaurant Modal -->
+        <div id="restaurantModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeRestaurantModal()">&times;</span>
+                <h3 id="restaurantModalTitle">Restoran Ekle</h3>
+                <form id="restaurantForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Restoran Adı</label>
+                            <input type="text" id="restaurantName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Yetkili Kişi</label>
+                            <input type="text" id="restaurantYetkili" placeholder="Yetkili kişi adı">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="text" id="addRestaurantPhone" placeholder="Phone Number" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="restaurantEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Şifre</label>
+                            <input type="password" id="restaurantPassword" required>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                        <button type="submit" class="btn btn-success" id="saveRestaurantBtn">💾 Kaydet</button>
+                        <button type="button" class="btn btn-danger" onclick="closeRestaurantModal()">❌ İptal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delivery Areas Management Modal -->
+        <div id="deliveryAreasModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeDeliveryAreasModal()">&times;</span>
+                <h3 id="deliveryAreasModalTitle">Teslimat Alanları Yönetimi</h3>
+                
+                <div style="margin-bottom: 2rem;">
+                    <button class="btn btn-success" onclick="showAddDeliveryAreaForm()">➕ Yeni Alan Ekle</button>
+                </div>
+
+                <!-- Add New Delivery Area Form -->
+                <div id="addDeliveryAreaForm" class="delivery-area-form" style="display: none;">
+                    <h4>Yeni Teslimat Alanı Ekle</h4>
+                    <form id="deliveryAreaForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Mahalle Adı</label>
+                                <input type="text" id="neighborhoodName" placeholder="Örn: Kadıköy, Üsküdar..." required>
+                            </div>
+                            <div class="form-group">
+                                <label>Kurye Ücreti (₺)</label>
+                                <input type="number" id="courierPrice" step="0.1" min="0" placeholder="0.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Restoran Ücreti (₺)</label>
+                                <input type="number" id="deliveryPrice" step="0.1" min="0" placeholder="0.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="isDeliveryAvailable" checked>
+                                    Teslimat Aktif
+                                </label>
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                            <button type="submit" class="btn btn-success">💾 Kaydet</button>
+                            <button type="button" class="btn btn-danger" onclick="hideAddDeliveryAreaForm()">❌ İptal</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Delivery Areas List -->
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mahalle</th>
+                                <th>Restoran Ücreti</th>
+                                <th>Kurye Ücreti</th>
+                                <th>Tahmini Süre</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deliveryAreasTable">
+                            <tr><td colspan="6" class="loading">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Delivery Area Modal -->
+        <div id="editDeliveryAreaModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeEditDeliveryAreaModal()">&times;</span>
+                <h3>Teslimat Alanı Düzenle</h3>
+                <form id="editDeliveryAreaForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Mahalle Adı</label>
+                            <input type="text" id="editNeighborhoodName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Restoran Ücreti (₺)</label>
+                            <input type="number" id="editDeliveryPrice" step="0.1" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Kurye Ücreti (₺)</label>
+                            <input type="number" id="editCourierPrice" step="0.1" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="editIsDeliveryAvailable">
+                                Teslimat Aktif
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                        <button type="submit" class="btn btn-success">💾 Güncelle</button>
+                        <button type="button" class="btn btn-danger" onclick="closeEditDeliveryAreaModal()">❌ İptal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Location Picker Modal -->
+        <div id="locationPickerModal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <span class="close" onclick="closeLocationPickerModal()">&times;</span>
+                <h3 id="locationPickerTitle">📍 Restoran Konumu Seç</h3>
+                <div style="margin-bottom: 1rem;">
+                    <p><strong>Adres Arama:</strong></p>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <input type="text" id="addressSearch" placeholder="Adres yazın (örn: Kadıköy İstanbul)" style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                        <button type="button" class="btn btn-primary" onclick="searchAddress()">🔍 Ara</button>
+                    </div>
+                </div>
+                
+                <div id="locationMap" style="height: 400px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1rem;"></div>
+                
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <p><strong>Seçilen Konum:</strong></p>
+                    <div id="selectedLocationInfo">
+                        <p>📍 Haritadan bir nokta seçin</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-success" onclick="saveRestaurantLocation()" id="saveLocationBtn" disabled>💾 Konumu Kaydet</button>
+                    <button type="button" class="btn btn-danger" onclick="closeLocationPickerModal()">❌ İptal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+        const socket = io();
+        let currentRestaurantId = null;
+        let currentEditAreaId = null;
+        let currentEditingRestaurantId = null; // For editing restaurant
+        let map, locationPickerMap;
+        let restaurantMarkers = [];
+        let selectedLocation = null;
+        let locationPickerMarker = null;
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        // Google Maps API'sini dinamik olarak yükle
+        async function loadGoogleMapsScript() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`);
+                const data = await response.json();
+
+                if (data.success && data.key) {
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=geometry,places&callback=initMap`;
+                    script.async = true;
+                    script.defer = true;
+                    document.head.appendChild(script);
+                    console.log('Google Maps API script başarıyla yüklendi.');
+                } else {
+                    console.error('Google Maps API anahtarı backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    // Fallback or error handling for map initialization
+                    initMap(); // Attempt to initialize map even without key for basic functionality/error state
+                }
+            } catch (error) {
+                console.error('Google Maps API script yüklenirken hata oluştu:', error);
+                initMap(); // Attempt to initialize map even on script loading error
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            loadRestaurants();
+            loadGoogleMapsScript(); // Load Google Maps script dynamically after API_BASE is set
+        });
+
+        // Restoranları yükle
+        function loadRestaurants() {
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        displayRestaurants(data.data);
+                    } else {
+                        throw new Error(data.message || 'Bilinmeyen hata');
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoranlar yüklenirken hata:', error);
+                    document.getElementById('restaurantsTable').innerHTML = 
+                        '<tr><td colspan="9" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
+                });
+        }
+
+        // Restoranları göster
+        function displayRestaurants(restaurants) {
+            const tbody = document.getElementById('restaurantsTable');
+            
+            if (restaurants.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="loading">Restoran bulunamadı</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = restaurants.map(restaurant => {
+                console.log('DEBUG: restaurant.id before parseInt:', restaurant.id, typeof restaurant.id);
+                return `
+                <tr>
+                    <td>${restaurant.id}</td>
+                    <td>${restaurant.firma_adi}</td>
+                    <td>${restaurant.email}</td>
+                    <td>
+                        <button class="btn" style="background: #667eea; color: white; padding: 3px 6px; font-size: 0.7rem;" onclick="showRestaurantPassword(${restaurant.id}, '${restaurant.password || 'Şifre yok'}')" title="Şifreyi Göster">👁️</button>
+                    </td>
+                    <td>${restaurant.phone || 'Not specified'}</td>
+                    <td>${restaurant.yetkili_name || '<span style="color: #999;">Not specified</span>'}</td>
+                    <td>
+                        ${restaurant.latitude && restaurant.longitude ? 
+                            `<span class="location-badge">📍 ${parseFloat(restaurant.latitude).toFixed(6)}, ${parseFloat(restaurant.longitude).toFixed(6)}</span>` :
+                            `<span class="location-none">❌ Konum Yok</span>`
+                        }
+                    </td>
+                    <td>
+                        <span style="background: #e0f2fe; color: #0277bd; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
+                            ${restaurant.delivery_areas_count} alan
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-location" onclick="openLocationPicker(parseInt(${restaurant.id}), '${restaurant.firma_adi}')" title="Konum Seç">
+                            📍 Konum
+                        </button>
+                        <button class="btn btn-primary" onclick="manageDeliveryAreas(parseInt(${restaurant.id}), '${restaurant.firma_adi}')" title="Teslimat Alanları">
+                            🚚 Alan
+                        </button>
+                        <button class="btn btn-warning" onclick="editRestaurant(${restaurant.id})" title="Düzenle">
+                            ✏️
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteRestaurant(${restaurant.id})" title="Sil">
+                            🗑️
+                        </button>
+                    </td>
+                </tr>`
+            }).join('');
+        }
+
+        // Teslimat alanları yönetimi
+        function manageDeliveryAreas(restaurantId, restaurantName) {
+            currentRestaurantId = restaurantId;
+            document.getElementById('deliveryAreasModalTitle').textContent = `Teslimat Alanları - ${restaurantName}`;
+            document.getElementById('deliveryAreasModal').style.display = 'block';
+            loadDeliveryAreas(restaurantId);
+        }
+
+        // Teslimat alanlarını yükle
+        function loadDeliveryAreas(restaurantId) {
+            console.log('Loading delivery areas for restaurant:', restaurantId);
+            fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}/neighborhoods`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received delivery areas data:', data);
+                    if (data.success) {
+                        displayDeliveryAreas(data.data);
+                    } else {
+                        throw new Error(data.message || 'Bilinmeyen hata');
+                    }
+                })
+                .catch(error => {
+                    console.error('Teslimat alanları yüklenirken hata:', error);
+                    document.getElementById('deliveryAreasTable').innerHTML = 
+                        '<tr><td colspan="6" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
+                });
+        }
+
+        // Teslimat alanlarını göster
+        function displayDeliveryAreas(areas) {
+            console.log('Displaying delivery areas:', areas);
+            const tbody = document.getElementById('deliveryAreasTable');
+            
+            if (!areas || areas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading">Teslimat alanı bulunamadı</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = areas.map(area => `
+                <tr>
+                    <td>${area.neighborhood_name}</td>
+                    <td>₺${parseFloat(area.restaurant_price || 0).toFixed(2)}</td>
+                    <td>₺${parseFloat(area.courier_price || 0).toFixed(2)}</td>
+                    <td>
+                        <span class="badge ${area.is_delivery_available ? 'badge-active' : 'badge-inactive'}">
+                            ${area.is_delivery_available ? 'Aktif' : 'Pasif'}
+                        </span>
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-warning" onclick="editDeliveryArea(${area.id})" title="Düzenle">
+                            ✏️
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteDeliveryArea(${area.id})" title="Sil">
+                            🗑️
+                        </button>
+                    </td>
+                </tr>`
+            ).join('');
+        }
+
+        // Yeni teslimat alanı ekleme formu göster
+        function showAddDeliveryAreaForm() {
+            document.getElementById('addDeliveryAreaForm').style.display = 'block';
+        }
+
+        function hideAddDeliveryAreaForm() {
+            document.getElementById('addDeliveryAreaForm').style.display = 'none';
+            document.getElementById('deliveryAreaForm').reset();
+        }
+
+        // Teslimat alanı ekleme form submit
+        document.getElementById('deliveryAreaForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                neighborhood_name: document.getElementById('neighborhoodName').value,
+                restaurant_price: parseFloat(document.getElementById('deliveryPrice').value) || 0,
+                courier_price: parseFloat(document.getElementById('courierPrice').value) || 0,
+                is_delivery_available: document.getElementById('isDeliveryAvailable').checked
+            };
+
+            console.log('Submitting delivery area form:', formData);
+
+            fetch(`${API_BASE}/api/admin/restaurants/${currentRestaurantId}/delivery-areas`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP hata! Durum: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Server response:', data);
+                if (data.success) {
+                    alert(data.message || 'Teslimat alanı başarıyla eklendi');
+                    hideAddDeliveryAreaForm();
+                    loadDeliveryAreas(currentRestaurantId);
+                } else {
+                    alert(data.message || 'Hata oluştu');
+                }
+            })
+            .catch(error => {
+                console.error('Teslimat alanı ekleme hatası:', error);
+                alert('Bir hata oluştu: ' + error.message);
+            });
+        });
+
+        // Teslimat alanı düzenle
+        function editDeliveryArea(areaId) {
+            console.log('Editing delivery area:', areaId);
+            currentEditAreaId = areaId;
+            
+            // Önce mevcut alanları bul
+            const rows = document.querySelectorAll('#deliveryAreasTable tr');
+            let foundArea = null;
+            
+            rows.forEach(row => {
+                const editBtn = row.querySelector(`button[onclick="editDeliveryArea(${areaId})"]`);
+                if (editBtn) {
+                    const cells = row.querySelectorAll('td');
+                    foundArea = {
+                        neighborhood_name: cells[0].textContent,
+                        restaurant_price: parseFloat(cells[1].textContent.replace('₺', '')),
+                        courier_price: parseFloat(cells[2].textContent.replace('₺', '')),
+                        is_delivery_available: cells[3].querySelector('.badge-active') !== null
+                    };
+                }
+            });
+            
+            if (foundArea) {
+                document.getElementById('editNeighborhoodName').value = foundArea.neighborhood_name;
+                document.getElementById('editDeliveryPrice').value = foundArea.restaurant_price;
+                document.getElementById('editCourierPrice').value = foundArea.courier_price;
+                document.getElementById('editIsDeliveryAvailable').checked = foundArea.is_delivery_available;
+                document.getElementById('editDeliveryAreaModal').style.display = 'block';
+            }
+        }
+
+        // Teslimat alanı güncelleme form submit
+        document.getElementById('editDeliveryAreaForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                neighborhood_name: document.getElementById('editNeighborhoodName').value,
+                restaurant_price: parseFloat(document.getElementById('editDeliveryPrice').value) || 0,
+                courier_price: parseFloat(document.getElementById('editCourierPrice').value) || 0,
+                is_delivery_available: document.getElementById('editIsDeliveryAvailable').checked
+            };
+
+            fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${currentEditAreaId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP hata! Durum: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert(data.message || 'Teslimat alanı başarıyla güncellendi');
+                    closeEditDeliveryAreaModal();
+                    loadDeliveryAreas(currentRestaurantId);
+                } else {
+                    alert(data.message || 'Hata oluştu');
+                }
+            })
+            .catch(error => {
+                console.error('Teslimat alanı güncelleme hatası:', error);
+                alert('Bir hata oluştu: ' + error.message);
+            });
+        });
+
+        // Teslimat alanı sil
+        function deleteDeliveryArea(areaId) {
+            if (confirm('Bu teslimat alanını silmek istediğinizden emin misiniz?')) {
+                fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${areaId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Teslimat alanı başarıyla silindi');
+                        loadDeliveryAreas(currentRestaurantId);
+                    } else {
+                        alert(data.message || 'Hata oluştu');
+                    }
+                })
+                .catch(error => {
+                    console.error('Teslimat alanı silme hatası:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                });
+            }
+        }
+
+        // Harita başlatma
+        function initMap() {
+            // Ana harita
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 11,
+                center: { lat: 41.0082, lng: 28.9784 }, // İstanbul
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+            
+            loadRestaurantMarkers();
+        }
+
+        // Restoran markerlarını yükle
+        function loadRestaurantMarkers() {
+            // Mevcut markerları temizle
+            restaurantMarkers.forEach(marker => marker.setMap(null));
+            restaurantMarkers = [];
+            
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const bounds = new google.maps.LatLngBounds();
+                        let hasMarkers = false;
+                        
+                        data.data.forEach(restaurant => {
+                            if (restaurant.latitude && restaurant.longitude) {
+                                const position = { lat: parseFloat(restaurant.latitude), lng: parseFloat(restaurant.longitude) };
+                                
+                                const marker = new google.maps.Marker({
+                                    position: position,
+                                    map: map,
+                                    title: restaurant.firma_adi,
+                                    icon: {
+                                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+                                                <path fill="#e53e3e" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                                                <circle fill="#fff" cx="12" cy="9" r="2.5"/>
+                                                <text x="12" y="10" text-anchor="middle" font-size="8" fill="#e53e3e">🏪</text>
+                                            </svg>
+                                        `)
+                                    }
+                                });
+                                
+                                const infoWindow = new google.maps.InfoWindow({
+                                    content: `
+                                        <div style="padding: 0.5rem;">
+                                            <h4 style="margin: 0 0 0.5rem 0; color: #333;">🏪 ${restaurant.firma_adi}</h4>
+                                            <p style="margin: 0; font-size: 0.9rem;">📧 ${restaurant.email}</p>
+                                            <p style="margin: 0; font-size: 0.9rem;">📞 ${restaurant.phone || 'Phone not specified'}</p>
+                                            <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: #666;">📍 ${parseFloat(restaurant.latitude).toFixed(6)}, ${parseFloat(restaurant.longitude).toFixed(6)}</p>
+                                        </div>
+                                    `
+                                });
+                                
+                                marker.addListener('click', () => {
+                                    infoWindow.open(map, marker);
+                                });
+                                
+                                restaurantMarkers.push(marker);
+                                bounds.extend(position);
+                                hasMarkers = true;
+                            }
+                        });
+                        
+                        // Tüm markerları kapsayacak şekilde haritayı odakla
+                        if (hasMarkers) {
+                            map.fitBounds(bounds);
+                            
+                            // Minimum zoom seviyesi ayarla (çok fazla yakınlaştırmasın)
+                            google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
+                                if (map.getZoom() > 15) {
+                                    map.setZoom(15);
+                                }
+                            });
+                        } else {
+                            // Hiç marker yoksa İstanbul'u göster
+                            map.setCenter({ lat: 41.0082, lng: 28.9784 });
+                            map.setZoom(11);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoran konumları yüklenirken hata:', error);
+                });
+        }
+
+        // Konum seçme modalını aç
+        function openLocationPicker(restaurantId, restaurantName) {
+            currentRestaurantId = restaurantId;
+            document.getElementById('locationPickerTitle').textContent = `📍 ${restaurantName} - Konum Seç`;
+            document.getElementById('locationPickerModal').style.display = 'block';
+            
+            // Location picker haritasını başlat
+            setTimeout(() => {
+                initLocationPickerMap();
+            }, 100);
+        }
+
+        // Location picker haritasını başlat
+        function initLocationPickerMap() {
+            locationPickerMap = new google.maps.Map(document.getElementById('locationMap'), {
+                zoom: 13,
+                center: { lat: 41.0082, lng: 28.9784 }, // İstanbul
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+            
+            // Haritaya tıklama eventi
+            locationPickerMap.addListener('click', (event) => {
+                selectLocation(event.latLng);
+            });
+            
+            // Mevcut restoran konumunu göster (korunmalı rota olduğu için token gerekir)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const restaurant = data.data.find(r => r.id === currentRestaurantId);
+                        if (restaurant && restaurant.latitude && restaurant.longitude) {
+                            const existingLocation = { lat: parseFloat(restaurant.latitude), lng: parseFloat(restaurant.longitude) };
+                            selectLocation(existingLocation);
+                            locationPickerMap.setCenter(existingLocation);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Mevcut konum yüklenirken hata:', error);
+                });
+        }
+
+        // Konum seç
+        function selectLocation(latLng) {
+            selectedLocation = {
+                lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
+                lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng
+            };
+            
+            // Mevcut marker'ı kaldır
+            if (locationPickerMarker) {
+                locationPickerMarker.setMap(null);
+            }
+            
+            // Yeni marker ekle
+            locationPickerMarker = new google.maps.Marker({
+                position: selectedLocation,
+                map: locationPickerMap,
+                title: 'Seçilen Konum',
+                icon: {
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+                            <path fill="#10b981" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                            <circle fill="#fff" cx="12" cy="9" r="2.5"/>
+                        </svg>
+                    `)
+                }
+            });
+            
+            // Konum bilgisini göster
+            document.getElementById('selectedLocationInfo').innerHTML = `
+                <p><strong>📍 Seçilen Konum:</strong></p>
+                <p>Enlem: ${selectedLocation.lat.toFixed(6)}</p>
+                <p>Boylam: ${selectedLocation.lng.toFixed(6)}</p>
+            `;
+            
+            // Kaydet butonunu aktif et
+            document.getElementById('saveLocationBtn').disabled = false;
+        }
+
+        // Adres ara
+        function searchAddress() {
+            const query = document.getElementById('addressSearch').value;
+            if (!query) {
+                alert('Lütfen bir adres girin');
+                return;
+            }
+            
+            const geocoder = new google.maps.Geocoder();
+                            geocoder.geocode({ address: query }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    const location = results[0].geometry.location;
+                    locationPickerMap.setCenter(location);
+                    locationPickerMap.setZoom(15);
+                    selectLocation(location);
+                } else {
+                    alert('Adres bulunamadı: ' + status);
+                }
+            });
+        }
+
+        // Restoran konumunu kaydet
+        function saveRestaurantLocation() {
+            if (!selectedLocation) {
+                alert('Lütfen bir konum seçin');
+                return;
+            }
+            
+            fetch(`${API_BASE}/api/admin/restaurants/${currentRestaurantId}/location`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                body: JSON.stringify({
+                    latitude: selectedLocation.lat,
+                    longitude: selectedLocation.lng
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP hata! Durum: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Konum başarıyla kaydedildi');
+                    closeLocationPickerModal();
+                    loadRestaurants();
+                    loadRestaurantMarkers();
+                } else {
+                    alert(data.message || 'Hata oluştu');
+                }
+            })
+            .catch(error => {
+                console.error('Konum kaydetme hatası:', error);
+                alert('Bir hata oluştu: ' + error.message);
+            });
+        }
+
+        // Location picker modalını kapat
+        function closeLocationPickerModal() {
+            document.getElementById('locationPickerModal').style.display = 'none';
+            selectedLocation = null;
+            if (locationPickerMarker) {
+                locationPickerMarker.setMap(null);
+                locationPickerMarker = null;
+            }
+            document.getElementById('selectedLocationInfo').innerHTML = '<p>📍 Haritadan bir nokta seçin</p>';
+            document.getElementById('saveLocationBtn').disabled = true;
+            document.getElementById('addressSearch').value = '';
+        }
+
+        // Modal kapatma fonksiyonları
+        function closeDeliveryAreasModal() {
+            document.getElementById('deliveryAreasModal').style.display = 'none';
+            hideAddDeliveryAreaForm();
+        }
+
+        function closeEditDeliveryAreaModal() {
+            document.getElementById('editDeliveryAreaModal').style.display = 'none';
+            document.getElementById('editDeliveryAreaForm').reset();
+        }
+
+        function showAddRestaurantModal() {
+            currentEditingRestaurantId = null;
+            document.getElementById('restaurantModalTitle').textContent = 'Restoran Ekle';
+            document.getElementById('saveRestaurantBtn').textContent = '💾 Kaydet';
+            document.getElementById('restaurantForm').reset();
+            
+            // Şifre alanını zorunlu yap
+            document.getElementById('restaurantPassword').required = true;
+            document.getElementById('restaurantPassword').placeholder = '';
+            
+            document.getElementById('restaurantModal').style.display = 'block';
+        }
+
+        function showEditRestaurantModal(restaurantId, restaurant) {
+            currentEditingRestaurantId = restaurantId;
+            document.getElementById('restaurantModalTitle').textContent = 'Restoran Düzenle';
+            document.getElementById('saveRestaurantBtn').textContent = '💾 Güncelle';
+            
+            // Form alanlarını doldur
+            document.getElementById('restaurantName').value = restaurant.firma_adi;
+            document.getElementById('restaurantYetkili').value = restaurant.yetkili_name || '';
+            document.getElementById('addRestaurantPhone').value = restaurant.phone || '';
+            document.getElementById('restaurantEmail').value = restaurant.email;
+            document.getElementById('restaurantPassword').value = ''; // Şifre alanını boş bırak
+            
+            // Şifre alanını isteğe bağlı yap
+            document.getElementById('restaurantPassword').required = false;
+            document.getElementById('restaurantPassword').placeholder = 'Değiştirmek istemiyorsanız boş bırakın';
+            
+            document.getElementById('restaurantModal').style.display = 'block';
+        }
+
+        function closeRestaurantModal() {
+            document.getElementById('restaurantModal').style.display = 'none';
+            document.getElementById('restaurantForm').reset();
+            currentEditingRestaurantId = null;
+            
+            // Şifre alanını tekrar zorunlu yap (ekleme için)
+            document.getElementById('restaurantPassword').required = true;
+            document.getElementById('restaurantPassword').placeholder = '';
+        }
+
+        // Restoran ekleme/düzenleme form submit
+        document.getElementById('restaurantForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('restaurantName').value,
+                yetkili_name: document.getElementById('restaurantYetkili').value,
+                phone: document.getElementById('addRestaurantPhone').value,
+                email: document.getElementById('restaurantEmail').value
+            };
+
+            console.log('🔄 Form data being sent:', formData);
+            console.log('🔄 Current editing restaurant ID:', currentEditingRestaurantId);
+
+            // Şifre sadece girilmişse ekle (düzenleme sırasında boş bırakılabilir)
+            const password = document.getElementById('restaurantPassword').value;
+            if (password) {
+                formData.password = password;
+            }
+
+            // Düzenleme mi ekleme mi?
+            if (currentEditingRestaurantId) {
+                // Güncelleme işlemi
+                fetch(`${API_BASE}/api/admin/restaurants/${currentEditingRestaurantId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert('Restoran başarıyla güncellendi');
+                        closeRestaurantModal();
+                        loadRestaurants();
+                    } else {
+                        alert(data.message || 'Hata oluştu');
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoran güncelleme hatası:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                });
+            } else {
+                // Ekleme işlemi
+                if (!password) {
+                    alert('Yeni restoran için şifre gereklidir');
+                    return;
+                }
+                
+                fetch(`${API_BASE}/api/admin/restaurants`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert('Restoran başarıyla eklendi');
+                        closeRestaurantModal();
+                        loadRestaurants();
+                    } else {
+                        alert(data.message || 'Hata oluştu');
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoran ekleme hatası:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                });
+            }
+        });
+
+        // Restoran düzenle
+        function editRestaurant(restaurantId) {
+            // Mevcut restoran bilgilerini bul (admin rotası kullanılacak)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const restaurant = data.data.find(r => r.id === restaurantId);
+                        if (restaurant) {
+                            showEditRestaurantModal(restaurantId, restaurant);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoran bilgileri alınırken hata:', error);
+                    alert('Restoran bilgileri alınamadı: ' + error.message);
+                });
+        }
+
+        // Restoran sil
+        function deleteRestaurant(restaurantId) {
+            if (confirm('Bu restoranı silmek istediğinizden emin misiniz?')) {
+                // Not implemented yet (admin rotası kullanılacak)
+                fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    if (result.success) {
+                        alert(result.message || 'Restoran başarıyla silindi');
+                        loadRestaurants();
+                    } else {
+                        alert(result.message || 'Silme hatası');
+                    }
+                })
+                .catch(error => {
+                    console.error('Restoran silme hatası:', error);
+                    alert('Bir hata oluştu: ' + error.message);
+                });
+            }
+        }
+
+        // Restoran şifresi göster
+        function showRestaurantPassword(restaurantId, password) {
+            alert(`Restoran #${restaurantId} şifresi:\n\n${password || 'Şifre bulunamadı'}`);
+        }
+
+        // Modal dışına tıklayınca kapatma
+        window.onclick = function(event) {
+            const modals = ['deliveryAreasModal', 'editDeliveryAreaModal', 'restaurantModal', 'locationPickerModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    if (modalId === 'locationPickerModal') {
+                        closeLocationPickerModal();
+                    } else {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

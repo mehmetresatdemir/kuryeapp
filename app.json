@@ -1,27 +1,58 @@
 {
   "expo": {
-    "name": "drive",
-    "slug": "drive",
-    "platforms": ["ios", "android"],
+    "name": "Bursa-Go",
+    "slug": "bursa-go",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "web": {
-      "enabled": false
+      "enabled": false,
+      "favicon": "./assets/favicon.png"
     },
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/icon.png",
+    "scheme": "bursa-go",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFFFFF"
     },
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#3B82F6"
+    },
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/images/icon.png",
-      "config": {
-        "googleMapsApiKey": "AIzaSyDp_lLu5U3bFyMt1ggWM1p2OpblYKMQyQc"
+      "bundleIdentifier": "com.bursago.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionMinimumTLSVersion": "1.0"
+            },
+            "red.enucuzal.com": {
+              "NSExceptionRequiresForwardSecrecy": false,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            },
+            "kurye.enucuzal.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionRequiresForwardSecrecy": false,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            }
+          }
+        },
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,25 +62,22 @@
         }
       },
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#377a23"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
-      "package": "com.mehmetresatdemir.drive"
+      "permissions": [
+        "NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
+      "package": "com.bursago.app"
     },
-    
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#377a23"
-        }
-      ],
+      "expo-splash-screen",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -58,10 +86,14 @@
       "router": {
         "origin": false
       },
+      "API_HOST": "localhost",
+      "API_PORT": "3000",
+      "REMOTE_API_HOST": "kurye-backend-production.up.railway.app",
+      "USE_REMOTE": false,
       "eas": {
-        "projectId": "068be49c-6eee-41cb-ad1f-ff5e0b3f3f3d"
+        "projectId": "1a3e02ac-240c-48a3-b9e8-05dfc29cfe96"
       }
     },
-    "owner": "mehmetresatdemir"
+    "owner": "mehmetresatdemir1"
   }
 }

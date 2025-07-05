@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Kurye Yönetimi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { background: #5a67d8; }
+        .nav-link.active { background: #4c51bf; }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .card-title { font-size: 1.2rem; font-weight: 600; color: #333; }
+        .table-container {
+            overflow-x: auto;
+            max-height: 500px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background: #f8fafc;
+            padding: 0.5rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+        }
+        td { padding: 0.5rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .badge-online { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            color: white; 
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+        }
+        .badge-offline { 
+            background: linear-gradient(135deg, #ef4444, #dc2626); 
+            color: white; 
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        }
+        .badge-busy { 
+            background: linear-gradient(135deg, #f59e0b, #d97706); 
+            color: white; 
+            box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+        }
+        .btn {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0 0.25rem;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .refresh-btn:hover { background: #059669; }
+        .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .loading { text-align: center; color: #666; font-style: italic; }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: black; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .form-group label { font-weight: 600; color: #374151; }
+        .form-group input, .form-group select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-item {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: bold; }
+        .stat-label { font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem; }
+        
+        .vehicle-badge {
+            background: #007bff;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+
+        
+        .delivery-count {
+            background: #28a745;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .status-indicator { 
+            height: 8px; 
+            width: 8px; 
+            border-radius: 50%; 
+            display: inline-block; 
+            margin-right: 6px;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        }
+        .status-online { background-color: #10b981; }
+        .status-offline { background-color: #ef4444; }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="main-content">
+            <!-- İstatistik Kartları -->
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalCouriers">-</div>
+                    <div class="stat-label">Toplam Kurye</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="onlineCouriers">-</div>
+                    <div class="stat-label">Çevrimiçi</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="busyCouriers">-</div>
+                    <div class="stat-label">Meşgul</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="availableCouriers">-</div>
+                    <div class="stat-label">Müsait</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🏍️ Kurye Listesi</h3>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="refresh-btn" onclick="loadCouriers()">🔄 Yenile</button>
+                        <button class="btn btn-success" onclick="showAddCourierModal()">➕ Kurye Ekle</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="couriers-table">
+                        <thead>
+                            <tr>
+                                <th>Durum</th>
+                                <th>Adı</th>
+                                <th>Telefon</th>
+                                <th>Email</th>
+                                <th>Şifre</th>
+                                <th>Aktif Sipariş / Limit</th>
+                                <th>Son Görülme</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="couriers-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Courier Modal -->
+        <div id="addEditCourierModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeAddEditCourierModal()">&times;</span>
+                <h3 id="modalTitle">➕ Kurye Ekle</h3>
+                <form id="addEditCourierForm">
+                    <input type="hidden" id="courierId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="courierName">Adı:</label>
+                            <input type="text" id="courierName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="courierEmail">Email:</label>
+                            <input type="email" id="courierEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="courierPassword">Şifre:</label>
+                            <input type="password" id="courierPassword" placeholder="Sadece yeni kurye için veya şifre güncellemek için" autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="courierPhone">Telefon:</label>
+                            <input type="text" id="courierPhone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="deliveryCapacity">Paket Limiti:</label>
+                            <input type="number" id="deliveryCapacity" min="1" value="5" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="courierBlocked">
+                                <input type="checkbox" id="courierBlocked"> Kuryeyi Engelle
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.5rem; text-align: right;">
+                        <button type="submit" class="btn btn-success">Kaydet</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeAddEditCourierModal()">İptal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+        const socket = io();
+
+        let allCouriers = []; // Global variable to store all couriers
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            loadCouriers();
+        });
+
+        // Kuryeleri yükle
+        function loadCouriers() {
+            fetch(`${API_BASE}/api/admin/couriers`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        allCouriers = data.data; // Store couriers globally
+                        displayCouriers(data.data);
+                        updateStats(data.data);
+                    } else {
+                        throw new Error(data.message || 'Bilinmeyen hata');
+                    }
+                })
+                .catch(error => {
+                    console.error('Kuryeler yüklenirken hata:', error);
+                    document.getElementById('couriers-table-body').innerHTML = 
+                        '<tr><td colspan="7" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
+                });
+        }
+
+        // Kuryeleri göster
+        function displayCouriers(couriers) {
+            const tableBody = document.getElementById('couriers-table-body');
+            
+            if (couriers.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="loading">Kurye bulunamadı</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = couriers.map(courier => {
+                const statusBadge = getStatusBadge(courier.is_online ? 'online' : 'offline');
+                const totalDeliveries = courier.total_deliveries || 0;
+                const location = (courier.latitude && courier.longitude) ? 
+                    `${parseFloat(courier.latitude).toFixed(4)}, ${parseFloat(courier.longitude).toFixed(4)}` : 
+                    'Konum yok';
+                
+                const isBlocked = courier.is_blocked || false;
+                const blockBadge = isBlocked ? 
+                    '<span class="badge" style="background: #fee2e2; color: #991b1b;">🚫 Engelli</span>' : 
+                    '<span class="badge" style="background: #d1fae5; color: #065f46;">✅ Aktif</span>';
+                
+                return `
+                    <tr style="${isBlocked ? 'background-color: #fef2f2;' : ''}">
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span class="status-indicator ${courier.is_online ? 'status-online' : 'status-offline'}"></span>
+                                ${statusBadge}
+                            </div>
+                        </td>
+                        <td>${courier.name}</td>
+                        <td>${courier.phone || 'Belirtilmemiş'}</td>
+                        <td><span style="color: #666; font-size: 0.9rem;">${courier.email}</span></td>
+                        <td><span style="color: #666; font-size: 0.8rem; font-family: monospace;">••••••••</span> <button class="btn" style="padding: 2px 6px; font-size: 0.7rem;" onclick="showPassword(${courier.id}, '${courier.password}')" title="Şifreyi Göster">👁️</button></td>
+                        <td><span class="delivery-count">${totalDeliveries}</span> / ${courier.package_limit}</td>
+                        <td>${courier.updated_at ? new Date(courier.updated_at).toLocaleString('tr-TR') : 'Bilinmiyor'}</td>
+                        <td class="actions">
+                            <button class="btn btn-warning" onclick="showAddCourierModal(${courier.id})" title="Düzenle">
+                                ✏️ Düzenle
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteCourier(${courier.id})" title="Sil">
+                                🗑️ Sil
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Durum badge'i al
+        function getStatusBadge(status) {
+            const statusMap = {
+                'online': { class: 'badge-online', text: 'Çevrimiçi' },
+                'offline': { class: 'badge-offline', text: 'Çevrimdışı' },
+                'busy': { class: 'badge-busy', text: 'Meşgul' }
+            };
+            
+            const statusInfo = statusMap[status] || { class: 'badge-offline', text: 'Bilinmiyor' };
+            return `<span class="badge ${statusInfo.class}">${statusInfo.text}</span>`;
+        }
+
+        // İstatistikleri güncelle
+        function updateStats(couriers) {
+            const stats = {
+                total: couriers.length,
+                online: couriers.filter(c => c.is_online === true).length,
+                busy: couriers.filter(c => parseInt(c.active_orders || 0) > 0).length,
+                available: couriers.filter(c => c.is_online === true && parseInt(c.active_orders || 0) === 0).length
+            };
+
+            document.getElementById('totalCouriers').textContent = stats.total;
+            document.getElementById('onlineCouriers').textContent = stats.online;
+            document.getElementById('busyCouriers').textContent = stats.busy;
+            document.getElementById('availableCouriers').textContent = stats.available;
+        }
+
+        // Kurye Ekle/Düzenle modalını göster
+        function showAddCourierModal(courierId = null) {
+            const modal = document.getElementById('addEditCourierModal');
+            const form = document.getElementById('addEditCourierForm');
+            const modalTitle = document.getElementById('modalTitle');
+            form.reset(); // Formu temizle
+
+            document.getElementById('courierPassword').required = false; // Varsayılan olarak şifre zorunlu değil
+
+            if (courierId) {
+                // Düzenleme modu
+                const courier = allCouriers.find(c => c.id === courierId); // Kuryeyi global listeden bul
+                if (courier) {
+                    modalTitle.textContent = `✏️ Kurye Düzenle: ${courier.name}`;
+                    document.getElementById('courierId').value = courier.id;
+                    document.getElementById('courierName').value = courier.name;
+                    document.getElementById('courierEmail').value = courier.email;
+                    document.getElementById('courierPhone').value = courier.phone || '';
+                    document.getElementById('deliveryCapacity').value = courier.package_limit || 5;
+                    document.getElementById('courierBlocked').checked = courier.is_blocked || false;
+                } else {
+                    console.error('Kurye bulunamadı:', courierId);
+                    return; // Kurye bulunamazsa modu kapat
+                }
+            } else {
+                // Ekleme modu
+                modalTitle.textContent = '➕ Kurye Ekle';
+                document.getElementById('courierId').value = '';
+                document.getElementById('courierPassword').required = true; // Yeni kurye için şifre zorunlu
+                document.getElementById('courierBlocked').checked = false; // Yeni kurye için engelleme kapalı
+            }
+            modal.style.display = 'block';
+        }
+
+        // Modal Kapat
+        function closeAddEditCourierModal() {
+            document.getElementById('addEditCourierModal').style.display = 'none';
+        }
+
+        // Kurye Kaydet (Ekle/Düzenle)
+        document.getElementById('addEditCourierForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const courierId = document.getElementById('courierId').value;
+            const courierData = {
+                name: document.getElementById('courierName').value,
+                email: document.getElementById('courierEmail').value,
+                password: document.getElementById('courierPassword').value,
+                phone: document.getElementById('courierPhone').value,
+                package_limit: parseInt(document.getElementById('deliveryCapacity').value, 10),
+                is_blocked: document.getElementById('courierBlocked').checked,
+            };
+
+            const url = courierId ? `${API_BASE}/api/admin/couriers/${courierId}` : `${API_BASE}/api/admin/couriers`;
+            const method = courierId ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(courierData)
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showNotification(courierId ? 'Kurye başarıyla güncellendi!' : 'Kurye başarıyla eklendi!', 'success');
+                    closeAddEditCourierModal();
+                    loadCouriers(); // Listeyi yenile
+                } else {
+                    showNotification(`Kurye kaydedilirken hata: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Kurye kaydedilirken hata:', error);
+                showNotification('Kurye kaydedilirken bir ağ hatası oluştu.', 'error');
+            }
+        });
+
+        // Kurye sil
+        async function deleteCourier(courierId) {
+            if (!confirm('Bu kuryeyi silmek istediğinizden emin misiniz?')) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/couriers/${courierId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Kurye başarıyla silindi!', 'success');
+                    loadCouriers();
+                } else {
+                    showNotification(`Kurye silinirken hata: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Kurye silinirken hata:', error);
+                showNotification('Kurye silinirken bir ağ hatası oluştu.', 'error');
+            }
+        }
+
+        // Şifre göster
+        function showPassword(courierId, password) {
+            alert(`Kurye #${courierId} şifresi:\n\n${password || 'Şifre bulunamadı'}`);
+        }
+
+        // Kurye detayını görüntüle
+        function viewCourier(courierId) {
+            alert(`Kurye #${courierId} detayı görüntüleniyor...`);
+            // Buraya detay modalı açılabilir
+        }
+
+        // Modal dışına tıklayınca kapatma
+        window.onclick = function(event) {
+            const modals = ['addEditCourierModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Otomatik yenileme (60 saniyede bir)
+        setInterval(loadCouriers, 60000);
+
+        // Listen for real-time updates
+        socket.on('courierStatusUpdate', (updatedCourier) => {
+            console.log('Kurye durumu güncellendi:', updatedCourier);
+            loadCouriers(); // Re-fetch all data to reflect changes
+        });
+    </script>
+</body>
+</html> 

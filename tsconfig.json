@@ -16,6 +16,8 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "env.d.ts",
-    "expo-env.d.ts"
-, "lib/supabaseClient.js"  ]
+    "expo-env.d.ts",
+    "lib/supabaseClient.js",
+    "nativewind-env.d.ts"
+  ]
 }

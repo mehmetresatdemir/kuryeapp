@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Bugünün Siparişleri</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .card { background: white; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .filter-bar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+        .filter-bar input, .filter-bar select, .filter-bar button { padding: 0.5rem; border-radius: 6px; border: 1px solid #ddd; }
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .stat-item { background: #f7f7f7; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; }
+        .stat-label { font-size: 0.8rem; color: #666; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+        th { background: #f9f9f9; font-weight: 600; }
+        .badge { padding: 0.25rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+        .badge-bekleniyor { background-color: #fef3c7; color: #92400e; }
+        .badge-kuryede { background-color: #dbeafe; color: #1e40af; }
+        .badge-teslim_edildi { background-color: #dcfce7; color: #166534; }
+        .badge-iptal_edildi { background-color: #fee2e2; color: #991b1b; }
+        .badge-onay_bekliyor { background-color: #e0e7ff; color: #3730a3; }
+        .badge-onay-bekliyor { background-color: #e0e7ff; color: #3730a3; }
+
+        .countdown {
+            font-weight: bold;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            display: inline-block;
+            width: 70px;
+            text-align: center;
+        }
+        .countdown-urgent { background: #fee2e2; color: #991b1b; }
+        .countdown-warning { background: #fef3c7; color: #92400e; }
+        .countdown-normal { background: #dcfce7; color: #166534; }
+        .countdown-expired { background: #e5e7eb; color: #4b5563; }
+
+        /* General Button Styles */
+        .btn {
+            background: linear-gradient(90deg, #764ba2 0%, #667eea 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        .btn:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+            transform: translateY(-2px);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+        }
+
+        .modal-body {
+            padding: 15px 0;
+        }
+        
+        #modal-body-content .form-group {
+            margin-bottom: 1rem;
+        }
+        #modal-body-content label {
+            display: block;
+            margin-bottom: .5rem;
+            font-weight: 600;
+        }
+        #modal-body-content input, #modal-body-content select {
+            width: 100%;
+            padding: .5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* Status Filter Buttons */
+        .status-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .status-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .status-btn:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .status-btn.active {
+            background: linear-gradient(90deg, #764ba2 0%, #667eea 100%);
+            color: white;
+            border-color: #667eea;
+        }
+        .status-btn-all { border-color: #6b7280; }
+        .status-btn-all.active { background: #6b7280; }
+        .status-btn-waiting { border-color: #f59e0b; }
+        .status-btn-waiting.active { background: #f59e0b; }
+        .status-btn-courier { border-color: #3b82f6; }
+        .status-btn-courier.active { background: #3b82f6; }
+        .status-btn-approval { border-color: #8b5cf6; }
+        .status-btn-approval.active { background: #8b5cf6; }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- Bugünün Tarih Başlığı -->
+            <div class="card" style="text-align: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0; color: #667eea; font-size: 1.5rem;">
+                    <i class="fas fa-calendar-day"></i> Bugünün Siparişleri
+                </h2>
+                <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 1rem;" id="current-date"></p>
+            </div>
+            
+            <!-- Status Filter Buttons -->
+            <div class="card">
+                <div class="status-buttons">
+                    <button class="status-btn status-btn-all active" onclick="filterByStatus('')">
+                        <i class="fas fa-list"></i> Tümü
+                    </button>
+                    <button class="status-btn status-btn-waiting" onclick="filterByStatus('bekleniyor')">
+                        <i class="fas fa-clock"></i> Bekleniyor
+                    </button>
+                    <button class="status-btn status-btn-courier" onclick="filterByStatus('kuryede')">
+                        <i class="fas fa-motorcycle"></i> Kuryede
+                    </button>
+                    <button class="status-btn status-btn-approval" onclick="filterByStatus('onay bekliyor')">
+                        <i class="fas fa-hourglass-half"></i> Onay Bekliyor
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card filter-bar">
+                <input type="text" id="searchInput" placeholder="Sipariş ID, Müşteri Adı...">
+                <select id="statusFilter"></select>
+                <select id="restaurantFilter"><option value="">Tüm Restoranlar</option></select>
+                <select id="courierFilter"><option value="">Tüm Kuryeler</option></select>
+                <button class="btn" onclick="fetchOrders()">Filtrele</button>
+            </div>
+            <div class="card stats-bar" id="stats-container"></div>
+            <div class="card">
+                <div class="table-container">
+                    <table id="orders-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Restoran</th>
+                                <th>Mahalle</th>
+                                <th>Kurye</th>
+                                <th>Restoran Fiyatı</th>
+                                <th>Kurye Fiyatı</th>
+                                <th>Durum</th>
+                                <th>Ödeme</th>
+                                <th>Tarih</th>
+                                <th>Kalan Süre</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Sipariş Detayları</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body-content">
+                <!-- Content will be injected by JavaScript -->
+            </div>
+            <div class="modal-footer" style="text-align: right; padding-top: 10px; border-top: 1px solid #eee;">
+                 <button class="btn" id="modal-submit-btn" style="display:none;">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+        const socket = io();
+        let allOrders = [];
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            updateCurrentDate(); // Bugünün tarihini göster
+            initializeFilters();
+            fetchOrders();
+            setupMidnightReset(); // Gece yarısı sıfırlama ayarla
+        });
+        
+        socket.on('connect', () => {
+            console.log('Sipariş sayfasına bağlanıldı.');
+        });
+        
+        socket.on('orderStatusUpdate', (updatedOrder) => {
+            console.log('Sipariş durumu güncellendi:', updatedOrder);
+            fetchOrders(); // Re-fetch all orders to reflect changes
+        });
+
+        socket.on('newOrder', (newOrder) => {
+            console.log('Yeni sipariş geldi:', newOrder);
+            fetchOrders(); // Re-fetch all orders
+        });
+
+
+        async function initializeFilters() {
+            // Populate status filter
+            const statuses = {
+                '': 'Tüm Durumlar',
+                'bekleniyor': 'Bekleniyor',
+                'kuryede': 'Kuryede',
+                'teslim edildi': 'Teslim Edildi',
+                'iptal edildi': 'İptal Edildi',
+                'onay bekliyor': 'Onay Bekliyor'
+            };
+            const statusFilter = document.getElementById('statusFilter');
+            statusFilter.innerHTML = Object.entries(statuses)
+                .map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
+
+            // Fetch and populate restaurants and couriers filters
+            try {
+                const [restoRes, courierRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/admin/restaurants-for-admin`),
+                    fetch(`${API_BASE}/api/admin/couriers`)
+                ]);
+
+                if (restoRes.ok) {
+                    const { data } = await restoRes.json();
+                    const restoFilter = document.getElementById('restaurantFilter');
+                    restoFilter.innerHTML += data.map(r => `<option value="${r.id}">${r.firma_adi}</option>`).join('');
+                }
+
+                if (courierRes.ok) {
+                    const { data } = await courierRes.json();
+                    const courierFilter = document.getElementById('courierFilter');
+                    courierFilter.innerHTML += data.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                }
+
+            } catch (error) {
+                console.error("Filtreler yüklenirken hata:", error);
+            }
+        }
+
+        async function fetchOrders() {
+            const search = document.getElementById('searchInput').value;
+            const status = document.getElementById('statusFilter').value;
+            const restaurantId = document.getElementById('restaurantFilter').value;
+            const courierId = document.getElementById('courierFilter').value;
+            
+            // Bugünün tarih aralığını ekle
+            const today = new Date();
+            const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+            const queryParams = new URLSearchParams({
+                search,
+                status,
+                restaurantId,
+                courierId,
+                startDate: startOfDay.toISOString(),
+                endDate: endOfDay.toISOString(),
+            });
+
+            console.log('🔄 Bugünün siparişleri yükleniyor...');
+            console.log('📅 StartDate:', startOfDay.toISOString());
+            console.log('📅 EndDate:', endOfDay.toISOString());
+            console.log('🌐 API URL:', `${API_BASE}/api/admin/orders?${queryParams}`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/orders?${queryParams}`);
+                console.log('📡 API Response status:', response.status);
+                
+                if (!response.ok) {
+                    console.error('❌ Siparişler çekilemedi. Response:', response.status, response.statusText);
+                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="11">Siparişler yüklenirken bir hata oluştu.</td></tr>';
+                    return;
+                }
+                
+                const result = await response.json();
+                console.log('✅ Bugünün siparişleri yüklendi:', result.data?.length || 0, 'adet');
+                allOrders = result.data || [];
+                renderTable(allOrders);
+                updateStats(allOrders);
+            } catch (error) {
+                console.error('❌ Network error:', error);
+                document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="11">Network hatası: Sunucuya bağlanılamadı.</td></tr>';
+            }
+        }
+
+        function setupMidnightReset() {
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            const msUntilMidnight = tomorrow.getTime() - now.getTime();
+            
+            console.log(`⏰ Gece yarısı sıfırlama ${Math.floor(msUntilMidnight / 1000 / 60)} dakika sonra ayarlandı`);
+            
+            // Gece yarısında sayfayı yenile
+            setTimeout(() => {
+                console.log('🔄 Gece yarısı - Sayfa yenileniyor...');
+                window.location.reload();
+            }, msUntilMidnight);
+        }
+
+        function updateCurrentDate() {
+            const today = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            const dateString = today.toLocaleDateString('tr-TR', options);
+            document.getElementById('current-date').textContent = dateString;
+        }
+
+        function renderTable(orders) {
+            const tableBody = document.getElementById('orders-table-body');
+            if (orders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="11">Bugün henüz sipariş bulunmamaktadır.</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = orders.map(order => `
+                <tr>
+                    <td>#${order.id}</td>
+                    <td>${order.firma_name || order.firma_adi || 'N/A'}</td>
+                    <td>${order.mahalle || 'N/A'}</td>
+                    <td>${order.kurye_name || 'Atanmadı'}</td>
+                    <td>₺${(parseFloat(order.restaurant_price) || 0).toFixed(2)}</td>
+                    <td>₺${(parseFloat(order.courier_price) || 0).toFixed(2)}</td>
+                    <td><span class="badge badge-${order.status.replace(/ /g, '_')}">${order.status}</span></td>
+                    <td>${order.odeme_yontemi}</td>
+                    <td>${new Date(order.created_at).toLocaleString('tr-TR')}</td>
+                    <td>${calculateCountdown(order.created_at, order.status)}</td>
+                    <td>
+                        <button class="btn" onclick='viewOrder(${order.id})'>Detay</button>
+                        <button class="btn" onclick='editOrder(${order.id})'>Düzenle</button>
+                        <button class="btn" onclick='deleteOrder(${order.id})'>Sil</button>
+                        ${order.status === 'kuryede' ? `<button class="btn" style="margin-left: 0.5rem;" onclick='returnToPool(${order.id})'>Havuza At</button>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function calculateCountdown(createdAt, status) {
+            if (status === 'teslim edildi' || status === 'iptal edildi') {
+                return `<span class="countdown countdown-expired">N/A</span>`;
+            }
+
+            // Saat dilimi düzeltmesi olmadan direkt hesapla
+            const createdTime = new Date(createdAt);
+            const now = new Date();
+            const remainingMinutes = 60 - Math.floor((now - createdTime) / 60000); // 60 dakika (1 saat)
+
+            if (remainingMinutes < 0) {
+                return `<span class="countdown countdown-expired">Süre Doldu</span>`;
+            } else if (remainingMinutes <= 15) {
+                return `<span class="countdown countdown-urgent">${remainingMinutes} dk</span>`;
+            } else if (remainingMinutes <= 30) {
+                return `<span class="countdown countdown-warning">${remainingMinutes} dk</span>`;
+            } else {
+                return `<span class="countdown countdown-normal">${remainingMinutes} dk</span>`;
+            }
+        }
+
+        // Timestamp operations use database timezone directly
+
+        function updateStats(orders) {
+            const statsContainer = document.getElementById('stats-container');
+            const statusCounts = orders.reduce((acc, order) => {
+                acc[order.status] = (acc[order.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            statsContainer.innerHTML = `
+                <div class="stat-item"><div class="stat-value">${orders.length}</div><div class="stat-label">Bugün Toplam</div></div>
+                <div class="stat-item"><div class="stat-value">${statusCounts['bekleniyor'] || 0}</div><div class="stat-label">Bekleyen</div></div>
+                <div class="stat-item"><div class="stat-value">${statusCounts['kuryede'] || 0}</div><div class="stat-label">Kuryede</div></div>
+                <div class="stat-item"><div class="stat-value">${statusCounts['teslim edildi'] || 0}</div><div class="stat-label">Tamamlanan</div></div>
+                <div class="stat-item"><div class="stat-value">${statusCounts['iptal edildi'] || 0}</div><div class="stat-label">İptal</div></div>
+            `;
+        }
+        
+        async function viewOrder(orderId) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order) {
+                alert("Sipariş bulunamadı!");
+                return;
+            }
+
+            document.getElementById('modal-title').innerText = `Sipariş #${order.id} Detayları`;
+            const modalBody = document.getElementById('modal-body-content');
+            modalBody.innerHTML = `
+                <p><strong>Restoran:</strong> ${order.firma_name || order.firma_adi || 'N/A'}</p>
+                <p><strong>Mahalle:</strong> ${order.mahalle || 'N/A'}</p>
+                <p><strong>Kurye:</strong> ${order.kurye_name || 'Atanmadı'}</p>
+                <p><strong>Restoran Fiyatı:</strong> ₺${(parseFloat(order.restaurant_price) || 0).toFixed(2)}</p>
+                <p><strong>Kurye Fiyatı:</strong> ₺${(parseFloat(order.courier_price) || 0).toFixed(2)}</p>
+                <p><strong>Hazırlık Süresi:</strong> ${order.preparation_time === 0 ? 'Hazır' : (order.preparation_time || 0) + ' dakika'}</p>
+                <p><strong>Durum:</strong> ${order.status}</p>
+                <p><strong>Ödeme Yöntemi:</strong> ${order.odeme_yontemi}</p>
+                <p><strong>Tarih:</strong> ${new Date(order.created_at).toLocaleString('tr-TR')}</p>
+            `;
+            document.getElementById('modal-submit-btn').style.display = 'none';
+            document.getElementById('orderModal').style.display = 'block';
+        }
+
+        async function editOrder(orderId) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order) {
+                alert("Sipariş bulunamadı!");
+                return;
+            }
+
+            document.getElementById('modal-title').innerText = `Sipariş #${order.id} Düzenle`;
+            const modalBody = document.getElementById('modal-body-content');
+            
+            // Assuming we have lists of couriers and restaurants available
+            // Let's fetch them if not already available
+            const couriers = await getCouriers();
+            const statuses = ['bekleniyor', 'kuryede', 'teslim edildi', 'iptal edildi', 'onay bekliyor'];
+
+            modalBody.innerHTML = `
+                <div class="form-group">
+                    <label for="edit-tutar">Tutar</label>
+                    <input type="number" step="0.01" id="edit-tutar" value="${(parseFloat(order.banka_tutari) || 0).toFixed(2)}">
+                </div>
+                 <div class="form-group">
+                    <label for="edit-restaurant-price">Restoran Fiyatı</label>
+                    <input type="number" step="0.01" id="edit-restaurant-price" value="${(parseFloat(order.restaurant_price) || 0).toFixed(2)}">
+                </div>
+                 <div class="form-group">
+                    <label for="edit-courier-price">Kurye Fiyatı</label>
+                    <input type="number" step="0.01" id="edit-courier-price" value="${(parseFloat(order.courier_price) || 0).toFixed(2)}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-preparation-time">Hazırlık Süresi (dakika)</label>
+                    <input type="number" id="edit-preparation-time" value="${order.preparation_time || 0}" min="0" max="120">
+                </div>
+                <div class="form-group">
+                    <label for="edit-status">Durum</label>
+                    <select id="edit-status">
+                        ${statuses.map(s => `<option value="${s}" ${order.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-courier">Kurye</label>
+                    <select id="edit-courier">
+                        <option value="">Kurye Seç</option>
+                        ${couriers.map(c => `<option value="${c.id}" ${order.kuryeid === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div id="validation-warning" style="background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 10px; border-radius: 6px; margin-top: 10px; display: none;">
+                    <strong>⚠️ Dikkat:</strong> <span id="validation-message"></span>
+                </div>
+            `;
+
+            // Gerçek zamanlı validasyon event listener'ları ekle
+            setTimeout(() => {
+                const statusSelect = document.getElementById('edit-status');
+                const courierSelect = document.getElementById('edit-courier');
+                const warningDiv = document.getElementById('validation-warning');
+                const warningMessage = document.getElementById('validation-message');
+
+                function validateSelection() {
+                    const status = statusSelect.value;
+                    const courier = courierSelect.value;
+                    const hasValidCourier = courier && courier.trim() !== '' && courier !== 'null';
+
+                    if (status === 'kuryede' && !hasValidCourier) {
+                        warningDiv.style.display = 'block';
+                        warningMessage.textContent = 'Sipariş durumu "kuryede" seçiliyken mutlaka bir kurye seçilmelidir!';
+                        warningDiv.style.background = '#fee2e2';
+                        warningDiv.style.borderColor = '#ef4444';
+                        warningDiv.style.color = '#991b1b';
+                    } else if (status === 'onay bekliyor' && !hasValidCourier) {
+                        warningDiv.style.display = 'block';
+                        warningMessage.textContent = 'Sipariş durumu "onay bekliyor" seçiliyken mutlaka bir kurye seçilmelidir!';
+                        warningDiv.style.background = '#fee2e2';
+                        warningDiv.style.borderColor = '#ef4444';
+                        warningDiv.style.color = '#991b1b';
+                    } else if (status === 'bekleniyor' && hasValidCourier) {
+                        warningDiv.style.display = 'block';
+                        warningMessage.textContent = 'Sipariş durumu "bekleniyor" seçiliyken kurye seçilmemelidir!';
+                        warningDiv.style.background = '#fee2e2';
+                        warningDiv.style.borderColor = '#ef4444';
+                        warningDiv.style.color = '#991b1b';
+                    } else {
+                        warningDiv.style.display = 'none';
+                    }
+                }
+
+                statusSelect.addEventListener('change', validateSelection);
+                courierSelect.addEventListener('change', validateSelection);
+                
+                // İlk yüklemede de kontrol et
+                validateSelection();
+            }, 100);
+
+            const submitBtn = document.getElementById('modal-submit-btn');
+            submitBtn.style.display = 'block';
+            submitBtn.onclick = () => saveOrder(orderId);
+
+            document.getElementById('orderModal').style.display = 'block';
+        }
+
+        async function saveOrder(orderId) {
+            const status = document.getElementById('edit-status').value;
+            const kuryeid = document.getElementById('edit-courier').value;
+
+            // 🔍 Validasyon Kuralları
+            // Kurye seçimini temizle - boş string veya "null" null olarak ayarla
+            const hasValidCourier = kuryeid && kuryeid.trim() !== '' && kuryeid !== 'null';
+            
+            // Kurye seçimi zorunlu olan durumlar
+            if (status === 'kuryede') {
+                if (!hasValidCourier) {
+                    alert('❌ UYARI: Sipariş durumu "kuryede" seçiliyken mutlaka bir kurye seçilmelidir!\n\nLütfen kurye seçiniz veya sipariş durumunu değiştiriniz.');
+                    return;
+                }
+            }
+
+            if (status === 'onay bekliyor') {
+                if (!hasValidCourier) {
+                    alert('❌ UYARI: Sipariş durumu "onay bekliyor" seçiliyken mutlaka bir kurye seçilmelidir!\n\nOnay bekleyen siparişlerin bir kurye ataması bulunmalıdır.\n\nLütfen kurye seçiniz veya sipariş durumunu değiştiriniz.');
+                    return;
+                }
+            }
+
+            // Kurye seçimi olmaması gereken durumlar
+            if (status === 'bekleniyor') {
+                if (hasValidCourier) {
+                    alert('❌ UYARI: Sipariş durumu "bekleniyor" seçiliyken kurye seçilmemelidir!\n\nSipariş havuza düştüğünde kurye ataması otomatik olarak kaldırılır.\n\nLütfen kurye seçimini kaldırınız veya sipariş durumunu değiştiriniz.');
+                    return;
+                }
+            }
+
+            // ✅ Validasyon Başarılı - Sipariş Güncelleniyor
+            const payload = {
+                tutar: document.getElementById('edit-tutar').value,
+                restaurant_price: document.getElementById('edit-restaurant-price').value,
+                courier_price: document.getElementById('edit-courier-price').value,
+                preparation_time: document.getElementById('edit-preparation-time').value,
+                status: status,
+                kuryeid: hasValidCourier ? kuryeid : null, // Geçerli kurye varsa ID'sini, yoksa null gönder
+            };
+
+            console.log('🔍 Gönderilecek payload:', payload);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    fetchOrders();
+                    
+                    // Başarı mesajı
+                    if (status === 'kuryede') {
+                        alert('✅ Sipariş kurye ataması ile başarıyla güncellendi!');
+                    } else if (status === 'onay bekliyor') {
+                        alert('✅ Sipariş onay bekleme durumuna kurye ataması ile başarıyla güncellendi!');
+                    } else if (status === 'bekleniyor') {
+                        alert('✅ Sipariş havuza başarıyla atıldı!');
+                    } else {
+                        alert('✅ Sipariş başarıyla güncellendi!');
+                    }
+                } else {
+                    let errorMessage = 'Sipariş güncellenirken bir hata oluştu';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorMessage;
+                    } catch (e) {
+                        console.error('Error response JSON parse hatası:', e);
+                    }
+                    alert(`❌ Hata: ${errorMessage}`);
+                }
+            } catch (error) {
+                console.error('Sipariş güncellenirken hata:', error);
+                alert('❌ Sipariş güncellenirken bir ağ hatası oluştu.');
+            }
+        }
+
+        async function getCouriers() {
+             try {
+                const res = await fetch(`${API_BASE}/api/admin/couriers`);
+                if(res.ok) {
+                    const { data } = await res.json();
+                    return data;
+                }
+             } catch(e) {
+                console.error("Kuryeler çekilemedi", e);
+                return [];
+             }
+             return [];
+        }
+
+        async function deleteOrder(orderId) {
+            if (confirm(`Sipariş ID ${orderId}'i silmek istediğinizden emin misiniz?`)) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        console.log(`Sipariş ${orderId} silindi.`);
+                        fetchOrders(); // Refresh the table
+                    } else {
+                        let errorMessage = 'Sipariş silinirken bir hata oluştu';
+                        try {
+                            const errorData = await response.json();
+                            errorMessage = errorData.message || errorMessage;
+                        } catch (e) {
+                            console.error('Error response JSON parse hatası:', e);
+                        }
+                        console.error('Sipariş silinirken hata:', errorMessage);
+                        alert(`Hata: ${errorMessage}`);
+                    }
+                } catch (error) {
+                    console.error('Sipariş silinirken ağ hatası:', error);
+                    alert('Sipariş silinirken bir ağ hatası oluştu.');
+                }
+            }
+        }
+
+        async function returnToPool(orderId) {
+            if (confirm(`Sipariş ID ${orderId}'i havuza atmak istediğinizden emin misiniz? Sipariş tekrar "bekleniyor" durumuna geçecek.`)) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: 'bekleniyor',
+                            kuryeid: null // Kurye atamasını kaldır
+                        })
+                    });
+
+                    if (response.ok) {
+                        console.log(`Sipariş ${orderId} havuza atıldı.`);
+                        fetchOrders(); // Refresh the table
+                    } else {
+                        let errorMessage = 'Sipariş havuza atılırken bir hata oluştu';
+                        try {
+                            const errorData = await response.json();
+                            errorMessage = errorData.message || errorMessage;
+                        } catch (e) {
+                            console.error('Error response JSON parse hatası:', e);
+                        }
+                        console.error('Sipariş havuza atılırken hata:', errorMessage);
+                        alert(`Hata: ${errorMessage}`);
+                    }
+                } catch (error) {
+                    console.error('Sipariş havuza atılırken ağ hatası:', error);
+                    alert('Sipariş havuza atılırken bir ağ hatası oluştu.');
+                }
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        // Status filter button functionality
+        function filterByStatus(status) {
+            // Update status filter dropdown
+            document.getElementById('statusFilter').value = status;
+            
+            // Update active button state
+            document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Fetch orders with the new filter
+            fetchOrders();
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('orderModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // Enhanced socket listeners for admin panel
+        
+        // Admin panel specific connection
+        socket.on('connect', () => {
+            console.log('🔗 Admin orders page connected to socket');
+            socket.emit('joinAdminRoom');
+        });
+
+        // Listen for real-time order updates from admin actions
+        socket.on('adminOrderUpdate', (data) => {
+            console.log('📝 Admin order update received:', data);
+            
+            if (data.action === 'updated') {
+                // Refresh the table to show updated data
+                fetchOrders();
+            } else if (data.action === 'deleted') {
+                // Remove order from table immediately
+                const row = document.querySelector(`tr[data-order-id="${data.orderId}"]`);
+                if (row) {
+                    row.remove();
+                }
+                // Also refresh to update stats
+                fetchOrders();
+            }
+        });
+
+        // Listen for order cancellations
+        socket.on('orderCancelled', (data) => {
+            console.log('❌ Order cancelled:', data);
+            fetchOrders(); // Refresh table
+        });
+
+        // Listen for order deliveries
+        socket.on('orderDelivered', (data) => {
+            console.log('📦 Order delivered:', data);
+            fetchOrders(); // Refresh table
+        });
+
+        // Listen for order approvals
+        socket.on('orderApproved', (data) => {
+            console.log('✅ Order approved:', data);
+            fetchOrders(); // Refresh table
+        });
+    </script>
+</body>
+</html> 

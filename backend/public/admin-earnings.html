@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Earnings</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .filter-bar { margin-bottom: 1rem; }
+        .filter-bar input, .filter-bar select {
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 0.9rem;
+        }
+        .filter-bar button {
+            padding: 0.6rem 1.2rem; /* Daha dolgun butonlar */
+            background: linear-gradient(45deg, #4CAF50 0%, #8BC34A 100%); /* Yeşil tonları */
+            color: white;
+            border: none;
+            border-radius: 8px; /* Köşeleri daha yumuşak */
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .filter-bar button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #8BC34A 0%, #4CAF50 100%); /* Hover'da renk değişimi */
+        }
+        .clear-btn {
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(45deg, #6c757d 0%, #5a6268 100%); /* Gri tonları */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .clear-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #5a6268 0%, #6c757d 100%); /* Hover'da renk değişimi */
+        }
+        .quick-filter-btn { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            border: none; 
+            padding: 0.5rem 1rem; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        .quick-filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            background: linear-gradient(135deg, #5a67d8 0%, #685cc1 100%); /* Hover'da renk değişimi */
+        }
+        .quick-filter-btn.active {
+            background: linear-gradient(135deg, #4c51bf 0%, #3e4293 100%); /* Aktif durumda daha koyu ton */
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid rgba(255,255,255,0.5); /* Aktiflik için kenarlık */
+        }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); color: white; padding: 1.5rem; border-radius: 10px; text-align: center; }
+        .platform-profit-card { /* Yeni sınıf, Net Platform Karı için yeşil arka plan */
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .stat-label { font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f7f7f7; font-weight: 600; }
+        tr:hover { background: #f9f9f9; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS DYNAMICALLY INSERTED HERE -->
+
+        <div class="main-content">
+            <h2>💰 Kazanç Raporları</h2>
+            
+            <div class="card filter-bar">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                    <button class="quick-filter-btn" onclick="setQuickFilter('today')">Bugün</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('yesterday')">Dün</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('thisWeek')">Bu Hafta</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('lastWeek')">Geçen Hafta</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('thisMonth')">Bu Ay</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('lastMonth')">Geçen Ay</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('last7Days')">Son 7 Gün</button>
+                    <button class="quick-filter-btn" onclick="setQuickFilter('last30Days')">Son 30 Gün</button>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <input type="date" id="startDate">
+                    <input type="date" id="endDate">
+                    <select id="restaurantFilter">
+                        <option value="">Tüm Restoranlar</option>
+                    </select>
+                    <select id="courierFilter">
+                        <option value="">Tüm Kuryeler</option>
+                    </select>
+                    <button onclick="fetchEarningsData()">Filtrele</button>
+                    <button onclick="clearFilters()" class="clear-btn">Temizle</button>
+                </div>
+            </div>
+
+            <div class="stats-grid" id="summary-stats">
+                <!-- Summary cards will be loaded here -->
+            </div>
+
+            <div class="card">
+                <h3>Detaylı Döküm</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tarih</th>
+                                <th>Restoran</th>
+                                <th>Kurye</th>
+                                <th>Ödeme Yöntemi</th>
+                                <th>Restoran Fiyatı</th>
+                                <th>Kurye Kazancı</th>
+                                <th>Platform Kazancı</th>
+                            </tr>
+                        </thead>
+                        <tbody id="earnings-table-body">
+                            <!-- Detailed earnings rows will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+
+            // Set default dates (e.g., this month)
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('startDate').valueAsDate = firstDay;
+            document.getElementById('endDate').valueAsDate = today;
+
+            // Load initial data
+            loadFilters();
+            fetchEarningsData();
+        });
+
+        async function loadFilters() {
+            try {
+                // Fetch restaurants and couriers for filter dropdowns
+                const [restaurantsRes, couriersRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/restaurants`),
+                    fetch(`${API_BASE}/api/couriers`)
+                ]);
+
+                if (restaurantsRes.ok) {
+                    const restaurantsData = await restaurantsRes.json();
+                    const restaurantSelect = document.getElementById('restaurantFilter');
+                    restaurantsData.data.forEach(restaurant => {
+                        const option = document.createElement('option');
+                        option.value = restaurant.id;
+                        option.textContent = restaurant.firma_adi; // Use correct field name
+                        restaurantSelect.appendChild(option);
+                    });
+                }
+
+                if (couriersRes.ok) {
+                    const couriersData = await couriersRes.json();
+                    const courierSelect = document.getElementById('courierFilter');
+                    couriersData.data.forEach(courier => {
+                        const option = document.createElement('option');
+                        option.value = courier.id;
+                        option.textContent = courier.name;
+                        courierSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Filtreler yüklenirken hata:', error);
+            }
+        }
+
+        function setQuickFilter(period) {
+            const today = new Date();
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            let startDate, endDate;
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            event.target.classList.add('active');
+
+            switch(period) {
+                case 'today':
+                    startDate = endDate = today;
+                    break;
+                case 'yesterday':
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    startDate = endDate = yesterday;
+                    break;
+                case 'thisWeek':
+                    const startOfWeek = new Date(today);
+                    const day = startOfWeek.getDay();
+                    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Pazartesi'den başla
+                    startOfWeek.setDate(diff);
+                    startDate = startOfWeek;
+                    endDate = today;
+                    break;
+                case 'lastWeek':
+                    const lastWeekEnd = new Date(today);
+                    lastWeekEnd.setDate(lastWeekEnd.getDate() - lastWeekEnd.getDay());
+                    const lastWeekStart = new Date(lastWeekEnd);
+                    lastWeekStart.setDate(lastWeekStart.getDate() - 6);
+                    startDate = lastWeekStart;
+                    endDate = lastWeekEnd;
+                    break;
+                case 'thisMonth':
+                    startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    endDate = today;
+                    break;
+                case 'lastMonth':
+                    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                    startDate = lastMonth;
+                    endDate = lastMonthEnd;
+                    break;
+                case 'last7Days':
+                    const last7Days = new Date(today);
+                    last7Days.setDate(last7Days.getDate() - 7);
+                    startDate = last7Days;
+                    endDate = today;
+                    break;
+                case 'last30Days':
+                    const last30Days = new Date(today);
+                    last30Days.setDate(last30Days.getDate() - 30);
+                    startDate = last30Days;
+                    endDate = today;
+                    break;
+            }
+
+            // Format dates for input (YYYY-MM-DD)
+            startDateInput.value = startDate.toISOString().split('T')[0];
+            endDateInput.value = endDate.toISOString().split('T')[0];
+
+            // Automatically fetch data
+            fetchEarningsData();
+        }
+
+        async function fetchEarningsData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const restaurantId = document.getElementById('restaurantFilter').value;
+            const courierId = document.getElementById('courierFilter').value;
+            
+            try {
+                // Build query parameters
+                const params = new URLSearchParams();
+                if (startDate) params.append('startDate', startDate);
+                if (endDate) params.append('endDate', endDate);
+                if (restaurantId) params.append('restaurantId', restaurantId);
+                if (courierId) params.append('courierId', courierId);
+                
+                // Call the real API endpoint
+                const response = await fetch(`${API_BASE}/api/admin/earnings?${params.toString()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const { summary, details } = result.data;
+                    
+                    // Convert strings to numbers
+                    const totalRestaurantRevenue = parseFloat(summary.total_restaurant_revenue || 0);
+                    const totalCourierPayout = parseFloat(summary.total_courier_payout || 0);
+                    const platformProfit = parseFloat(summary.total_platform_profit || 0);
+                    
+                    const summaryData = {
+                        totalRevenue: totalRestaurantRevenue,
+                        totalCourierPayout: totalCourierPayout,
+                        netPlatformProfit: platformProfit,
+                        cashPayments: parseFloat(summary.cash_payments || 0),
+                        cardPayments: parseFloat(summary.card_payments || 0),
+                        voucherPayments: parseFloat(summary.voucher_payments || 0),
+                        onlinePayments: 0 // Not tracked separately in current schema
+                    };
+                    
+                    updateSummaryCards(summaryData);
+                    updateDetailsTable(details || []);
+                } else {
+                    console.error('API error:', result.message);
+                    showError('Veri yüklenirken hata oluştu: ' + result.message);
+                }
+                
+            } catch (error) {
+                console.error('Veri yüklenirken hata:', error);
+                showError('Veri yüklenirken hata oluştu. Lütfen tekrar deneyin.');
+            }
+        }
+
+        function updateSummaryCards(data) {
+            const summaryContainer = document.getElementById('summary-stats');
+            summaryContainer.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">₺${data.totalRevenue.toFixed(2)}</div>
+                    <div class="stat-label">Toplam Restoran Geliri</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">₺${data.totalCourierPayout.toFixed(2)}</div>
+                    <div class="stat-label">Toplam Kurye Ödemesi</div>
+                </div>
+                <div class="stat-card platform-profit-card">
+                    <div class="stat-value">₺${data.netPlatformProfit.toFixed(2)}</div>
+                    <div class="stat-label">Net Platform Karı</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">₺${data.cashPayments.toFixed(2)}</div>
+                    <div class="stat-label">Nakit Ödemeler</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">₺${data.cardPayments.toFixed(2)}</div>
+                    <div class="stat-label">K. Kartı Ödemeleri</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">₺${data.voucherPayments.toFixed(2)}</div>
+                    <div class="stat-label">Hediye Çeki</div>
+                </div>
+                 <div class="stat-card">
+                    <div class="stat-value">₺${data.onlinePayments.toFixed(2)}</div>
+                    <div class="stat-label">Online</div>
+                </div>
+            `;
+        }
+
+        function updateDetailsTable(data) {
+            const tableBody = document.getElementById('earnings-table-body');
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Veri bulunamadı.</td></tr>';
+                return;
+            }
+            tableBody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.id}</td>
+                    <td>${new Date(row.date).toLocaleDateString('tr-TR')}</td>
+                    <td>${row.restaurant || 'Bilinmiyor'}</td>
+                    <td>${row.courier || 'Bilinmiyor'}</td>
+                    <td>${row.payment_method || 'Belirtilmemiş'}</td>
+                    <td>₺${parseFloat(row.restaurant_price || 0).toFixed(2)}</td>
+                    <td>₺${parseFloat(row.courier_earning || 0).toFixed(2)}</td>
+                    <td>₺${parseFloat(row.platform_earning || 0).toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function showError(message) {
+            // Create a simple error display
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #f44336;
+                color: white;
+                padding: 1rem;
+                border-radius: 5px;
+                z-index: 1000;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            `;
+            errorDiv.textContent = message;
+            document.body.appendChild(errorDiv);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                document.body.removeChild(errorDiv);
+            }, 5000);
+        }
+
+        // Yeni fonksiyon: Filtreleri temizle
+        function clearFilters() {
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            document.getElementById('restaurantFilter').value = '';
+            document.getElementById('courierFilter').value = '';
+            // Tüm hızlı filtre butonlarındaki 'active' sınıfını kaldır
+            document.querySelectorAll('.quick-filter-btn').forEach(btn => btn.classList.remove('active'));
+            fetchEarningsData(); // Filtreler temizlendikten sonra verileri yeniden yükle
+        }
+    </script>
+</body>
+</html>

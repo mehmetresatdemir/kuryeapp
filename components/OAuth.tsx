@@ -1,23 +1,18 @@
-import { useOAuth } from "@clerk/clerk-expo";
-import { router } from "expo-router";
+// OAuth component disabled - using custom authentication
+// import { useOAuth } from "@clerk/clerk-expo";
 import { Alert, Image, Text, View } from "react-native";
 
 import CustomButton from "@/components/CustomButton";
 import { icons } from "@/constants";
-import { googleOAuth } from "@/lib/auth";
+// import { googleOAuth } from "@/lib/auth";
 
 const OAuth = () => {
-  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  // const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
 
   const handleGoogleSignIn = async () => {
-    const result = await googleOAuth(startOAuthFlow);
-
-    if (result.code === "session_exists") {
-      Alert.alert("Success", "Session exists. Redirecting to home screen.");
-      router.replace("/(root)/(tabs)/home");
-    }
-
-    Alert.alert(result.success ? "Success" : "Error", result.message);
+    // const result = await googleOAuth(startOAuthFlow);
+    // Custom authentication doesn't support OAuth yet
+    Alert.alert("Info", "OAuth authentication is currently disabled. Please use email/password login.");
   };
 
   return (
@@ -33,7 +28,7 @@ const OAuth = () => {
         className="mt-5 w-full shadow-none"
         IconLeft={() => (
           <Image
-            source={icons.google} // veya require('./assets/google.png')
+            source={icons.google}
             resizeMode="contain"
             style={{ width: 20, height: 20, marginHorizontal: 8 }}
           />

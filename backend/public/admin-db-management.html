@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - DB Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 1rem;
+        }
+        
+        .container { max-width: 1800px; margin: 0 auto; }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 1.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            min-height: 85vh;
+        }
+        
+        .sidebar .card, .content .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .card h3 {
+            color: #4a5568;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        
+        .card h3 i {
+            margin-right: 0.5rem;
+            color: #667eea;
+        }
+        
+        .table-list {
+            list-style: none;
+            padding: 0;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        
+        .table-list-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .table-list-item:hover {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            transform: translateX(4px);
+        }
+        
+        .table-list-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .table-item-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .table-item-info i {
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        
+        .record-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+        
+        .action-buttons button {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-backup {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+        
+        .btn-test-data {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+        }
+        
+        .btn-backup:hover, .btn-test-data:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .table-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #2d3748;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .table-view {
+            overflow: auto;
+            max-height: 70vh;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            background: white;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            font-weight: 600;
+            color: #4a5568;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        tr:hover {
+            background-color: #f8f9ff;
+        }
+        
+        .row-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .close:hover {
+            opacity: 0.7;
+        }
+        
+        .modal-body {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .modal-footer {
+            padding: 1.5rem;
+            background: #f7fafc;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+            border: 1px solid #cbd5e0;
+        }
+        
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: #718096;
+        }
+        
+        .loading i {
+            margin-right: 0.5rem;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .alert-success {
+            background: #f0fff4;
+            color: #22543d;
+            border: 1px solid #c6f6d5;
+        }
+        
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #feb2b2;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #718096;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        /* New styles for enhanced functionality */
+        .search-bar {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .search-bar input {
+            width: 100%;
+            padding: 12px 45px 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .search-bar i {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+        }
+        
+        .editable-cell {
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        
+        .editable-cell:hover {
+            background-color: #f0f8ff;
+        }
+        
+        .editable-cell.editing {
+            background-color: #fff3cd;
+        }
+        
+        .cell-input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #667eea;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pagination button:hover {
+            background: #f7fafc;
+        }
+        
+        .pagination button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .table-stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+        
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .table-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="main-content">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="card">
+                    <h3><i class="fas fa-database"></i> Tablolar</h3>
+                    <div class="search-bar">
+                        <input type="text" id="tableSearch" placeholder="Tablo ara..." onkeyup="filterTables()">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <ul class="table-list" id="table-list">
+                        <li class="loading">
+                            <i class="fas fa-spinner"></i>
+                            Tablolar yükleniyor...
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3><i class="fas fa-tools"></i> Araçlar</h3>
+                    <div class="action-buttons">
+                        <button class="btn-backup" onclick="backupDatabase()">
+                            <i class="fas fa-download"></i>
+                            Yedek Al
+                        </button>
+                        <button class="btn-test-data" onclick="generateTestData()">
+                            <i class="fas fa-flask"></i>
+                            Test Verisi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div class="card">
+                    <div class="table-controls">
+                        <div class="table-title" id="table-title">
+                            <i class="fas fa-table"></i>
+                            Tablo seçin
+                        </div>
+                        <div class="table-actions">
+                            <button class="btn btn-success btn-sm" onclick="showAddRecordModal()" id="add-record-btn" style="display: none;">
+                                <i class="fas fa-plus"></i> Kayıt Ekle
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="refreshCurrentTable()" id="refresh-btn" style="display: none;">
+                                <i class="fas fa-sync-alt"></i> Yenile
+                            </button>
+                            <button class="btn btn-warning btn-sm" onclick="exportTable()" id="export-btn" style="display: none;">
+                                <i class="fas fa-file-export"></i> Dışa Aktar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Table Statistics -->
+                    <div class="table-stats" id="table-stats" style="display: none;">
+                        <div class="stat-card">
+                            <div class="stat-value" id="total-records">0</div>
+                            <div class="stat-label">Toplam Kayıt</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="filtered-records">0</div>
+                            <div class="stat-label">Filtrelenmiş</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="table-size">0 KB</div>
+                            <div class="stat-label">Tablo Boyutu</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Search and Filter Bar -->
+                    <div class="filter-bar" id="filter-bar" style="display: none;">
+                        <div class="search-bar" style="flex: 1; max-width: 300px;">
+                            <input type="text" id="recordSearch" placeholder="Kayıtlarda ara..." onkeyup="filterRecords()">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <div class="filter-group">
+                            <label>Sayfa başına:</label>
+                            <select id="pageSize" onchange="changePageSize()">
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <button class="btn btn-secondary btn-sm" onclick="clearFilters()">
+                                <i class="fas fa-times"></i> Filtreleri Temizle
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-view" id="table-content">
+                        <div class="empty-state">
+                            <i class="fas fa-database"></i>
+                            <h3>Veritabanı Yönetimi</h3>
+                            <p>Sol taraftan görüntülemek istediğiniz tabloyu seçin</p>
+                            <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                                <p><strong>Özellikler:</strong></p>
+                                <ul style="text-align: left; display: inline-block;">
+                                    <li>Inline düzenleme (hücreye tıklayın)</li>
+                                    <li>Arama ve filtreleme</li>
+                                    <li>Sayfalama</li>
+                                    <li>Sıralama (sütun başlığına tıklayın)</li>
+                                    <li>CSV dışa aktarma</li>
+                                    <li>Kayıt ekleme/silme</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="pagination" id="pagination" style="display: none;">
+                        <button onclick="changePage('first')" id="first-btn">İlk</button>
+                        <button onclick="changePage('prev')" id="prev-btn">Önceki</button>
+                        <span id="page-info">Sayfa 1 / 1</span>
+                        <button onclick="changePage('next')" id="next-btn">Sonraki</button>
+                        <button onclick="changePage('last')" id="last-btn">Son</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE;
+        let currentTable = null;
+        let currentData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let pageSize = 50;
+        let totalPages = 1;
+        let tableSchema = [];
+        let editingCell = null;
+
+        // API_BASE'i backend'den al
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000';
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000';
+            }
+        }
+
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase();
+            loadTables();
+        });
+
+        // Tabloları yükle
+        async function loadTables() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/db/tables`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTables(data.data);
+                } else {
+                    throw new Error(data.message || 'Tablolar yüklenemedi');
+                }
+            } catch (error) {
+                console.error('Tablolar yüklenirken hata:', error);
+                document.getElementById('table-list').innerHTML = 
+                    '<li style="color: red; padding: 1rem;">Tablolar yüklenemedi</li>';
+            }
+        }
+
+        // Tabloları görüntüle
+        function displayTables(tables) {
+            const tableList = document.getElementById('table-list');
+            tableList.innerHTML = tables.map(table => `
+                <li class="table-list-item" onclick="selectTable('${table}')">
+                    <div class="table-item-info">
+                        <i class="fas fa-table"></i>
+                        ${table}
+                    </div>
+                    <span class="record-count" id="count-${table}">-</span>
+                </li>
+            `).join('');
+
+            // Her tablo için kayıt sayısını al
+            tables.forEach(table => getTableCount(table));
+        }
+
+        // Tablo kayıt sayısını al
+        async function getTableCount(tableName) {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`);
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(`count-${tableName}`).textContent = data.data.length;
+                }
+            } catch (error) {
+                console.error(`${tableName} kayıt sayısı alınamadı:`, error);
+            }
+        }
+
+        // Tablo seç
+        async function selectTable(tableName) {
+            // Aktif tabloyu işaretle
+            document.querySelectorAll('.table-list-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            currentTable = tableName;
+            document.getElementById('table-title').innerHTML = `<i class="fas fa-table"></i> ${tableName}`;
+            
+            // Kontrol butonlarını göster
+            document.getElementById('add-record-btn').style.display = 'inline-flex';
+            document.getElementById('refresh-btn').style.display = 'inline-flex';
+            document.getElementById('export-btn').style.display = 'inline-flex';
+            document.getElementById('table-stats').style.display = 'flex';
+            document.getElementById('filter-bar').style.display = 'flex';
+            document.getElementById('pagination').style.display = 'flex';
+
+            await loadTableData(tableName);
+            await loadTableSchema(tableName);
+        }
+
+        // Tablo verilerini yükle
+        async function loadTableData(tableName) {
+            try {
+                document.getElementById('table-content').innerHTML = '<div class="loading"><i class="fas fa-spinner"></i> Veriler yükleniyor...</div>';
+                
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentData = data.data;
+                    filteredData = [...currentData];
+                    updateStats();
+                    displayTableData();
+                } else {
+                    throw new Error(data.message || 'Veriler yüklenemedi');
+                }
+            } catch (error) {
+                console.error('Tablo verileri yüklenirken hata:', error);
+                document.getElementById('table-content').innerHTML = 
+                    '<div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> Veriler yüklenemedi: ' + error.message + '</div>';
+            }
+        }
+
+        // Tablo şemasını yükle
+        async function loadTableSchema(tableName) {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/db/schema/${tableName}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    tableSchema = data.data;
+                }
+            } catch (error) {
+                console.error('Tablo şeması yüklenirken hata:', error);
+            }
+        }
+
+        // İstatistikleri güncelle
+        function updateStats() {
+            document.getElementById('total-records').textContent = currentData.length;
+            document.getElementById('filtered-records').textContent = filteredData.length;
+            // Tablo boyutu hesaplama (yaklaşık)
+            const sizeKB = Math.round(JSON.stringify(currentData).length / 1024);
+            document.getElementById('table-size').textContent = sizeKB + ' KB';
+        }
+
+        // Tablo verilerini görüntüle
+        function displayTableData() {
+            if (filteredData.length === 0) {
+                document.getElementById('table-content').innerHTML = 
+                    '<div class="empty-state"><i class="fas fa-inbox"></i><h3>Veri Bulunamadı</h3><p>Bu tabloda kayıt bulunmuyor</p></div>';
+                return;
+            }
+
+            // Sayfalama hesapla
+            totalPages = Math.ceil(filteredData.length / pageSize);
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            // Sütun başlıklarını al
+            const columns = Object.keys(filteredData[0]);
+
+            // Tablo HTML'i oluştur
+            const tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            ${columns.map(col => `<th onclick="sortTable('${col}')" style="cursor: pointer;">
+                                ${col} <i class="fas fa-sort"></i>
+                            </th>`).join('')}
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pageData.map((row, index) => `
+                            <tr>
+                                ${columns.map(col => `
+                                    <td class="editable-cell" 
+                                        onclick="startEdit(this, '${col}', ${startIndex + index})" 
+                                        data-column="${col}" 
+                                        data-row="${startIndex + index}">
+                                        ${formatCellValue(row[col])}
+                                    </td>
+                                `).join('')}
+                                <td class="row-actions">
+                                    <button class="btn btn-danger btn-sm" onclick="deleteRecord(${startIndex + index})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('table-content').innerHTML = tableHTML;
+            updatePagination();
+        }
+
+        // Hücre değerini formatla
+        function formatCellValue(value) {
+            if (value === null || value === undefined) {
+                return '<span style="color: #999; font-style: italic;">NULL</span>';
+            }
+            if (typeof value === 'boolean') {
+                return value ? '<span style="color: green;">✓</span>' : '<span style="color: red;">✗</span>';
+            }
+            if (typeof value === 'string' && value.length > 50) {
+                return value.substring(0, 50) + '...';
+            }
+            return String(value);
+        }
+
+        // Inline düzenleme başlat
+        function startEdit(cell, column, rowIndex) {
+            if (editingCell) {
+                cancelEdit();
+            }
+
+            editingCell = { cell, column, rowIndex, originalValue: filteredData[rowIndex][column] };
+            cell.classList.add('editing');
+
+            const currentValue = filteredData[rowIndex][column] || '';
+            cell.innerHTML = `<input type="text" class="cell-input" value="${currentValue}" 
+                             onblur="saveEdit()" onkeydown="handleEditKeydown(event)">`;
+            cell.querySelector('input').focus();
+            cell.querySelector('input').select();
+        }
+
+        // Düzenleme tuş olayları
+        function handleEditKeydown(event) {
+            if (event.key === 'Enter') {
+                saveEdit();
+            } else if (event.key === 'Escape') {
+                cancelEdit();
+            }
+        }
+
+        // Düzenlemeyi kaydet
+        async function saveEdit() {
+            if (!editingCell) return;
+
+            const newValue = editingCell.cell.querySelector('input').value;
+            const { column, rowIndex, originalValue } = editingCell;
+
+            if (newValue === originalValue) {
+                cancelEdit();
+                return;
+            }
+
+            try {
+                // Backend'e güncelleme isteği gönder
+                const recordId = getRecordId(filteredData[rowIndex]);
+                const updateData = { [column]: newValue || null };
+
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Veriyi güncelle
+                    filteredData[rowIndex][column] = newValue || null;
+                    currentData[currentData.findIndex(item => getRecordId(item) === recordId)][column] = newValue || null;
+                    
+                    // Hücreyi güncelle
+                    editingCell.cell.classList.remove('editing');
+                    editingCell.cell.innerHTML = formatCellValue(newValue || null);
+                    
+                    showNotification('Kayıt başarıyla güncellendi', 'success');
+                } else {
+                    throw new Error(result.message || 'Güncelleme başarısız');
+                }
+            } catch (error) {
+                console.error('Kayıt güncellenirken hata:', error);
+                showNotification('Güncelleme başarısız: ' + error.message, 'error');
+                cancelEdit();
+            }
+
+            editingCell = null;
+        }
+
+        // Düzenlemeyi iptal et
+        function cancelEdit() {
+            if (!editingCell) return;
+
+            editingCell.cell.classList.remove('editing');
+            editingCell.cell.innerHTML = formatCellValue(editingCell.originalValue);
+            editingCell = null;
+        }
+
+        // Kayıt ID'sini al
+        function getRecordId(record) {
+            return record.id || record.ID || Object.values(record)[0];
+        }
+
+        // Kayıtları filtrele
+        function filterRecords() {
+            const searchTerm = document.getElementById('recordSearch').value.toLowerCase();
+            
+            if (!searchTerm) {
+                filteredData = [...currentData];
+            } else {
+                filteredData = currentData.filter(record => {
+                    return Object.values(record).some(value => 
+                        String(value).toLowerCase().includes(searchTerm)
+                    );
+                });
+            }
+            
+            currentPage = 1;
+            updateStats();
+            displayTableData();
+        }
+
+        // Tabloları filtrele
+        function filterTables() {
+            const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+            const tableItems = document.querySelectorAll('.table-list-item');
+            
+            tableItems.forEach(item => {
+                const tableName = item.textContent.toLowerCase();
+                if (tableName.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // Sayfa boyutunu değiştir
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 1;
+            displayTableData();
+        }
+
+        // Sayfa değiştir
+        function changePage(direction) {
+            switch (direction) {
+                case 'first':
+                    currentPage = 1;
+                    break;
+                case 'prev':
+                    if (currentPage > 1) currentPage--;
+                    break;
+                case 'next':
+                    if (currentPage < totalPages) currentPage++;
+                    break;
+                case 'last':
+                    currentPage = totalPages;
+                    break;
+            }
+            displayTableData();
+        }
+
+        // Sayfalamayı güncelle
+        function updatePagination() {
+            document.getElementById('page-info').textContent = `Sayfa ${currentPage} / ${totalPages}`;
+            document.getElementById('first-btn').disabled = currentPage === 1;
+            document.getElementById('prev-btn').disabled = currentPage === 1;
+            document.getElementById('next-btn').disabled = currentPage === totalPages;
+            document.getElementById('last-btn').disabled = currentPage === totalPages;
+        }
+
+        // Tabloyu sırala
+        function sortTable(column) {
+            const isAscending = !filteredData._sortAscending || filteredData._sortColumn !== column;
+            
+            filteredData.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+                
+                // NULL değerleri en sona koy
+                if (aVal === null || aVal === undefined) return 1;
+                if (bVal === null || bVal === undefined) return -1;
+                
+                // Sayısal karşılaştırma
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    return isAscending ? aVal - bVal : bVal - aVal;
+                }
+                
+                // String karşılaştırma
+                aVal = String(aVal).toLowerCase();
+                bVal = String(bVal).toLowerCase();
+                
+                if (isAscending) {
+                    return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                } else {
+                    return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+                }
+            });
+            
+            filteredData._sortAscending = isAscending;
+            filteredData._sortColumn = column;
+            
+            currentPage = 1;
+            displayTableData();
+        }
+
+        // Filtreleri temizle
+        function clearFilters() {
+            document.getElementById('recordSearch').value = '';
+            filteredData = [...currentData];
+            currentPage = 1;
+            updateStats();
+            displayTableData();
+        }
+
+        // Mevcut tabloyu yenile
+        function refreshCurrentTable() {
+            if (currentTable) {
+                loadTableData(currentTable);
+            }
+        }
+
+        // Kayıt sil
+        async function deleteRecord(rowIndex) {
+            if (!confirm('Bu kaydı silmek istediğinizden emin misiniz?')) return;
+
+            try {
+                const record = filteredData[rowIndex];
+                const recordId = getRecordId(record);
+
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Veriyi kaldır
+                    const originalIndex = currentData.findIndex(item => getRecordId(item) === recordId);
+                    currentData.splice(originalIndex, 1);
+                    filteredData.splice(rowIndex, 1);
+                    
+                    updateStats();
+                    displayTableData();
+                    showNotification('Kayıt başarıyla silindi', 'success');
+                } else {
+                    throw new Error(result.message || 'Silme başarısız');
+                }
+            } catch (error) {
+                console.error('Kayıt silinirken hata:', error);
+                showNotification('Silme başarısız: ' + error.message, 'error');
+            }
+        }
+
+        // Bildirim göster
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type}`;
+            notification.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'exclamation-triangle'}"></i> ${message}`;
+            
+            document.querySelector('.content .card').insertBefore(notification, document.querySelector('.table-controls'));
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Kayıt ekle modalını göster
+        function showAddRecordModal() {
+            if (!currentTable || !tableSchema.length) {
+                showNotification('Önce tablo şeması yüklenmelidir', 'error');
+                return;
+            }
+
+            // Basit prompt ile yeni kayıt ekleme
+            const newRecord = {};
+            const columns = tableSchema.filter(col => 
+                col.column_name !== 'id' && 
+                col.column_name !== 'created_at' && 
+                col.column_name !== 'updated_at'
+            );
+
+            let allFieldsValid = true;
+            for (const column of columns) {
+                const value = prompt(`${column.column_name} (${column.data_type}):`);
+                
+                if (value === null) {
+                    // User cancelled
+                    return;
+                }
+                
+                if (column.is_nullable === 'NO' && !value.trim()) {
+                    showNotification(`${column.column_name} alanı zorunludur`, 'error');
+                    allFieldsValid = false;
+                    break;
+                }
+                
+                newRecord[column.column_name] = value || null;
+            }
+
+            if (allFieldsValid) {
+                addRecord(newRecord);
+            }
+        }
+
+        // Yeni kayıt ekle
+        async function addRecord(recordData) {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(recordData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Kayıt başarıyla eklendi', 'success');
+                    await loadTableData(currentTable); // Tabloyu yenile
+                } else {
+                    throw new Error(result.message || 'Kayıt ekleme başarısız');
+                }
+            } catch (error) {
+                console.error('Kayıt eklenirken hata:', error);
+                showNotification('Kayıt ekleme başarısız: ' + error.message, 'error');
+            }
+        }
+
+        // Tabloyu dışa aktar
+        function exportTable() {
+            if (!currentData.length) return;
+            
+            const csv = convertToCSV(filteredData);
+            downloadCSV(csv, `${currentTable}_export.csv`);
+        }
+
+        // CSV'ye dönüştür
+        function convertToCSV(data) {
+            const headers = Object.keys(data[0]);
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => headers.map(header => {
+                    let value = row[header];
+                    if (value === null || value === undefined) value = '';
+                    if (typeof value === 'string' && value.includes(',')) {
+                        value = `"${value}"`;
+                    }
+                    return value;
+                }).join(','))
+            ].join('\n');
+            
+            return csvContent;
+        }
+
+        // CSV indir
+        function downloadCSV(csvContent, fileName) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', fileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // Veritabanı yedeği al
+        async function backupDatabase() {
+            if (!confirm('Veritabanının tüm tablolarını CSV formatında indirmek istiyor musunuz?')) return;
+
+            try {
+                showNotification('Yedekleme başlatılıyor...', 'info');
+                
+                // Tüm tabloları al
+                const response = await fetch(`${API_BASE}/api/admin/db/tables`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error('Tablo listesi alınamadı');
+                }
+
+                // Her tablo için veri al ve CSV olarak indir
+                for (const tableName of data.data) {
+                    try {
+                        const tableResponse = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`);
+                        const tableData = await tableResponse.json();
+                        
+                        if (tableData.success && tableData.data.length > 0) {
+                            const csv = convertToCSV(tableData.data);
+                            downloadCSV(csv, `backup_${tableName}_${new Date().toISOString().split('T')[0]}.csv`);
+                        }
+                    } catch (error) {
+                        console.error(`${tableName} tablosu yedeklenirken hata:`, error);
+                    }
+                }
+                
+                showNotification('Veritabanı yedekleme tamamlandı', 'success');
+            } catch (error) {
+                console.error('Yedekleme hatası:', error);
+                showNotification('Yedekleme başarısız: ' + error.message, 'error');
+            }
+        }
+
+        // Test verisi oluştur
+        async function generateTestData() {
+            if (!confirm('Test verisi oluşturmak istediğinizden emin misiniz?')) return;
+
+            try {
+                showNotification('Test verisi oluşturuluyor...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/admin/db/generate-test-data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    // Tabloları yenile
+                    loadTables();
+                } else {
+                    throw new Error(result.message || 'Test verisi oluşturma başarısız');
+                }
+            } catch (error) {
+                console.error('Test verisi oluşturma hatası:', error);
+                showNotification('Test verisi oluşturma başarısız: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>🚚 Kurye App - Dashboard v3.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { background: #5a67d8; }
+        .nav-link.active { background: #4c51bf; }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .metric-item {
+            text-align: center;
+            padding: 1rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 10px;
+            color: white;
+        }
+        .metric-value { 
+            font-size: 1.5rem; 
+            font-weight: bold; 
+            margin-bottom: 0.5rem; 
+            transition: transform 0.2s ease, color 0.3s ease;
+        }
+        .metric-label { font-size: 0.9rem; opacity: 0.9; }
+        .chart-container { height: 300px; margin-top: 1rem; }
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover { background: #059669; }
+        .map-container {
+            height: 400px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        .map-card {
+            grid-column: span 2;
+        }
+        @media (max-width: 768px) {
+            .map-card {
+                grid-column: span 1;
+            }
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            margin-top: 0.25rem;
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: none;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* Checkbox styling */
+        input[type="checkbox"] {
+            width: auto !important;
+            margin-right: 0.5rem;
+            transform: scale(1.2);
+        }
+
+        .form-group label:has(input[type="checkbox"]) {
+            flex-direction: row;
+            align-items: center;
+            font-weight: normal;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="dashboard-grid">
+            <!-- Online Durum Widget'i -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>🟢 Çevrimiçi Durum</h3>
+                    <button class="refresh-btn" onclick="loadOnlineStats()">🔄</button>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric-item" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value" id="onlineCouriers">-</div>
+                        <div class="metric-label">Çevrimiçi Kurye</div>
+                    </div>
+                    <div class="metric-item" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                        <div class="metric-value" id="onlineRestaurants">-</div>
+                        <div class="metric-label">Çevrimiçi Restoran</div>
+                    </div>
+                </div>
+                <div id="onlineCouriersList" style="margin-top: 1rem; max-height: 200px; overflow-y: auto; display: none;">
+                    <h4 style="margin-bottom: 0.5rem; color: #333;">Çevrimiçi Kuryeler:</h4>
+                    <div id="courierListContent"></div>
+                </div>
+                <button class="refresh-btn" onclick="toggleCourierList()" id="toggleCourierBtn" style="margin-top: 1rem; width: 100%;">
+                    📋 Kurye Listesini Göster
+                </button>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>📈 Sipariş Durumu</h3>
+                    <button class="refresh-btn" onclick="loadOrderStatusMetrics()">🔄</button>
+                </div>
+                <div class="metric-grid" id="order-status-metrics">
+                    <div class="metric-item" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                        <div class="metric-value" id="ordersBekliyor">-</div>
+                        <div class="metric-label">Bekliyor</div>
+                    </div>
+                    <div class="metric-item" style="background: linear-gradient(135deg, #fbbf24, #f59e0b);">
+                        <div class="metric-value" id="ordersOnayBekliyor">-</div>
+                        <div class="metric-label">Onay Bekliyor</div>
+                    </div>
+                    <div class="metric-item" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value" id="ordersKuryede">-</div>
+                        <div class="metric-label">Kuryede</div>
+                    </div>
+                    <div class="metric-item" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value" id="ordersTeslimEdildi">-</div>
+                        <div class="metric-label">Teslim Edildi</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Harita Kartı -->
+            <div class="card map-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>🗺️ Gerçek Zamanlı Harita</h3>
+                    <div>
+                                                  <button class="refresh-btn" onclick="refreshMap()">🔄</button>
+                          <button class="refresh-btn" onclick="toggleMapView()" id="mapToggleBtn">📍 Kuryeler</button>
+                          <button class="refresh-btn" onclick="forceRefresh()" style="background: #dc3545;">🔄 Yenile</button>
+                          <button class="refresh-btn" onclick="openMapSettings()">⚙️ Ayarlar</button>
+                        <button class="refresh-btn" onclick="adminLogout()" style="background: #dc3545;" title="Admin Panelinden Çıkış">🚪 Çıkış</button>
+                    </div>
+                </div>
+                <div class="map-container" id="mapContainer"></div>
+                
+                <!-- Son Konumlar Paneli -->
+                <div id="lastLocationsPanel" style="display: none; margin-top: 15px; background: #f8f9fa; border-radius: 8px; padding: 15px; border: 1px solid #e9ecef;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; color: #495057;">📍 Kurye Son Konumları</h4>
+                        <button class="refresh-btn" onclick="refreshLastLocations()">🔄 Yenile</button>
+                    </div>
+                    <div id="lastLocationsList" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Son konumlar buraya yüklenecek -->
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                    <span style="color: #10b981;">🟢</span> Aktif Kuryeler &nbsp;
+                    <span style="color: #6b7280;">⚫</span> Offline Kuryeler &nbsp;
+                    <span style="color: #8b5cf6;">🟣</span> Restoranlar &nbsp;
+                    <button class="refresh-btn" onclick="toggleLastLocations()" id="lastLocationBtn" style="font-size: 0.8rem; padding: 4px 8px;">📋 Son Konumlar</button>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+
+
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // Define API_BASE globally but without immediate assignment
+        let selectedLocation = null;
+        let locationPickerMarker = null;
+
+        // Function to fetch API_BASE from backend
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        console.log('fetchApiBase fonksiyonu tanımlandı ve çalışıyor.'); // Added for debugging
+
+        // Google Maps API'sini dinamik olarak yükle
+        async function loadGoogleMapsScript() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`);
+                const data = await response.json();
+
+                if (data.success && data.key) {
+                    const script = document.createElement('script');
+                    script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=geometry&callback=initMap`;
+                    script.async = true;
+                    script.defer = true;
+                    document.head.appendChild(script);
+                    console.log('Google Maps API script başarıyla yüklendi.');
+                } else {
+                    console.error('Google Maps API anahtarı backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    // Fallback olarak OpenStreetMap veya başka bir harita kütüphanesi kullanma mantığı buraya eklenebilir.
+                    // Şimdilik sadece hata mesajı gösteriliyor.
+                    initMap(); // Google Maps olmadan harita fonksiyonlarını başlatmaya çalış
+                }
+            } catch (error) {
+                console.error('Google Maps API script yüklenirken hata oluştu:', error);
+                initMap(); // Hata durumunda da harita fonksiyonlarını başlatmaya çalış
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' }; // Sadece Content-Type gönder, token yoksa yetkisiz erişim hatası verme
+        }
+
+        // Sayfa yüklendiğinde verileri çek
+        let waitingForWebSocketData = true;
+        let webSocketDataReceived = false;
+        let fallbackTimeout;
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Dashboard v3.0 yükleniyor...', new Date().toISOString());
+            await fetchApiBase(); // Fetch API_BASE first
+            loadOnlineStats();
+            loadOrderStatusMetrics();
+            loadGoogleMapsScript();
+            
+            // Harita hazır olduğunda websocket dinlemeye başla
+            initializeSocket();
+            
+            // 3 saniye websocket verisi bekle, gelmezse DB'den çek
+            fallbackTimeout = setTimeout(() => {
+                if (!webSocketDataReceived && waitingForWebSocketData) {
+                    console.log('⏰ WebSocket verisi gelmedi, DB\'den çekiliyor...');
+                    waitingForWebSocketData = false;
+                    loadMapData();
+                }
+            }, 3000);
+        });
+
+        // Online istatistikleri yükle
+        function loadOnlineStats() {
+            fetch(`${API_BASE}/api/admin/online-stats`, {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.data) {
+                        document.getElementById('onlineCouriers').textContent = data.data.totalOnlineCouriers || 0;
+                        document.getElementById('onlineRestaurants').textContent = data.data.totalOnlineRestaurants || 0;
+                        
+                        // Kurye listesini güncelle
+                        updateCourierList(data.data.onlineCouriers || []);
+                    }
+                })
+                .catch(error => {
+                    console.error('Online istatistikler yüklenirken hata:', error);
+                });
+        }
+
+        // Kurye listesini güncelle
+        function updateCourierList(couriers) {
+            const courierListContent = document.getElementById('courierListContent');
+            
+            if (couriers.length === 0) {
+                courierListContent.innerHTML = '<div style="color: #666; font-style: italic;">Çevrimiçi kurye yok</div>';
+                return;
+            }
+            
+            const courierItems = couriers.map(courier => {
+                const joinTime = new Date(courier.joinTime).toLocaleTimeString('tr-TR');
+                const lastActivity = new Date(courier.lastActivity).toLocaleTimeString('tr-TR');
+                const statusColor = courier.isBlocked ? '#ef4444' : '#10b981';
+                const statusText = courier.isBlocked ? 'Engellenmiş' : 'Aktif';
+                
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 4px 0; background: white; border-radius: 6px; border-left: 4px solid ${statusColor};">
+                        <div>
+                            <strong>${courier.name}</strong>
+                            <div style="font-size: 0.8rem; color: #666;">
+                                ${courier.email} • ${statusText}
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 0.8rem; color: #666;">
+                            <div>Bağlandı: ${joinTime}</div>
+                            <div>Son Aktivite: ${lastActivity}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            courierListContent.innerHTML = courierItems;
+        }
+
+        // Kurye listesini göster/gizle
+        function toggleCourierList() {
+            const couriersList = document.getElementById('onlineCouriersList');
+            const toggleBtn = document.getElementById('toggleCourierBtn');
+            
+            if (couriersList.style.display === 'none') {
+                couriersList.style.display = 'block';
+                toggleBtn.textContent = '📋 Kurye Listesini Gizle';
+                loadOnlineStats(); // Listeyi gösterirken verileri yenile
+            } else {
+                couriersList.style.display = 'none';
+                toggleBtn.textContent = '📋 Kurye Listesini Göster';
+            }
+        }
+
+        // Sipariş durumu metriklerini yükle (Eski loadOrderChart yerine)
+        async function loadOrderStatusMetrics() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/analytics/order-status-counts`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    const orderCounts = data.data;
+                    document.getElementById('ordersBekliyor').textContent = orderCounts.bekliyor || 0;
+                    document.getElementById('ordersOnayBekliyor').textContent = orderCounts.onayBekliyor || 0;
+                    document.getElementById('ordersKuryede').textContent = orderCounts.kuryede || 0;
+                    document.getElementById('ordersTeslimEdildi').textContent = orderCounts.teslimEdildi || 0;
+                } else {
+                    console.error('Sipariş durumu verileri alınamadı:', data.message || 'Bilinmeyen Hata');
+                    document.getElementById('ordersBekliyor').textContent = '-';
+                    document.getElementById('ordersOnayBekliyor').textContent = '-';
+                    document.getElementById('ordersKuryede').textContent = '-';
+                    document.getElementById('ordersTeslimEdildi').textContent = '-';
+                }
+            } catch (error) {
+                console.error('Sipariş durumu metrikleri yüklenirken hata:', error);
+                document.getElementById('ordersBekliyor').textContent = 'Hata';
+                document.getElementById('ordersHazirlaniyor').textContent = 'Hata';
+                document.getElementById('ordersKuryede').textContent = 'Hata';
+                document.getElementById('ordersTeslimEdildi').textContent = 'Hata';
+            }
+        }
+
+        let map;
+        let courierMarkers = [];
+
+        // Harita başlatma - Restaurant sayfasından kopyalandı
+        function initMap() {
+            // Ana harita
+            map = new google.maps.Map(document.getElementById('mapContainer'), {
+                zoom: 11,
+                center: { lat: 41.0082, lng: 28.9784 }, // İstanbul
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+            
+            loadCourierMarkers();
+            
+            // 15 saniyede bir yenile
+            setInterval(loadCourierMarkers, 15000);
+        }
+
+        // Kurye markerlarını yükle - Restaurant sayfasından kopyalandı
+        function loadCourierMarkers() {
+            // Mevcut markerları temizle
+            courierMarkers.forEach(marker => marker.setMap(null));
+            courierMarkers = [];
+            
+            fetch(`${API_BASE}/api/admin/couriers`, {
+                headers: getAuthHeaders()
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP hata! Durum: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        const bounds = new google.maps.LatLngBounds();
+                        let hasMarkers = false;
+                        
+                        data.data.forEach(courier => {
+                            if (courier.latitude && courier.longitude) {
+                                const position = { lat: parseFloat(courier.latitude), lng: parseFloat(courier.longitude) };
+                                
+                                const marker = new google.maps.Marker({
+                                    position: position,
+                                    map: map,
+                                    title: courier.name,
+                                    icon: {
+                                        path: google.maps.SymbolPath.CIRCLE,
+                                        scale: 12,
+                                        fillColor: '#10b981',
+                                        fillOpacity: 1.0,
+                                        strokeColor: '#ffffff',
+                                        strokeWeight: 3
+                                    }
+                                });
+                                
+                                const infoWindow = new google.maps.InfoWindow({
+                                    content: `
+                                        <div style="padding: 0.5rem;">
+                                            <h4 style="margin: 0 0 0.5rem 0; color: #333;">🏍️ ${courier.name}</h4>
+                                            <p style="margin: 0; font-size: 0.9rem;">📧 ${courier.email}</p>
+                                            <p style="margin: 0; font-size: 0.9rem;">📞 ${courier.phone || 'Telefon belirtilmemiş'}</p>
+                                            <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: #666;">📍 ${parseFloat(courier.latitude).toFixed(6)}, ${parseFloat(courier.longitude).toFixed(6)}</p>
+                                        </div>
+                                    `
+                                });
+                                
+                                marker.addListener('click', () => {
+                                    infoWindow.open(map, marker);
+                                });
+                                
+                                courierMarkers.push(marker);
+                                bounds.extend(position);
+                                hasMarkers = true;
+                            }
+                        });
+                        
+                        // Tüm markerları kapsayacak şekilde haritayı odakla
+                        if (hasMarkers) {
+                            map.fitBounds(bounds);
+                            
+                            // Minimum zoom seviyesi ayarla (çok fazla yakınlaştırmasın)
+                            google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
+                                if (map.getZoom() > 15) {
+                                    map.setZoom(15);
+                                }
+                            });
+                        } else {
+                            // Hiç marker yoksa İstanbul'u göster
+                            map.setCenter({ lat: 41.0082, lng: 28.9784 });
+                            map.setZoom(11);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Kurye konumları yüklenirken hata:', error);
+                });
+        }
+
+        // Basit refresh fonksiyonu
+        function refreshMap() {
+            loadCourierMarkers();
+        }
+
+        // 🚪 Admin çıkış fonksiyonu
+        function adminLogout() {
+            if (confirm('Admin panelinden çıkış yapmak istediğinizden emin misiniz?')) {
+                localStorage.removeItem('adminAuth');
+                window.location.href = 'admin-login.html';
+            }
+        }
+
+        // Restaurant sayfasındaki basit harita yapısı kullanılıyor
+
+        // Sadece basit harita - diğer karmaşık özellikler kaldırıldı
+
+        // Tüm karmaşık fonksiyonlar kaldırıldı - Restaurant sayfası gibi basit harita yapısı
+
+        
+    </script>
+</body>
+</html> 

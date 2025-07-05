@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚚 Kurye App - Analytics</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 2rem;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .nav-link:hover { background: #5a67d8; }
+        .nav-link.active { background: #4c51bf; }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        .card-title { font-size: 1.2rem; font-weight: 600; color: #333; }
+        .table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background: #f8fafc;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+        }
+        td { padding: 0.75rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .refresh-btn:hover { background: #059669; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main-layout.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- THE HEADER IS NOW DYNAMICALLY INSERTED HERE BY main-layout.js -->
+
+        <div class="main-content">
+            <!-- En İyi Performans Tabloları -->
+            <div class="chart-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🏆 En Çok Sipariş Alan Restoranlar</h3>
+                        <button class="refresh-btn" onclick="loadTopRestaurants()">🔄</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Restoran Adı</th>
+                                    <th>Toplam Sipariş</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topRestaurantsTable">
+                                <tr><td colspan="3" class="loading">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🚴 En Çok Sipariş Yapan Kuryeler</h3>
+                        <button class="refresh-btn" onclick="loadTopCouriers()">🔄</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Kurye Adı</th>
+                                    <th>Toplam Sipariş</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topCouriersTable">
+                                <tr><td colspan="3" class="loading">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- En Çok Kazandıran Restoranlar Tablosu (Yeni Eklendi) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">💰 En Çok Kazandıran Restoranlar (Platform Karı)</h3>
+                        <button class="refresh-btn" onclick="loadTopEarningRestaurants()">🔄</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Restoran Adı</th>
+                                    <th>Platform Karı</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topEarningRestaurantsTable">
+                                <tr><td colspan="3" class="loading">Yükleniyor...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🔐 Admin şifre kontrolü
+        function checkAdminAuth() {
+            if (localStorage.getItem('adminAuth') !== 'authenticated') {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            return true;
+        }
+        
+        // Sayfa yüklendiğinde şifre kontrol et
+        if (!checkAdminAuth()) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; font-size: 1.2rem;">🔐 Yetki kontrolü yapılıyor...</div>';
+        }
+
+        let API_BASE; // API_BASE'i global olarak tanımlayın, ancak hemen atama yapmayın
+
+        // API_BASE'i arka uçtan çekme fonksiyonu
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                } else {
+                    console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
+                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                }
+            } catch (error) {
+                console.error('API_BASE yüklenirken hata oluştu:', error);
+                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchApiBase(); // Fetch API_BASE first
+            loadTopRestaurants();
+            loadTopCouriers();
+            loadTopEarningRestaurants(); // Yeni fonksiyonu çağır
+        });
+
+        // En Çok Sipariş Alan Restoranları Yükle
+        async function loadTopRestaurants() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/analytics/top-restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                const tbody = document.getElementById('topRestaurantsTable');
+
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map((restaurant, index) => `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${restaurant.firma_adi || restaurant.name || 'N/A'}</td>
+                            <td>${restaurant.total_orders || 0}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="loading">Veri bulunamadı.</td></tr>';
+                }
+            } catch (error) {
+                console.error('En çok sipariş alan restoranlar yüklenirken hata:', error);
+                document.getElementById('topRestaurantsTable').innerHTML = '<tr><td colspan="3" class="loading">Yükleme hatası.</td></tr>';
+            }
+        }
+
+        // En Çok Sipariş Yapan Kuryeleri Yükle
+        async function loadTopCouriers() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/analytics/top-couriers`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                const tbody = document.getElementById('topCouriersTable');
+
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map((courier, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                            <td>${courier.name || 'N/A'}</td>
+                            <td>${courier.total_orders || 0}</td>
+                </tr>
+            `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="loading">Veri bulunamadı.</td></tr>';
+                }
+            } catch (error) {
+                console.error('En çok sipariş yapan kuryeler yüklenirken hata:', error);
+                document.getElementById('topCouriersTable').innerHTML = '<tr><td colspan="3" class="loading">Yükleme hatası.</td></tr>';
+            }
+        }
+
+        // En Çok Kazandıran Restoranları Yükle (Yeni Eklendi)
+        async function loadTopEarningRestaurants() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/analytics/top-earning-restaurants`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                const tbody = document.getElementById('topEarningRestaurantsTable');
+
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map((restaurant, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                            <td>${restaurant.firma_adi || restaurant.name || 'N/A'}</td>
+                            <td>₺${(parseFloat(restaurant.platform_profit) || 0).toFixed(2)}</td>
+                </tr>
+            `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="loading">Veri bulunamadı.</td></tr>';
+                }
+            } catch (error) {
+                console.error('En çok kazandıran restoranlar yüklenirken hata:', error);
+                document.getElementById('topEarningRestaurantsTable').innerHTML = '<tr><td colspan="3" class="loading">Yükleme hatası.</td></tr>';
+            }
+        }
+
+    </script>
+</body>
+</html> 

@@ -149,11 +149,13 @@ router.get('/delivered/:courierId', protect, async (req, res) => {
                 o.odeme_yontemi as odeme_tipi,
                 r.name as firma_adi,
                 o.mahalle,
-                o.resim
+                o.resim,
+                o.updated_at,
+                o.delivered_at
             FROM orders o
             LEFT JOIN restaurants r ON o.firmaid = r.id
             WHERE ${sql.unsafe(whereClause)}
-            ORDER BY o.created_at DESC
+            ORDER BY COALESCE(o.delivered_at, o.updated_at) DESC
         `;
 
         res.json({ success: true, data: deliveredOrders });
@@ -240,11 +242,13 @@ router.get('/firmdelivered/:firmId', protect, async (req, res) => {
                 o.firma_adi as title,
                 o.odeme_yontemi as odeme_tipi,
                 c.name as kurye_adi,
-                o.mahalle
+                o.mahalle,
+                o.updated_at,
+                o.delivered_at
             FROM orders o
             LEFT JOIN couriers c ON o.kuryeid = c.id
             WHERE ${sql.unsafe(whereClause)}
-            ORDER BY o.created_at DESC
+            ORDER BY COALESCE(o.delivered_at, o.updated_at) DESC
         `;
 
         res.json({ success: true, data: deliveredOrders });
