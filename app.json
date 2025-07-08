@@ -20,7 +20,7 @@
       "backgroundColor": "#FFFFFF"
     },
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -52,7 +52,11 @@
             }
           }
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Uygulama, profil fotoğrafı eklemeniz veya makbuz tarama gibi özellikler için kameranıza erişmek istiyor.",
+        "NSPhotoLibraryUsageDescription": "Uygulama, sipariş görselleri ve profil fotoğrafları için galerinizdeki fotoğraflara erişmek istiyor.",
+        "NSLocationWhenInUseUsageDescription": "Siparişinizin teslim edileceği adresi belirlemek ve kuryenin konumunu haritada göstermek için konumunuza ihtiyacımız var.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Uygulama kapalıyken bile siparişinizin durumunu ve kuryenin konumunu size bildirebilmek için konumunuza her zaman erişmemiz gerekiyor."
       }
     },
     "android": {
@@ -77,7 +81,22 @@
       "expo-secure-store",
       "expo-font",
       "expo-notifications",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Uygulama, sipariş görselleri ve profil fotoğrafları için galerinizdeki fotoğraflara erişmek istiyor.",
+          "cameraPermission": "Uygulama, profil fotoğrafı eklemeniz veya makbuz tarama gibi özellikler için kameranıza erişmek istiyor."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useModularHeaders": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -89,7 +108,7 @@
       "API_HOST": "localhost",
       "API_PORT": "3000",
       "REMOTE_API_HOST": "kurye-backend-production.up.railway.app",
-      "USE_REMOTE": false,
+      "USE_REMOTE": true,
       "eas": {
         "projectId": "1a3e02ac-240c-48a3-b9e8-05dfc29cfe96"
       }

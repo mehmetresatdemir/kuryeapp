@@ -29,6 +29,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import io from "socket.io-client";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import NotificationButton from "../../components/NotificationButton";
+import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruzir
 
 // Configure notifications
@@ -597,6 +598,13 @@ const RestaurantHome = () => {
     socket.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 Restaurant: Admin notification received:", data);
       
+      // Özel bildirim sesi çal
+      if (data.withSound) {
+        playNotificationSound().catch(error => {
+          console.log('Bildirim sesi çalınamadı:', error);
+        });
+      }
+      
       // Show admin notification
       Notifications.scheduleNotificationAsync({
         content: {
@@ -609,7 +617,7 @@ const RestaurantHome = () => {
             sender: data.sender,
             timestamp: data.timestamp
           },
-          sound: data.withSound ? 'default' : undefined,
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
         },
         trigger: null, // Show immediately
       });
@@ -629,6 +637,21 @@ const RestaurantHome = () => {
           [{ text: "Tamam", style: "default" }]
         );
       }
+    });
+
+    // Listen for notification sound changes
+    socket.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
+      console.log("🔊 Bildirim sesi değişti:", data);
+      
+      // Cache'i güncelle
+      updateCachedSound({
+        id: data.soundId,
+        name: data.soundName,
+        file_path: data.soundPath
+      });
+      
+      // Kullanıcıya bilgi ver
+      console.log(`🎵 ${data.message}`);
     });
 
     socketRef.current = socket;
@@ -887,75 +910,101 @@ const RestaurantHome = () => {
 
   const pickImage = async () => {
     try {
-      // Galeri izinlerini kontrol et
-      const galleryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      // Önce mevcut izinleri kontrol et
+      const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
       
-      if (galleryPermission.status !== 'granted') {
+      let finalStatus = existingStatus;
+      
+      // Eğer izin yoksa talep et
+      if (existingStatus !== 'granted') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
         Alert.alert(
           "Galeri İzni Gerekli",
-          "Galeriden resim seçebilmek için galeri iznine ihtiyacımız var.",
+          "Galeriden resim seçebilmek için galeri iznine ihtiyacımız var. Lütfen ayarlardan izin verin.",
           [
             { text: "İptal", style: "cancel" },
-            { text: "Ayarlara Git", onPress: () => ImagePicker.requestMediaLibraryPermissionsAsync() }
+            { text: "Tamam", style: "default" }
           ]
         );
         return;
       }
 
-      let result = await ImagePicker.launchImageLibraryAsync({
+      // ImagePicker'ı başlat
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.4, // %40 kalite - daha hızlı upload
+        quality: 0.4,
         base64: false,
+        exif: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setImage({ uri: result.assets[0].uri });
-        // Resim seçildikten sonra modal'ı aşağı kaydır
-        setTimeout(() => {
-          modalScrollRef.current?.scrollTo({ y: 200, animated: true });
-        }, 100);
+        const asset = result.assets[0];
+        if (asset.uri) {
+          setImage({ uri: asset.uri });
+          // Resim seçildikten sonra modal'ı aşağı kaydır
+          setTimeout(() => {
+            modalScrollRef.current?.scrollTo({ y: 200, animated: true });
+          }, 100);
+        }
       }
     } catch (error) {
       console.error("Error picking image:", error);
-      Alert.alert("Hata", "Resim seçilirken bir hata oluştu. Lütfen galeri izinlerini kontrol edin.");
+      Alert.alert("Hata", "Resim seçilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
     }
   };
 
   const takePhoto = async () => {
     try {
-      // Kamera izinlerini kontrol et
-      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+      // Önce mevcut kamera izinlerini kontrol et
+      const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
       
-      if (cameraPermission.status !== 'granted') {
+      let finalStatus = existingStatus;
+      
+      // Eğer izin yoksa talep et
+      if (existingStatus !== 'granted') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
         Alert.alert(
           "Kamera İzni Gerekli",
-          "Fotoğraf çekebilmek için kamera iznine ihtiyacımız var.",
+          "Fotoğraf çekebilmek için kamera iznine ihtiyacımız var. Lütfen ayarlardan izin verin.",
           [
             { text: "İptal", style: "cancel" },
-            { text: "Ayarlara Git", onPress: () => ImagePicker.requestCameraPermissionsAsync() }
+            { text: "Tamam", style: "default" }
           ]
         );
         return;
       }
 
-      let result = await ImagePicker.launchCameraAsync({
+      // Kamerayı başlat
+      const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.4, // %40 kalite - daha hızlı upload
+        quality: 0.4,
         base64: false,
+        exif: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setImage({ uri: result.assets[0].uri });
-        // Resim seçildikten sonra modal'ı aşağı kaydır
-        setTimeout(() => {
-          modalScrollRef.current?.scrollTo({ y: 200, animated: true });
-        }, 100);
+        const asset = result.assets[0];
+        if (asset.uri) {
+          setImage({ uri: asset.uri });
+          // Resim seçildikten sonra modal'ı aşağı kaydır
+          setTimeout(() => {
+            modalScrollRef.current?.scrollTo({ y: 200, animated: true });
+          }, 100);
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
-      Alert.alert("Hata", "Fotoğraf çekilirken bir hata oluştu. Lütfen kamera izinlerini kontrol edin.");
+      Alert.alert("Hata", "Fotoğraf çekilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
     }
   };
 

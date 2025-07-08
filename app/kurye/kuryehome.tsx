@@ -24,6 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { API_CONFIG, API_ENDPOINTS, getFullUrl, authedFetch } from "../../constants/api";
 import { calculateAcceptanceCountdown, calculateDeletionCountdown, calculateDeliveryCountdown } from "../../lib/timeUtils";
 import NotificationButton from "../../components/NotificationButton";
+import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruz
 
 // Notification handler configuration
@@ -799,6 +800,13 @@ const KuryeHome = () => {
     socket.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 Admin notification received:", data);
       
+      // Özel bildirim sesi çal
+      if (data.withSound) {
+        playNotificationSound().catch(error => {
+          console.log('Bildirim sesi çalınamadı:', error);
+        });
+      }
+      
       // Show admin notification
       Notifications.scheduleNotificationAsync({
         content: {
@@ -811,7 +819,7 @@ const KuryeHome = () => {
             sender: data.sender,
             timestamp: data.timestamp
           },
-          sound: data.withSound ? 'default' : undefined,
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
         },
         trigger: null, // Show immediately
       });
@@ -1001,6 +1009,21 @@ const KuryeHome = () => {
       // Refresh orders and accepted orders to update the lists
       fetchOrders();
       fetchAcceptedOrders();
+    });
+
+    // Listen for notification sound changes
+    socket.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
+      console.log("🔊 Bildirim sesi değişti:", data);
+      
+      // Cache'i güncelle
+      updateCachedSound({
+        id: data.soundId,
+        name: data.soundName,
+        file_path: data.soundPath
+      });
+      
+      // Kullanıcıya bilgi ver
+      console.log(`🎵 ${data.message}`);
     });
 
     // Listen for order delivery confirmations

@@ -6,6 +6,41 @@ const restaurantController = require('../controllers/restaurantController');
 const { getOnlineStats } = require('../sockets/handlers/roomHandlers');
 const { removeOrderFromReminderTracking } = require('../services/orderCleanupService');
 const bcrypt = require('bcrypt');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+// Multer configuration for sound files
+const soundStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const soundsDir = path.join(__dirname, '../../public/sounds');
+    if (!fs.existsSync(soundsDir)) {
+      fs.mkdirSync(soundsDir, { recursive: true });
+    }
+    cb(null, soundsDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'notification-' + uniqueSuffix + ext);
+  }
+});
+
+const soundUpload = multer({
+  storage: soundStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only audio files
+    if (file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Sadece ses dosyaları kabul edilir!'), false);
+    }
+  }
+});
 
 // Online istatistikleri getiren endpoint
 router.get('/online-stats', async (req, res) => {
@@ -396,6 +431,9 @@ router.post('/couriers', async (req, res) => {
             return res.status(409).json({ success: false, message: 'Bu e-posta adresi zaten kullanılıyor.' });
         }
 
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const currentTime = new Date();
+
         const [newCourier] = await sql`
             INSERT INTO couriers (
                 name,
@@ -410,13 +448,13 @@ router.post('/couriers', async (req, res) => {
             ) VALUES (
                 ${name},
                 ${email},
-                ${password},
+                ${hashedPassword},
                 ${phone},
                 ${package_limit},
                 'all_restaurants',
                 FALSE,
-                ${NOW()},
-                ${NOW()}
+                ${currentTime},
+                ${currentTime}
             ) RETURNING id, name, email, phone, package_limit, is_blocked;
         `;
         res.status(201).json({ success: true, message: 'Kurye başarıyla eklendi.', data: newCourier });
@@ -442,23 +480,25 @@ router.put('/couriers/:id', async (req, res) => {
             return res.status(409).json({ success: false, message: 'Bu e-posta adresi zaten başka bir kurye tarafından kullanılıyor.' });
         }
 
-        let updateFields = {
+        const updateFields = {
             name,
             email,
             phone,
             package_limit,
             is_blocked: is_blocked || false,
-            updated_at: NOW()
+            updated_at: new Date()
         };
 
-        if (password) {
-            updateFields.password = password;
+        // Sadece yeni bir şifre girildiyse hash'le ve güncelle
+        if (password && password.trim() !== '') {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            updateFields.password = hashedPassword;
         }
 
         const updateKeys = Object.keys(updateFields);
         const updateValues = Object.values(updateFields);
 
-        if (updateKeys.length === 0) {
+        if (updateKeys.length === 1 && updateKeys[0] === 'updated_at') {
             return res.status(400).json({ success: false, message: 'Güncellenecek alan bulunamadı.' });
         }
 
@@ -628,170 +668,6 @@ router.post('/notification-settings', async (req, res) => {
         });
     }
 });
-
-// Admin bildirim gönderme endpoint'i
-router.post('/send-notification', async (req, res) => {
-    try {
-        const { type, scope, title, message, priority, withSound, recipients } = req.body;
-
-        // Validation
-        if (!title || !message) {
-            return res.status(400).json({
-                success: false,
-                message: 'Başlık ve mesaj gereklidir'
-            });
-        }
-
-        if (!['couriers', 'restaurants'].includes(type)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Geçersiz bildirim türü'
-            });
-        }
-
-        if (!['all', 'online', 'specific'].includes(scope)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Geçersiz alıcı kapsamı'
-            });
-        }
-
-        let targetUsers = [];
-        let socketRoom = '';
-
-        if (type === 'couriers') {
-            socketRoom = 'couriers';
-            
-            if (scope === 'all') {
-                // Tüm kuryeleri al
-                const allCouriers = await sql`
-                    SELECT id, name, is_blocked 
-                    FROM couriers 
-                    WHERE is_blocked = false OR is_blocked IS NULL
-                `;
-                targetUsers = allCouriers;
-            } else if (scope === 'online') {
-                // Çevrimiçi kuryeleri al (socket odalarından)
-                // Bu örnekte tüm kuryelerin %30'u çevrimiçi kabul ediliyor
-                const allCouriers = await sql`
-                    SELECT id, name, is_blocked 
-                    FROM couriers 
-                    WHERE is_blocked = false OR is_blocked IS NULL
-                `;
-                targetUsers = allCouriers;
-            } else if (scope === 'specific') {
-                if (!recipients || recipients.length === 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Belirli alıcılar seçilmemiş'
-                    });
-                }
-                
-                const specificCouriers = await sql`
-                    SELECT id, name, is_blocked 
-                    FROM couriers 
-                    WHERE id = ANY(${recipients}) AND (is_blocked = false OR is_blocked IS NULL)
-                `;
-                targetUsers = specificCouriers;
-            }
-        } else if (type === 'restaurants') {
-            socketRoom = 'restaurants';
-            
-            if (scope === 'all') {
-                // Tüm restorantları al
-                const allRestaurants = await sql`
-                    SELECT id, name 
-                    FROM restaurants
-                `;
-                targetUsers = allRestaurants;
-            } else if (scope === 'online') {
-                // Çevrimiçi restorantları al
-                const allRestaurants = await sql`
-                    SELECT id, name 
-                    FROM restaurants
-                `;
-                targetUsers = allRestaurants;
-            } else if (scope === 'specific') {
-                if (!recipients || recipients.length === 0) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Belirli alıcılar seçilmemiş'
-                    });
-                }
-                
-                const specificRestaurants = await sql`
-                    SELECT id, name 
-                    FROM restaurants 
-                    WHERE id = ANY(${recipients})
-                `;
-                targetUsers = specificRestaurants;
-            }
-        }
-
-        // Socket ile bildirim gönder
-        if (req.io && targetUsers.length > 0) {
-            const notificationData = {
-                title: title,
-                message: message,
-                priority: priority,
-                withSound: withSound,
-                timestamp: new Date().toISOString(),
-                type: 'admin_notification',
-                sender: 'admin'
-            };
-
-            if (scope === 'all') {
-                // Tüm kullanıcılara gönder
-                req.io.to(socketRoom).emit('adminNotification', notificationData);
-            } else if (scope === 'online') {
-                // Çevrimiçi kullanıcılara gönder
-                req.io.to(socketRoom).emit('adminNotification', notificationData);
-            } else if (scope === 'specific') {
-                // Belirli kullanıcılara gönder
-                targetUsers.forEach(user => {
-                    const userRoom = type === 'couriers' ? `courier_${user.id}` : `restaurant_${user.id}`;
-                    req.io.to(userRoom).emit('adminNotification', notificationData);
-                });
-            }
-        }
-
-        // Bildirim geçmişine kaydet (opsiyonel)
-        try {
-            await sql`
-                INSERT INTO admin_notifications (
-                    type, scope, title, message, priority, with_sound, 
-                    recipients_count, created_at
-                ) VALUES (
-                    ${type}, ${scope}, ${title}, ${message}, ${priority}, 
-                    ${withSound}, ${targetUsers.length}, NOW()
-                )
-            `;
-        } catch (notificationLogError) {
-            console.log('⚠️ Bildirim geçmiş kaydı yapılamadı:', notificationLogError.message);
-            // Hata olsa da ana işlemi devam ettir
-        }
-
-        res.json({
-            success: true,
-            message: 'Bildirim başarıyla gönderildi',
-            data: {
-                sentCount: targetUsers.length,
-                type: type,
-                scope: scope,
-                title: title
-            }
-        });
-
-    } catch (error) {
-        console.error('Admin bildirim gönderme hatası:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Bildirim gönderilemedi: ' + error.message
-        });
-    }
-});
-
-
 
 // Restorantları getir (bildirim gönderme için)
 router.get('/restaurants', async (req, res) => {
@@ -1370,9 +1246,8 @@ router.patch('/orders/:orderId', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Sipariş bulunamadı' });
         }
 
-        // Türkiye saatini doğrudan al
-        
-        // Using NOW() directly in SQL instead of turkeyTime variable
+        // Şu anki zamanı kullan (JavaScript tarafında)
+        const currentTime = new Date().toISOString();
 
         // Güncelleme değerlerini hazırla
         const updateData = {
@@ -1394,7 +1269,7 @@ router.patch('/orders/:orderId', async (req, res) => {
                 preparation_time = ${updateData.preparation_time},
                 status = ${updateData.status},
                 kuryeid = ${updateData.kuryeid},
-                updated_at = NOW()
+                updated_at = ${currentTime}
             WHERE id = ${orderId}
             RETURNING *
         `;
@@ -1777,26 +1652,41 @@ router.get('/analytics/hourly-distribution', async (req, res) => {
 // En Çok Sipariş Alan Restoranlar
 router.get('/analytics/top-restaurants', async (req, res) => {
     const { start, end } = req.query;
-    const dateWhereClause = getWhereClauseForDateRange(start, end);
-
     console.log('DEBUG: /analytics/top-restaurants endpoint çağrıldı. Tarih aralığı:', start, '-', end);
 
     try {
-        console.log('DEBUG: /analytics/top-restaurants endpoint çağrıldı. Tarih aralığı:', start, '-', end);
-        const topRestaurants = await sql`
-            SELECT
-                r.id,
-                r.name as firma_adi,
-                COUNT(o.id) as total_orders,
-                COALESCE(AVG(o.restaurant_price), 0) as average_price
-            FROM restaurants r
-            JOIN orders o ON r.id = o.firmaid
-            WHERE o.status = 'teslim edildi'
-            ${dateWhereClause ? sql.unsafe(`AND ${dateWhereClause}`) : sql.unsafe('')}
-            GROUP BY r.id, r.name
-            ORDER BY total_orders DESC
-            LIMIT 5;
-        `;
+        let topRestaurants;
+        if (start && end) {
+            topRestaurants = await sql`
+                SELECT
+                    r.id,
+                    r.name as firma_adi,
+                    COUNT(o.id) as total_orders,
+                    COALESCE(AVG(o.restaurant_price), 0) as average_price
+                FROM restaurants r
+                JOIN orders o ON r.id = o.firmaid
+                WHERE o.status = 'teslim edildi'
+                AND DATE(o.created_at) >= ${start}
+                AND DATE(o.created_at) <= ${end}
+                GROUP BY r.id, r.name
+                ORDER BY total_orders DESC
+                LIMIT 5;
+            `;
+        } else {
+            topRestaurants = await sql`
+                SELECT
+                    r.id,
+                    r.name as firma_adi,
+                    COUNT(o.id) as total_orders,
+                    COALESCE(AVG(o.restaurant_price), 0) as average_price
+                FROM restaurants r
+                JOIN orders o ON r.id = o.firmaid
+                WHERE o.status = 'teslim edildi'
+                GROUP BY r.id, r.name
+                ORDER BY total_orders DESC
+                LIMIT 5;
+            `;
+        }
         console.log('DEBUG: Top Restaurants API yanıtı:', topRestaurants);
         res.json({ success: true, data: topRestaurants });
     } catch (error) {
@@ -1987,6 +1877,154 @@ router.post('/notification-settings', async (req, res) => {
     }
 });
 
+// Admin - Normal Bildirim Gönder
+router.post('/send-notification', async (req, res) => {
+    try {
+        const { type, scope, title, message, priority, withSound, recipients } = req.body;
+
+        // Validation
+        if (!title || !message) {
+            return res.status(400).json({
+                success: false,
+                message: 'Başlık ve mesaj gereklidir'
+            });
+        }
+
+        if (!['couriers', 'restaurants'].includes(type)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz bildirim türü'
+            });
+        }
+
+        if (!['all', 'online', 'specific'].includes(scope)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz alıcı kapsamı'
+            });
+        }
+
+        let targetUsers = [];
+        let socketRoom = '';
+
+        // Determine target users and socket room
+        if (type === 'couriers') {
+            socketRoom = 'couriers';
+            
+            if (scope === 'all') {
+                targetUsers = await sql`
+                    SELECT id, name, email FROM couriers
+                `;
+            } else if (scope === 'online') {
+                // Get online couriers - this would need to be implemented based on your socket tracking
+                targetUsers = await sql`
+                    SELECT id, name, email FROM couriers
+                `;
+            } else if (scope === 'specific' && recipients && recipients.length > 0) {
+                targetUsers = await sql`
+                    SELECT id, name, email FROM couriers 
+                    WHERE id = ANY(${recipients})
+                `;
+            }
+        } else if (type === 'restaurants') {
+            socketRoom = 'restaurants';
+            
+            if (scope === 'all') {
+                targetUsers = await sql`
+                    SELECT id, name, email FROM restaurants
+                `;
+            } else if (scope === 'online') {
+                // Get online restaurants - this would need to be implemented based on your socket tracking
+                targetUsers = await sql`
+                    SELECT id, name, email FROM restaurants
+                `;
+            } else if (scope === 'specific' && recipients && recipients.length > 0) {
+                targetUsers = await sql`
+                    SELECT id, name, email FROM restaurants 
+                    WHERE id = ANY(${recipients})
+                `;
+            }
+        }
+
+        // Socket ile bildirim gönder
+        if (req.io && targetUsers.length > 0) {
+            const notificationData = {
+                title: title,
+                message: message,
+                priority: priority,
+                withSound: withSound,
+                timestamp: new Date().toISOString(),
+                type: 'admin_notification',
+                sender: 'admin'
+            };
+
+            if (scope === 'all') {
+                // Tüm kullanıcılara gönder
+                req.io.to(socketRoom).emit('adminNotification', notificationData);
+            } else if (scope === 'online') {
+                // Çevrimiçi kullanıcılara gönder
+                req.io.to(socketRoom).emit('adminNotification', notificationData);
+            } else if (scope === 'specific') {
+                // Belirli kullanıcılara gönder
+                targetUsers.forEach(user => {
+                    const userRoom = type === 'couriers' ? `courier_${user.id}` : `restaurant_${user.id}`;
+                    req.io.to(userRoom).emit('adminNotification', notificationData);
+                });
+            }
+        }
+
+        // Bildirim geçmişine kaydet
+        try {
+            const userType = type === 'couriers' ? 'courier' : 'restaurant';
+
+            if (scope === 'specific' && targetUsers.length > 0) {
+                for (const user of targetUsers) {
+                    await sql`
+                        INSERT INTO admin_notifications (
+                            title, message, type, user_type, user_id, data, created_at, updated_at
+                        ) VALUES (
+                            ${title}, ${message}, 'info', ${userType}, ${user.id}, 
+                            ${JSON.stringify({ priority, withSound })}, NOW(), NOW()
+                        )
+                    `;
+                }
+            } else {
+                await sql`
+                    INSERT INTO admin_notifications (
+                        title, message, type, user_type, user_id, data, created_at, updated_at
+                    ) VALUES (
+                        ${title}, ${message}, 'info', ${userType}, NULL, 
+                        ${JSON.stringify({ priority, withSound, recipients_count: targetUsers.length })}, NOW(), NOW()
+                    )
+                `;
+            }
+        } catch (notificationLogError) {
+            console.log('⚠️ Bildirim geçmiş kaydı yapılamadı:', notificationLogError.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Bildirim başarıyla gönderildi`,
+            data: {
+                recipients_count: targetUsers.length,
+                type: type,
+                scope: scope,
+                title: title,
+                message: message,
+                priority: priority,
+                withSound: withSound
+            }
+        });
+
+    } catch (error) {
+        console.error('Bildirim gönderirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Bildirim gönderilemedi: ' + error.message
+        });
+    }
+});
+
 // Admin - Test Bildirimi Gönder
 router.post('/send-test-notification', async (req, res) => {
     try {
@@ -2115,15 +2153,33 @@ router.post('/send-test-notification', async (req, res) => {
 
         // Bildirim geçmişine kaydet (opsiyonel)
         try {
-            await sql`
-                INSERT INTO admin_notifications (
-                    type, scope, title, message, priority, with_sound, 
-                    recipients_count, created_at
-                ) VALUES (
-                    ${type}, ${scope}, ${title}, ${message}, ${priority}, 
-                    ${withSound}, ${targetUsers.length}, NOW()
-                )
-            `;
+            // 'type' değişkenini 'user_type' olarak haritala
+            const userType = type === 'couriers' ? 'courier' : 'restaurant';
+
+            // Eğer belirli alıcılar varsa, her biri için tek tek kayıt oluştur.
+            // Eğer 'all' veya 'online' ise, user_id'yi null bırakarak genel bir kayıt oluştur.
+            if (scope === 'specific' && targetUsers.length > 0) {
+                for (const user of targetUsers) {
+                    await sql`
+                        INSERT INTO admin_notifications (
+                            title, message, type, user_type, user_id, data, created_at, updated_at
+                        ) VALUES (
+                            ${title}, ${message}, 'info', ${userType}, ${user.id}, 
+                            ${JSON.stringify({ priority, withSound })}, NOW(), NOW()
+                        )
+                    `;
+                }
+            } else {
+                // 'all' veya 'online' kapsamı için tek bir genel bildirim
+                await sql`
+                    INSERT INTO admin_notifications (
+                        title, message, type, user_type, user_id, data, created_at, updated_at
+                    ) VALUES (
+                        ${title}, ${message}, 'info', ${userType}, NULL, 
+                        ${JSON.stringify({ priority, withSound, recipients_count: targetUsers.length })}, NOW(), NOW()
+                    )
+                `;
+            }
         } catch (notificationLogError) {
             console.log('⚠️ Bildirim geçmiş kaydı yapılamadı:', notificationLogError.message);
             // Hata olsa da ana işlemi devam ettir
@@ -2476,7 +2532,8 @@ router.get('/config/api-base-url', async (req, res) => {
 // Get all orders for admin panel with filters
 router.get('/orders', async (req, res) => {
     try {
-        console.log('🔍 Admin orders endpoint called with query:', req.query);
+        console.log('🔍 Admin orders endpoint called - Bugünün siparişleri isteniyor (00:00 - 23:59)');
+        console.log('📅 Bugünün tarihi:', new Date().toISOString().split('T')[0]);
         
         const { search, status, restaurantId, courierId, startDate, endDate } = req.query;
         
@@ -2492,56 +2549,39 @@ router.get('/orders', async (req, res) => {
         `;
 
         // Build WHERE conditions
-        let whereConditions = [];
+        let whereClauses = [];
         let queryParams = [];
-        let paramIndex = 1;
 
-        // Date filter (for daily orders) - Default olarak bugünün siparişleri
+        // DATE(o.created_at) veritabanı timezone'una göre bugünün tarihini alır.
+        // Eğer start/end date sağlanmazsa, sadece bugünün siparişlerini getir.
         if (startDate && endDate) {
-            whereConditions.push(`o.created_at >= $${paramIndex} AND o.created_at <= $${paramIndex + 1}`);
-            queryParams.push(startDate);
-            queryParams.push(endDate);
-            paramIndex += 2;
+            whereClauses.push(`DATE(o.created_at) BETWEEN $${queryParams.length + 1} AND $${queryParams.length + 2}`);
+            queryParams.push(startDate, endDate);
         } else {
-            // Tarih belirtilmemişse bugünün siparişlerini getir (Türkiye saati)
-            whereConditions.push(`DATE(o.created_at AT TIME ZONE 'Europe/Istanbul') = CURRENT_DATE`);
+            // Tarih aralığı belirtilmemişse, sunucunun bugünkü tarihini kullan
+            const serverToday = new Date().toISOString().split('T')[0];
+            whereClauses.push(`DATE(o.created_at) = $${queryParams.length + 1}`);
+            queryParams.push(serverToday);
         }
 
-        // Search filter (order ID, restaurant name, or neighborhood)
-        if (search && search.trim()) {
-            whereConditions.push(`(
-                o.id::text ILIKE $${paramIndex} OR 
-                r.name ILIKE $${paramIndex} OR 
-                o.mahalle ILIKE $${paramIndex}
-            )`);
-            queryParams.push(`%${search.trim()}%`);
-            paramIndex++;
+        if (status) {
+            whereClauses.push(`o.status = $${queryParams.length + 1}`);
+            queryParams.push(status);
         }
 
-        // Status filter
-        if (status && status.trim()) {
-            whereConditions.push(`o.status = $${paramIndex}`);
-            queryParams.push(status.trim());
-            paramIndex++;
+        if (restaurantId) {
+            whereClauses.push(`o.firmaid = $${queryParams.length + 1}`);
+            queryParams.push(restaurantId);
         }
 
-        // Restaurant filter
-        if (restaurantId && restaurantId.trim()) {
-            whereConditions.push(`o.firmaid = $${paramIndex}`);
-            queryParams.push(parseInt(restaurantId));
-            paramIndex++;
-        }
-
-        // Courier filter
-        if (courierId && courierId.trim()) {
-            whereConditions.push(`o.kuryeid = $${paramIndex}`);
-            queryParams.push(parseInt(courierId));
-            paramIndex++;
+        if (courierId) {
+            whereClauses.push(`o.kuryeid = $${queryParams.length + 1}`);
+            queryParams.push(courierId);
         }
 
         // Add WHERE clause if conditions exist
-        if (whereConditions.length > 0) {
-            baseQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+        if (whereClauses.length > 0) {
+            baseQuery += ` WHERE ${whereClauses.join(' AND ')}`;
         }
 
         // Add ORDER BY and LIMIT
@@ -2555,7 +2595,15 @@ router.get('/orders', async (req, res) => {
         const result = await pool.query(baseQuery, queryParams);
         const orders = result.rows;
 
-        console.log(`✅ Admin orders fetched: ${orders.length} orders`);
+        console.log(`✅ Bugünün siparişleri getirildi (00:00 - 23:59): ${orders.length} adet`);
+        
+        // İlk 5 siparişin tarihlerini debug için log'la
+        if (orders.length > 0) {
+            console.log('📊 İlk 5 siparişin tarihleri:');
+            orders.slice(0, 5).forEach((order, index) => {
+                console.log(`  ${index + 1}. Sipariş #${order.id}: ${order.created_at} (${new Date(order.created_at).toLocaleDateString('tr-TR')})`);
+            });
+        }
 
         res.json({
             success: true,
@@ -2676,6 +2724,321 @@ router.get('/timezone-function-test', async (req, res) => {
         res.status(500).json({ 
             success: false, 
             message: 'Timezone function test hatası: ' + error.message 
+        });
+    }
+});
+
+// ==================== BİLDİRİM SESLERİ YÖNETİMİ ====================
+
+// Tüm bildirim seslerini getir
+router.get('/notification-sounds', async (req, res) => {
+    try {
+        const sounds = await sql`
+            SELECT * FROM notification_sounds 
+            ORDER BY is_active DESC, is_default DESC, created_at DESC
+        `;
+        
+        res.json({
+            success: true,
+            data: sounds
+        });
+    } catch (error) {
+        console.error('Bildirim sesleri alınırken hata:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Bildirim sesleri alınamadı: ' + error.message 
+        });
+    }
+});
+
+// Yeni bildirim sesi yükle
+router.post('/notification-sounds/upload', soundUpload.single('soundFile'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ses dosyası bulunamadı'
+            });
+        }
+
+        const { name } = req.body;
+        
+        if (!name || name.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Ses adı gereklidir'
+            });
+        }
+
+        const filePath = '/sounds/' + req.file.filename;
+        const fileSize = req.file.size;
+        const fileType = req.file.mimetype;
+
+        // Ses dosyasını veritabanına kaydet
+        const [sound] = await sql`
+            INSERT INTO notification_sounds (name, file_path, file_size, file_type, is_active, is_default)
+            VALUES (${name.trim()}, ${filePath}, ${fileSize}, ${fileType}, false, false)
+            RETURNING *
+        `;
+
+        res.json({
+            success: true,
+            data: sound,
+            message: 'Ses dosyası başarıyla yüklendi'
+        });
+
+    } catch (error) {
+        console.error('Ses dosyası yüklenirken hata:', error);
+        
+        // Hata durumunda dosyayı sil
+        if (req.file) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (unlinkError) {
+                console.error('Geçici dosya silinirken hata:', unlinkError);
+            }
+        }
+        
+        res.status(500).json({
+            success: false,
+            message: 'Ses dosyası yüklenemedi: ' + error.message
+        });
+    }
+});
+
+// Aktif bildirim sesini değiştir
+router.post('/notification-sounds/set-active/:soundId', async (req, res) => {
+    try {
+        const { soundId } = req.params;
+        
+        if (!soundId || isNaN(soundId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz ses ID'
+            });
+        }
+
+        // Önce seçilen sesin var olup olmadığını kontrol et
+        const [sound] = await sql`
+            SELECT * FROM notification_sounds WHERE id = ${soundId}
+        `;
+
+        if (!sound) {
+            return res.status(404).json({
+                success: false,
+                message: 'Ses bulunamadı'
+            });
+        }
+
+        // Tüm sesleri pasif yap
+        await sql`
+            UPDATE notification_sounds SET is_active = false, updated_at = CURRENT_TIMESTAMP
+        `;
+
+        // Seçilen sesi aktif yap
+        await sql`
+            UPDATE notification_sounds 
+            SET is_active = true, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${soundId}
+        `;
+
+        // Tüm kullanıcılara yeni aktif sesi bildir
+        if (req.io) {
+            req.io.emit('notificationSoundChanged', {
+                soundId: sound.id,
+                soundName: sound.name,
+                soundPath: sound.file_path,
+                message: `Bildirim sesi "${sound.name}" olarak değiştirildi`,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `"${sound.name}" aktif bildirim sesi olarak ayarlandı`
+        });
+
+    } catch (error) {
+        console.error('Aktif ses ayarlanırken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Aktif ses ayarlanamadı: ' + error.message
+        });
+    }
+});
+
+// Bildirim sesini sil
+router.delete('/notification-sounds/:soundId', async (req, res) => {
+    try {
+        const { soundId } = req.params;
+        
+        if (!soundId || isNaN(soundId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz ses ID'
+            });
+        }
+
+        // Ses bilgilerini al
+        const [sound] = await sql`
+            SELECT * FROM notification_sounds WHERE id = ${soundId}
+        `;
+
+        if (!sound) {
+            return res.status(404).json({
+                success: false,
+                message: 'Ses bulunamadı'
+            });
+        }
+
+        // Varsayılan sesi silmeye izin verme
+        if (sound.is_default) {
+            return res.status(400).json({
+                success: false,
+                message: 'Varsayılan ses silinememektedir'
+            });
+        }
+
+        // Aktif sesi siliyorsak, varsayılan sesi aktif yap
+        if (sound.is_active) {
+            await sql`
+                UPDATE notification_sounds 
+                SET is_active = true, updated_at = CURRENT_TIMESTAMP
+                WHERE is_default = true
+            `;
+            
+            // Varsayılan sesin bilgilerini al ve kullanıcılara bildir
+            const [defaultSound] = await sql`
+                SELECT * FROM notification_sounds WHERE is_default = true
+            `;
+            
+            if (req.io && defaultSound) {
+                req.io.emit('notificationSoundChanged', {
+                    soundId: defaultSound.id,
+                    soundName: defaultSound.name,
+                    soundPath: defaultSound.file_path,
+                    message: `Aktif ses silindi, varsayılan ses "${defaultSound.name}" aktif edildi`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        // Dosyayı fiziksel olarak sil
+        const filePath = path.join(__dirname, '../../public', sound.file_path);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        // Veritabanından sil
+        await sql`
+            DELETE FROM notification_sounds WHERE id = ${soundId}
+        `;
+
+        res.json({
+            success: true,
+            message: `"${sound.name}" başarıyla silindi`
+        });
+
+    } catch (error) {
+        console.error('Ses silinirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ses silinemedi: ' + error.message
+        });
+    }
+});
+
+// Aktif bildirim sesini getir
+router.get('/notification-sounds/active', async (req, res) => {
+    try {
+        const [activeSound] = await sql`
+            SELECT * FROM notification_sounds WHERE is_active = true
+        `;
+
+        if (!activeSound) {
+            // Aktif ses yoksa varsayılan sesi aktif yap
+            await sql`
+                UPDATE notification_sounds 
+                SET is_active = true, updated_at = CURRENT_TIMESTAMP
+                WHERE is_default = true
+            `;
+            
+            const [defaultSound] = await sql`
+                SELECT * FROM notification_sounds WHERE is_default = true
+            `;
+            
+            return res.json({
+                success: true,
+                data: defaultSound
+            });
+        }
+
+        res.json({
+            success: true,
+            data: activeSound
+        });
+
+    } catch (error) {
+        console.error('Aktif ses alınırken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Aktif ses alınamadı: ' + error.message
+        });
+    }
+});
+
+// Bildirim sesi test et
+router.post('/notification-sounds/test/:soundId', async (req, res) => {
+    try {
+        const { soundId } = req.params;
+        
+        if (!soundId || isNaN(soundId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz ses ID'
+            });
+        }
+
+        // Ses dosyasını kontrol et
+        const [sound] = await sql`
+            SELECT * FROM notification_sounds WHERE id = ${soundId}
+        `;
+
+        if (!sound) {
+            return res.status(404).json({
+                success: false,
+                message: 'Ses bulunamadı'
+            });
+        }
+
+        // Test bildirimini gönder
+        const testNotification = {
+            title: 'Test Bildirim',
+            message: `"${sound.name}" bildirim sesi test ediliyor`,
+            priority: 'high',
+            withSound: true,
+            soundId: soundId,
+            timestamp: new Date().toISOString(),
+            type: 'test_notification',
+            sender: 'admin'
+        };
+
+        // Tüm çevrimiçi kuryeler ve restoranlar için test bildirimi gönder
+        if (req.io) {
+            req.io.emit('testNotification', testNotification);
+        }
+
+        res.json({
+            success: true,
+            message: `"${sound.name}" için test bildirimi gönderildi`,
+            data: testNotification
+        });
+
+    } catch (error) {
+        console.error('Test bildirimi gönderilirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test bildirimi gönderilemedi: ' + error.message
         });
     }
 });

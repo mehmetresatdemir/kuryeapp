@@ -295,7 +295,7 @@
                         </div>
                         <div class="form-group">
                             <label for="courierPassword">Şifre:</label>
-                            <input type="password" id="courierPassword" placeholder="Sadece yeni kurye için veya şifre güncellemek için" autocomplete="new-password">
+                            <input type="password" id="courierPassword" placeholder="Değiştirmek için yeni şifre girin" autocomplete="new-password">
                         </div>
                         <div class="form-group">
                             <label for="courierPhone">Telefon:</label>
@@ -419,16 +419,35 @@
                         <td><span class="delivery-count">${totalDeliveries}</span> / ${courier.package_limit}</td>
                         <td>${courier.updated_at ? new Date(courier.updated_at).toLocaleString('tr-TR') : 'Bilinmiyor'}</td>
                         <td class="actions">
-                            <button class="btn btn-warning" onclick="showAddCourierModal(${courier.id})" title="Düzenle">
+                            <button class="btn btn-warning btn-edit" data-courier-id="${courier.id}" title="Düzenle">
                                 ✏️ Düzenle
                             </button>
-                            <button class="btn btn-danger" onclick="deleteCourier(${courier.id})" title="Sil">
+                            <button class="btn btn-danger btn-delete" data-courier-id="${courier.id}" title="Sil">
                                 🗑️ Sil
                             </button>
                         </td>
                     </tr>
                 `;
             }).join('');
+            
+            // Add event listeners after rendering the table
+            addTableEventListeners();
+        }
+
+        function addTableEventListeners() {
+            document.querySelectorAll('.btn-edit').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const courierId = event.currentTarget.dataset.courierId;
+                    showAddCourierModal(Number(courierId));
+                });
+            });
+
+            document.querySelectorAll('.btn-delete').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const courierId = event.currentTarget.dataset.courierId;
+                    deleteCourier(Number(courierId));
+                });
+            });
         }
 
         // Durum badge'i al
@@ -516,7 +535,7 @@
             try {
                 const response = await fetch(url, {
                     method: method,
-                    headers: getAuthHeaders(),
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(courierData)
                 });
                 const result = await response.json();
@@ -542,7 +561,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/admin/couriers/${courierId}`, {
                     method: 'DELETE',
-                    headers: getAuthHeaders()
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 const result = await response.json();
                 if (result.success) {

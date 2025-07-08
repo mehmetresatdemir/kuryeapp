@@ -33,8 +33,7 @@
       },
       "cache": {
         "disabled": true
-      },
-      "prebuildCommand": "npm install --legacy-peer-deps"
+      }
     }
   },
   "submit": {

@@ -26,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import { calculateDeliveryCountdown as calculateDeliveryCountdownUtil } from "../../lib/timeUtils";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
 
 interface Order {
   firmaid: string;
@@ -314,9 +315,6 @@ const DeliveryCountdown: React.FC<{ order: Order }> = ({ order }) => {
         </View>
         <Text style={styles.deliveryCountdownTime}>
           {timeLeft} kaldı
-        </Text>
-        <Text style={styles.deliveryCountdownSubtext}>
-          Kabul edilme: {finalDisplayTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
     </View>
@@ -1196,6 +1194,13 @@ const KuryeOrders = () => {
     socketRef.current.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 KuryeOrders: Admin notification received:", data);
       
+      // Özel bildirim sesi çal
+      if (data.withSound) {
+        playNotificationSound().catch(error => {
+          console.log('Bildirim sesi çalınamadı:', error);
+        });
+      }
+      
       // Show admin notification
       Notifications.scheduleNotificationAsync({
         content: {
@@ -1208,7 +1213,7 @@ const KuryeOrders = () => {
             sender: data.sender,
             timestamp: data.timestamp
           },
-          sound: data.withSound ? 'default' : undefined,
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
         },
         trigger: null, // Show immediately
       });
@@ -1228,6 +1233,21 @@ const KuryeOrders = () => {
           [{ text: "Tamam", style: "default" }]
         );
       }
+    });
+
+    // Listen for notification sound changes
+    socketRef.current.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
+      console.log("🔊 Bildirim sesi değişti:", data);
+      
+      // Cache'i güncelle
+      updateCachedSound({
+        id: data.soundId,
+        name: data.soundName,
+        file_path: data.soundPath
+      });
+      
+      // Kullanıcıya bilgi ver
+      console.log(`🎵 ${data.message}`);
     });
     // ----------------------------------------------------------
 

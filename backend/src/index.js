@@ -27,6 +27,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Create sounds directory for notification sounds
+const soundsDir = path.join(BACKEND_ROOT, 'public', 'sounds');
+if (!fs.existsSync(soundsDir)) {
+  fs.mkdirSync(soundsDir, { recursive: true });
+}
+
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -50,6 +56,7 @@ const createPreferenceSystem = require("./migrations/create_preference_system");
 const { fixCreatedAtTimezone } = require("./migrations/fix_created_at_timezone");
 const { fixDefaultTimezone } = require("./migrations/fix_default_timezone");
 const { fixDefaultTimezoneV2 } = require("./migrations/fix_default_timezone_v2");
+const { createNotificationSoundsTable } = require("./migrations/create_notification_sounds_table");
 // const createAdminNotificationsTable = require("./migrations/create_admin_notifications_table"); // Disabled - using fixed version
 
 const app = express();
@@ -160,6 +167,8 @@ testConnection().then(() => {
   return fixDefaultTimezone();
 }).then(() => {
   return fixDefaultTimezoneV2();
+}).then(() => {
+  return createNotificationSoundsTable();
 }).then(() => {
   // return createAdminNotificationsTable(); // Disabled - using fixed version
   const PORT = process.env.PORT || 3000;

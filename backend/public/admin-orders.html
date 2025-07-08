@@ -192,9 +192,10 @@
             <!-- Bugünün Tarih Başlığı -->
             <div class="card" style="text-align: center; margin-bottom: 1rem;">
                 <h2 style="margin: 0; color: #667eea; font-size: 1.5rem;">
-                    <i class="fas fa-calendar-day"></i> Bugünün Siparişleri
+                    <i class="fas fa-calendar-day"></i> Görüntülenen Siparişler
                 </h2>
                 <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 1rem;" id="current-date"></p>
+                <p style="margin: 0.5rem 0 0 0; color: #c0392b; font-size: 0.9rem; font-weight: bold; border: 1px solid #c0392b; padding: 5px; border-radius: 5px; background: #fbeee6;" id="browser-date-diagnostic"></p>
             </div>
             
             <!-- Status Filter Buttons -->
@@ -303,6 +304,15 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             await fetchApiBase(); // Fetch API_BASE first
+            
+            // Tarayıcının algıladığı tarihi gösteren teşhis satırı
+            const browserDate = new Date();
+            const diagnosticElem = document.getElementById('browser-date-diagnostic');
+            if(diagnosticElem) {
+                diagnosticElem.textContent = 
+                `UYARI: Tarayıcınızın algıladığı tarih: ${browserDate.toLocaleString('tr-TR', { dateStyle: 'full', timeStyle: 'long' })}`;
+            }
+
             updateCurrentDate(); // Bugünün tarihini göster
             initializeFilters();
             fetchOrders();
@@ -368,15 +378,27 @@
             const restaurantId = document.getElementById('restaurantFilter').value;
             const courierId = document.getElementById('courierFilter').value;
             
+            // YANLIŞ: .toISOString() UTC'ye çevirir ve gece yarısından sonraki saatlerde önceki günü verir.
+            // const today = new Date().toISOString().split('T')[0];
+            
+            // DOĞRU: Tarih, yerel saat dilimine göre doğru bir şekilde formatlanır.
+            const localDate = new Date();
+            const year = localDate.getFullYear();
+            const month = String(localDate.getMonth() + 1).padStart(2, '0');
+            const day = String(localDate.getDate()).padStart(2, '0');
+            const today = `${year}-${month}-${day}`;
+
+
             const queryParams = new URLSearchParams({
                 search,
                 status,
                 restaurantId,
                 courierId,
-                // Tarih parametresi gönderme - backend bugünün siparişlerini getirecek
+                startDate: today,
+                endDate: today
             });
 
-            console.log('🔄 Bugünün siparişleri yükleniyor...');
+            console.log('🔄 Bugünün siparişleri yükleniyor (00:00 - 23:59 arası)...');
             console.log('🌐 API URL:', `${API_BASE}/api/admin/orders?${queryParams}`);
             
             try {
@@ -427,7 +449,10 @@
                 day: 'numeric' 
             };
             const dateString = today.toLocaleDateString('tr-TR', options);
-            document.getElementById('current-date').textContent = dateString;
+            const titleElem = document.getElementById('current-date');
+            if(titleElem) {
+                titleElem.textContent = `Filtrelenen Tarih: ${dateString}`;
+            }
         }
 
         function renderTable(orders) {
@@ -437,26 +462,28 @@
                 return;
             }
 
-            tableBody.innerHTML = orders.map(order => `
-                <tr>
-                    <td>#${order.id}</td>
-                    <td>${order.firma_name || order.firma_adi || 'N/A'}</td>
-                    <td>${order.mahalle || 'N/A'}</td>
-                    <td>${order.kurye_name || 'Atanmadı'}</td>
-                    <td>₺${(parseFloat(order.restaurant_price) || 0).toFixed(2)}</td>
-                    <td>₺${(parseFloat(order.courier_price) || 0).toFixed(2)}</td>
-                    <td><span class="badge badge-${order.status.replace(/ /g, '_')}">${order.status}</span></td>
-                    <td>${order.odeme_yontemi}</td>
-                    <td>${new Date(order.created_at).toLocaleString('tr-TR')}</td>
-                    <td>${calculateCountdown(order.created_at, order.status)}</td>
-                    <td>
-                        <button class="btn" onclick='viewOrder(${order.id})'>Detay</button>
-                        <button class="btn" onclick='editOrder(${order.id})'>Düzenle</button>
-                        <button class="btn" onclick='deleteOrder(${order.id})'>Sil</button>
-                        ${order.status === 'kuryede' ? `<button class="btn" style="margin-left: 0.5rem;" onclick='returnToPool(${order.id})'>Havuza At</button>` : ''}
-                    </td>
-                </tr>
-            `).join('');
+            tableBody.innerHTML = orders.map(order => {
+                return `
+                    <tr>
+                        <td>#${order.id}</td>
+                        <td>${order.firma_name || order.firma_adi || 'N/A'}</td>
+                        <td>${order.mahalle || 'N/A'}</td>
+                        <td>${order.kurye_name || 'Atanmadı'}</td>
+                        <td>₺${(parseFloat(order.restaurant_price) || 0).toFixed(2)}</td>
+                        <td>₺${(parseFloat(order.courier_price) || 0).toFixed(2)}</td>
+                        <td><span class="badge badge-${order.status.replace(/ /g, '_')}">${order.status}</span></td>
+                        <td>${order.odeme_yontemi}</td>
+                        <td>${new Date(order.created_at).toLocaleString('tr-TR')}</td>
+                        <td>${calculateCountdown(order.created_at, order.status)}</td>
+                        <td>
+                            <button class="btn" onclick='viewOrder(${order.id})'>Detay</button>
+                            <button class="btn" onclick='editOrder(${order.id})'>Düzenle</button>
+                            <button class="btn" onclick='deleteOrder(${order.id})'>Sil</button>
+                            ${order.status === 'kuryede' ? `<button class="btn" style="margin-left: 0.5rem;" onclick='returnToPool(${order.id})'>Havuza At</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function calculateCountdown(createdAt, status) {
@@ -488,6 +515,14 @@
                 acc[order.status] = (acc[order.status] || 0) + 1;
                 return acc;
             }, {});
+            // Platform karı hesaplama
+            let totalRestaurant = 0;
+            let totalCourier = 0;
+            orders.forEach(order => {
+                totalRestaurant += parseFloat(order.restaurant_price) || 0;
+                totalCourier += parseFloat(order.courier_price) || 0;
+            });
+            const platformProfit = totalRestaurant - totalCourier;
 
             statsContainer.innerHTML = `
                 <div class="stat-item"><div class="stat-value">${orders.length}</div><div class="stat-label">Bugün Toplam</div></div>
@@ -495,6 +530,7 @@
                 <div class="stat-item"><div class="stat-value">${statusCounts['kuryede'] || 0}</div><div class="stat-label">Kuryede</div></div>
                 <div class="stat-item"><div class="stat-value">${statusCounts['teslim edildi'] || 0}</div><div class="stat-label">Tamamlanan</div></div>
                 <div class="stat-item"><div class="stat-value">${statusCounts['iptal edildi'] || 0}</div><div class="stat-label">İptal</div></div>
+                <div class="stat-item"><div class="stat-value">₺${platformProfit.toFixed(2)}</div><div class="stat-label">Platform Karı</div></div>
             `;
         }
         

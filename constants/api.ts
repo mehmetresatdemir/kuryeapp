@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_HOST = Constants.expoConfig?.extra?.API_HOST || process.env.EXPO_PUBLIC_API_HOST || '192.168.1.105';
 const API_PORT = Constants.expoConfig?.extra?.API_PORT || process.env.EXPO_PUBLIC_API_PORT || '3000';
 const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'red.enucuzal.com';
-const USE_REMOTE = Constants.expoConfig?.extra?.USE_REMOTE || process.env.EXPO_PUBLIC_USE_REMOTE === 'true';
+const USE_REMOTE = true;
 
 // API Configuration
 export const API_CONFIG = {
@@ -132,6 +132,9 @@ export const API_ENDPOINTS = {
   UPDATE_COURIER_PREFERENCES: (courierId: string | number) => `/api/preferences/courier/${courierId}`,
   GET_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
   UPDATE_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
+  
+  // Notification Sounds
+  GET_ACTIVE_NOTIFICATION_SOUND: "/api/admin/notification-sounds/active",
 };
 
 // Helper function to get full URL

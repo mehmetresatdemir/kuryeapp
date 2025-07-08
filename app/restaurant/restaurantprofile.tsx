@@ -202,10 +202,26 @@ const RestaurantProfile = () => {
   // Logo seçme ve yükleme fonksiyonu
   const handleLogoUpload = async () => {
     try {
-      // Kamera ve galeri izinlerini iste
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('İzin Gerekli', 'Galeri erişimi için izin gereklidir.');
+      // Önce mevcut izinleri kontrol et
+      const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      
+      let finalStatus = existingStatus;
+      
+      // Eğer izin yoksa talep et
+      if (existingStatus !== 'granted') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'İzin Gerekli', 
+          'Galeri erişimi için izin gereklidir. Lütfen ayarlardan izin verin.',
+          [
+            { text: "İptal", style: "cancel" },
+            { text: "Tamam", style: "default" }
+          ]
+        );
         return;
       }
 
@@ -214,15 +230,19 @@ const RestaurantProfile = () => {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: false,
+        exif: false,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
-        await uploadLogo(imageUri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.uri) {
+          await uploadLogo(asset.uri);
+        }
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Hata', 'Resim seçilirken bir hata oluştu');
+      Alert.alert('Hata', 'Resim seçilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
     }
   };
 
