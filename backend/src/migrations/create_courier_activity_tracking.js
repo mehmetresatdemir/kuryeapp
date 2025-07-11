@@ -15,7 +15,7 @@ async function createCourierActivityTracking() {
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_courier_activity_courier FOREIGN KEY (courier_id) REFERENCES users(id) ON DELETE CASCADE
+        CONSTRAINT fk_courier_activity_courier FOREIGN KEY (courier_id) REFERENCES couriers(id) ON DELETE CASCADE
       )
     `;
     
@@ -36,7 +36,7 @@ async function createCourierActivityTracking() {
         last_logout TIME NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_courier_daily_courier FOREIGN KEY (courier_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_courier_daily_courier FOREIGN KEY (courier_id) REFERENCES couriers(id) ON DELETE CASCADE,
         CONSTRAINT unique_courier_date UNIQUE (courier_id, activity_date)
       )
     `;
@@ -57,7 +57,7 @@ async function createCourierActivityTracking() {
         average_daily_minutes DECIMAL(10,2) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_courier_weekly_courier FOREIGN KEY (courier_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_courier_weekly_courier FOREIGN KEY (courier_id) REFERENCES couriers(id) ON DELETE CASCADE,
         CONSTRAINT unique_courier_week UNIQUE (courier_id, week_start)
       )
     `;

@@ -48,6 +48,7 @@ const courierRoutes = require('./routes/courierRoutes');
 const restaurantRoutes = require('./routes/restaurantRoutes');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/userRoutes'); // For unified login
+const pushNotificationRoutes = require('./routes/pushNotificationRoutes');
 const updateForeignKeys = require("./migrations/20240730_update_foreign_keys");
 // const hashExistingPasswords = require("./migrations/20240731_hash_existing_passwords"); // Disabled - using plain text passwords
 const addApprovalStatus = require("./migrations/add_approval_status");
@@ -57,6 +58,8 @@ const { fixCreatedAtTimezone } = require("./migrations/fix_created_at_timezone")
 const { fixDefaultTimezone } = require("./migrations/fix_default_timezone");
 const { fixDefaultTimezoneV2 } = require("./migrations/fix_default_timezone_v2");
 const { createNotificationSoundsTable } = require("./migrations/create_notification_sounds_table");
+const createPushTokensTable = require("./migrations/create_push_tokens_table");
+const setDefaultNotificationSound = require("./migrations/set_default_notification_sound");
 // const createAdminNotificationsTable = require("./migrations/create_admin_notifications_table"); // Disabled - using fixed version
 
 const app = express();
@@ -136,6 +139,7 @@ app.use('/api/couriers', courierRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes); // General API routes like /api/login
+app.use('/api/push-token', pushNotificationRoutes.router);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -169,6 +173,10 @@ testConnection().then(() => {
   return fixDefaultTimezoneV2();
 }).then(() => {
   return createNotificationSoundsTable();
+}).then(() => {
+  return createPushTokensTable();
+}).then(() => {
+  return setDefaultNotificationSound();
 }).then(() => {
   // return createAdminNotificationsTable(); // Disabled - using fixed version
   const PORT = process.env.PORT || 3000;

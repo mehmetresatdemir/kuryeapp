@@ -1,4 +1,6 @@
 const { sql } = require('../config/db-config');
+const { sendExpoPushNotification, sendBulkExpoPushNotifications } = require('../routes/pushNotificationRoutes');
+const path = require('path');
 
 
 /**
@@ -74,6 +76,24 @@ const createOrderAcceptedNotification = async (order, courierInfo) => {
             courierPhone: courierInfo?.phone || null
         }
     });
+
+    // Restorana push notification gönder
+    try {
+        await sendExpoPushNotification({
+            title: '✅ Sipariş Kabul Edildi!',
+            body: `Sipariş #${order.id} ${courierName} tarafından kabul edildi.`,
+            data: { 
+                orderId: order.id.toString(),
+                type: 'order_accepted',
+                courierName: courierName
+            },
+            sound: 'default'
+        }, order.firmaid, 'restaurant');
+        
+        console.log(`📱 Sipariş kabul push notification gönderildi: Restaurant ${order.firmaid}`);
+    } catch (pushError) {
+        console.error(`❌ Sipariş kabul push notification hatası:`, pushError);
+    }
 };
 
 /**
@@ -179,6 +199,14 @@ const createOrderApprovedNotification = async (order, restaurantInfo) => {
  */
 const createNewOrderNotification = async (order, io = null) => {
     try {
+        // Aktif bildirim sesini veritabanından al
+        const [activeSound] = await sql`
+            SELECT file_path FROM notification_sounds WHERE is_active = true LIMIT 1
+        `;
+        // public/sounds/dosya.wav -> dosya.wav
+        const notificationSound = activeSound ? path.basename(activeSound.file_path) : 'default';
+        console.log(`🎵 Kullanılacak bildirim sesi: ${notificationSound}`);
+
         // Restoran tercihleri kontrol edilir
         const [restaurant] = await sql`
             SELECT courier_visibility_mode FROM restaurants WHERE id = ${order.firmaid}
@@ -266,33 +294,46 @@ const createNewOrderNotification = async (order, io = null) => {
             console.log('👥 Tercihleri uygun kuryeler:', candidateCouriers.map(c => `${c.name} (${c.courier_id})`));
         }
 
-        // Bildirim gönder
-        for (const courier of candidateCouriers) {
-            await createNotification({
-                title: `Yeni Sipariş - ${order.firma_adi}`,
-                message: `${order.mahalle} bölgesine yeni sipariş var. Ücret: ${order.courier_price || 0} TL`,
-                type: 'info',
-                userType: 'courier',
-                userId: courier.courier_id,
-                data: { orderId: order.id },
-                io: io // Socket.io instance'ı geçir
-            });
+        // Bildirim gönderilecek kuryelerin ID listesini oluştur
+        const courierIds = candidateCouriers.map(c => c.courier_id);
 
-            // Socket.io üzerinden direkt olarak da gönder
-            if (io) {
-                io.to(`courier_${courier.courier_id}`).emit('newOrder', {
+        // Socket.io üzerinden bildirimleri gönder (her zaman)
+        if (io) {
+            courierIds.forEach(courierId => {
+                io.to(`courier_${courierId}`).emit('newOrder', {
                     ...order,
-                    courierName: courier.name,
                     socketMessage: `${order.mahalle} bölgesine yeni sipariş var. Ücret: ${order.courier_price || 0} TL`
                 });
+            });
+            console.log('📡 Socket.io ile yeni sipariş bildirimi gönderildi');
+        }
+
+        // Toplu push notification gönder (sadece kuryelere)
+        if (courierIds.length > 0) {
+            try {
+                await sendBulkExpoPushNotifications(
+                    {
+                        title: `🆕 Yeni Sipariş: ${order.firma_adi}`,
+                        body: `${order.mahalle} - ${order.courier_price || 0} ₺`,
+                        sound: notificationSound, // Özel sesi burada kullan
+                        data: { 
+                            orderId: order.id.toString(),
+                            type: 'new_order'
+                        },
+                        channelId: 'new-orders', // Android için kanal ID
+                        priority: 'high'
+                    },
+                    courierIds,
+                    'courier'
+                );
+                console.log(`📬 Push notification gönderildi:`, courierIds);
+            } catch (pushError) {
+                console.error(`❌ Toplu push notification hatası:`, pushError);
             }
         }
 
-        console.log('📬 Bildirim gönderilecek kuryeler:', candidateCouriers.map(c => `${c.name} (${c.courier_id})`));
-
     } catch (error) {
-        console.error('❌ Yeni sipariş bildirimi gönderilirken hata:', error);
-        // Hata durumunda sessizce devam et, tüm kuryelere bildirim gönderme
+        console.error('❌ Yeni sipariş bildirimi oluşturulurken hata:', error);
     }
 };
 

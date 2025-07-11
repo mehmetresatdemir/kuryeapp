@@ -10,6 +10,7 @@ const {
     createOrderApprovedNotification,
     createNewOrderNotification
 } = require('../utils/notificationUtils');
+const { sendExpoPushNotification, sendBulkExpoPushNotifications } = require('../routes/pushNotificationRoutes');
 
 // Helper function to convert relative path to absolute URL
 const getAbsoluteImageUrl = (relativePath, req = null) => {
@@ -23,7 +24,7 @@ const getAbsoluteImageUrl = (relativePath, req = null) => {
     } else if (req) {
         baseUrl = `http://${req.get('host')}`;
     } else {
-        baseUrl = 'http://192.168.1.104:3000'; // fallback for development
+        baseUrl = 'http://192.168.1.105:3000'; // fallback for development
     }
     
     return `${baseUrl}${relativePath}`;
