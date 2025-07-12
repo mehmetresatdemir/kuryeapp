@@ -277,4 +277,4 @@ backend/
 Herhangi bir sorun için:
 1. Önce `npm run logs` ile logları kontrol edin
 2. `curl http://localhost:3000/health` ile sistem durumunu kontrol edin
-3. Gerekirse `npm run restart` ile servisi yeniden başlatın 
+3. Gerekirse `npm run restart` ile servisi yeniden başlatın # kuryebanckend

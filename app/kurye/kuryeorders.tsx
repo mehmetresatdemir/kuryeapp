@@ -328,14 +328,14 @@ const fixImageUrl = (imageUrl: string | null): string | null => {
   // Eğer tam URL ise doğrudan kullan
   if (imageUrl.startsWith('http')) {
     // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-    if (imageUrl.startsWith('https://red.enucuzal.com')) {
-      return imageUrl.replace('https://red.enucuzal.com', 'http://red.enucuzal.com');
+    if (imageUrl.startsWith('https://admin.enucuzal.com')) {
+      return imageUrl.replace('https://admin.enucuzal.com', 'http://admin.enucuzal.com');
     }
     return imageUrl;
   }
   
   // Göreceli yolları tam URL'ye çevir
-  const baseUrl = 'http://red.enucuzal.com:3000';
+  const baseUrl = 'http://admin.enucuzal.com:3000';
   return `${baseUrl}${imageUrl}`;
 };
 

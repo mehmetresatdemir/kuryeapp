@@ -2,11 +2,11 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Get environment variables
-const API_HOST = Constants.expoConfig?.extra?.API_HOST || process.env.EXPO_PUBLIC_API_HOST || '192.168.1.105';
-const API_PORT = Constants.expoConfig?.extra?.API_PORT || process.env.EXPO_PUBLIC_API_PORT || '3000';
-const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'red.enucuzal.com';
-const USE_REMOTE = true;
+// Get environment variables - FORCE LOCAL IP FOR MOBILE TESTING
+const API_HOST = '192.168.1.105'; // Forced IP for mobile testing
+const API_PORT = '3000';
+const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'admin.enucuzal.com';
+const USE_REMOTE = true; // Force local for testing
 
 // API Configuration
 export const API_CONFIG = {
@@ -24,8 +24,8 @@ export const API_CONFIG = {
     
     // For development, use local IP for mobile compatibility
     if (__DEV__) {
-      console.log('📱 Using local IP (192.168.1.105:3000) for mobile development');
-      return 'http://192.168.1.105:3000';
+      console.log('📱 Using local server for API');
+      return this.LOCALHOST;
     }
     
     // Production fallback - use remote URL
@@ -108,17 +108,7 @@ export const API_ENDPOINTS = {
   ADMIN_PAY_COURIER: '/api/admin/pay-courier',
   ADMIN_COURIER_COLLECTIONS_SUMMARY: '/api/admin/courier-collections-summary',
   
-  // Wallet (Cüzdan)
-  WALLET: (userId: string | number) => `/api/wallet/${userId}`,
-  WALLET_WITHDRAW: (userId: string | number) => `/api/wallet/${userId}/withdraw`,
-  WALLET_ADD_INCOME: (userId: string | number) => `/api/wallet/${userId}/add-income`,
-  
-  // Admin Wallet Management
-  ADMIN_WALLETS: '/api/admin/wallets',
-  ADMIN_WALLET_DEPOSIT: (userId: string | number) => `/api/admin/wallet/${userId}/deposit`,
-  ADMIN_WALLET_WITHDRAW: (userId: string | number) => `/api/admin/wallet/${userId}/withdraw`,
-  ADMIN_WITHDRAWAL_REQUESTS: '/api/admin/withdrawal-requests',
-  ADMIN_PROCESS_WITHDRAWAL: (requestId: string | number) => `/api/admin/withdrawal-request/${requestId}/process`,
+
   
   // File Upload
   UPLOAD_IMAGE: "/api/uploadImage",

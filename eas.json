@@ -20,7 +20,8 @@
     },
     "production": {
       "ios": {
-        "distribution": "store"
+        "distribution": "store",
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "apk",
@@ -29,7 +30,8 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
+        "EXPO_NO_CAPABILITY_SYNC": "1"
       },
       "cache": {
         "disabled": true

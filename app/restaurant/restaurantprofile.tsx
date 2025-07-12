@@ -12,14 +12,14 @@ import {
   StyleSheet,
   StatusBar,
   RefreshControl,
-} from "react-native";
+ Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from "expo-router";
 import { API_ENDPOINTS, getFullUrl, authedFetch } from "../../constants/api";
 import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'react-native';
+
 
 interface RestaurantData {
   id: number;

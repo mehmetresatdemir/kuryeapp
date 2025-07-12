@@ -1,4 +1,4 @@
-# Bursa-Go 🛵
+# Kurye-X 🛵
 
 Bursa için kurye ve teslimat uygulaması. React Native (Expo) ile geliştirilmiş modern bir kurye hizmeti platformu.
 

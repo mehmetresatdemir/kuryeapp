@@ -516,7 +516,7 @@ const registerRoomHandlers = (io, socket) => {
       // Kurye bağlantısı kesildi
       if (socket.courierId) {
         const courierId = socket.courierId;
-        const courierData = onlineCouriers.get(courierId);
+        
         
         // Raspberry Pi için grace period - 30 saniye içinde tekrar bağlanabilir
         if (reason === 'transport close' || reason === 'ping timeout') {

@@ -9,6 +9,7 @@ const earningsRoutes = require('./earningsRoutes');
 const userRoutes = require('./userRoutes');
 const imageRoutes = require('./imageRoutes');
 const preferenceRoutes = require('./preferenceRoutes');
+const { router: pushNotificationRoutes } = require('./pushNotificationRoutes');
 
 // Admin routes
 router.use('/admin', adminRoutes);
@@ -19,6 +20,9 @@ router.use('/earnings', earningsRoutes);
 router.use('/preferences', preferenceRoutes);
 router.use('/', userRoutes);
 router.use('/', imageRoutes);
+router.use('/push-token', pushNotificationRoutes);
+
+
 
 // For backward compatibility with mobile app
 router.use('/orders', orderRoutes);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
-  SafeAreaView,
   TouchableOpacity,
   Modal,
   Platform,
@@ -15,7 +14,6 @@ import {
   Image,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import DateTimePicker from '@react-native-community/datetimepicker';

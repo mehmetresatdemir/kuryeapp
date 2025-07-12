@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Bursa-Go",
+    "name": "Kurye-X",
     "slug": "bursa-go",
     "platforms": [
       "ios",
@@ -10,23 +10,23 @@
       "enabled": false,
       "favicon": "./assets/favicon.png"
     },
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "bursa-go",
+    "scheme": "kurye-x",
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#ffffff"
     },
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "userInterfaceStyle": "light",
     "assetBundlePatterns": [
       "**/*"
     ],
     "notification": {
       "icon": "./assets/icon.png",
-      "color": "#3B82F6"
+      "color": "#3B82F6",
+      "iosDisplayInForeground": true
     },
     "ios": {
       "supportsTablet": true,
@@ -39,9 +39,8 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0"
             },
-            "red.enucuzal.com": {
-              "NSExceptionRequiresForwardSecrecy": false,
-              "NSExceptionMinimumTLSVersion": "1.0",
+            "admin.enucuzal.com": {
+              "NSExceptionMinimumTLSVersion": "TLSv1.2",
               "NSIncludesSubdomains": true
             },
             "kurye.enucuzal.com": {
@@ -55,8 +54,11 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Uygulama, profil fotoğrafı eklemeniz veya makbuz tarama gibi özellikler için kameranıza erişmek istiyor.",
         "NSPhotoLibraryUsageDescription": "Uygulama, sipariş görselleri ve profil fotoğrafları için galerinizdeki fotoğraflara erişmek istiyor.",
-        "NSLocationWhenInUseUsageDescription": "Siparişinizin teslim edileceği adresi belirlemek ve kuryenin konumunu haritada göstermek için konumunuza ihtiyacımız var.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Uygulama kapalıyken bile siparişinizin durumunu ve kuryenin konumunu size bildirebilmek için konumunuza her zaman erişmemiz gerekiyor."
+        "NSLocationWhenInUseUsageDescription": "Konumunuz, siparişleri harita üzerinde takip etmek ve size en yakın kuryeleri bulmak için kullanılır.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Uygulama kapalıyken bile siparişinizin durumunu ve kuryenin konumunu size bildirebilmek için konumunuza her zaman erişmemiz gerekiyor.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -67,13 +69,13 @@
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#ffffff"
       },
       "permissions": [
         "NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED"
       ],
-      "package": "com.bursago.app"
+      "package": "com.kuryex.app"
     },
     "plugins": [
       "expo-router",
@@ -81,7 +83,7 @@
       "expo-secure-store",
       "expo-font",
       "expo-notifications",
-      "expo-web-browser",
+      "expo-dev-client",
       [
         "expo-image-picker",
         {

@@ -79,7 +79,7 @@ const getOrderReminderSettings = async () => {
     }
 
     return orderReminderSettings;
-  } catch (settingsError) {
+  } catch  {
     return { reminderMinutes: 10, lastUpdated: Date.now() };
   }
 };

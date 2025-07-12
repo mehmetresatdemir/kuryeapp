@@ -16,7 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from "expo-router";
-import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
+import { getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 
 interface UserData {
   id: string;
@@ -116,7 +116,7 @@ const KuryeProfile = () => {
               last_seen: courierData.last_seen || "",
               created_at: courierData.created_at || "",
               updated_at: courierData.updated_at || "",
-              total_online_time: courierData.total_online_minutes || 0,
+              total_online_time: 0,
             };
             setUserData(userInfo);
             setEditUserData(userInfo);

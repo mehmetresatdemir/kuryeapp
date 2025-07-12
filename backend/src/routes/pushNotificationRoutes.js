@@ -57,7 +57,7 @@ router.post('/register', async (req, res) => {
 // Push token kaldır
 router.post('/unregister', async (req, res) => {
     try {
-        const { token, userId, userType } = req.body;
+        const { userId, userType } = req.body;
         
         if (!userId || !userType) {
             return res.status(400).json({

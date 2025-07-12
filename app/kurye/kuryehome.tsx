@@ -25,6 +25,7 @@ import { API_CONFIG, API_ENDPOINTS, getFullUrl, authedFetch } from "../../consta
 import { calculateAcceptanceCountdown, calculateDeletionCountdown, calculateDeliveryCountdown } from "../../lib/timeUtils";
 import NotificationButton from "../../components/NotificationButton";
 import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
+import PushNotificationService from "../../lib/pushNotificationService";
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruz
 
 // Notification handler configuration
@@ -281,7 +282,7 @@ const KuryeHome = () => {
   // Çevrimiçi durumu için yeni state'ler - İlk açılışta varsayılan true
   const [isOnline, setIsOnline] = useState<boolean>(true); // Varsayılan olarak çevrimiçi
   const [onlineStartTime, setOnlineStartTime] = useState<Date | null>(null); // Başlangıçta null, sonra doğru zamanla set edilecek
-  const [onlineMinutes, setOnlineMinutes] = useState<number>(0);
+
   const [totalOnlineTime, setTotalOnlineTime] = useState<{ hours: number, minutes: number }>({ hours: 0, minutes: 0 });
   
   // Kurye paket limit bilgileri
@@ -314,7 +315,7 @@ const KuryeHome = () => {
         }
       }
     } catch (error) {
-      console.error('Toplam çevrimiçi süre yüklenirken hata:', error);
+      // Sessizce hata yakala
     }
   };
 
@@ -339,25 +340,21 @@ const KuryeHome = () => {
         }
       }
     } catch (error) {
-      console.error('Toplam çevrimiçi süre kaydedilirken hata:', error);
+      // Sessizce hata yakala
     }
   };
 
   // Aktivite oturumu başlat
   const startActivitySession = async () => {
-    if (!user) {
-      console.log('⚠️ Aktivite oturumu başlatma atlandı: Kullanıcı yok');
+    if (!user?.id) {
       return;
     }
     
     if (currentSessionId) {
-      console.log(`⚠️ Aktivite oturumu zaten aktif: Session ID ${currentSessionId}`);
       return;
     }
     
     try {
-      console.log(`🚀 Aktivite oturumu başlatılıyor... Kullanıcı: ${user.id}`);
-      
       const response = await authedFetch(getFullUrl(API_ENDPOINTS.START_ACTIVITY_SESSION(user.id)), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -368,29 +365,20 @@ const KuryeHome = () => {
         if (data.success) {
           setCurrentSessionId(data.sessionId);
           setSessionStartTime(new Date());
-          console.log(`✅ Aktivite oturumu başlatıldı: Session ID ${data.sessionId}`);
-        } else {
-          console.log('⚠️ Aktivite oturumu başlatma başarısız:', data.message);
         }
-      } else {
-        const errorData = await response.json();
-        console.log('❌ Aktivite oturumu başlatma hatası:', errorData.message);
       }
     } catch (error) {
-      console.log('❌ Aktivite oturumu başlatma network hatası:', error);
+      // Sessizce hata yakala
     }
   };
 
   // Aktivite oturumu sonlandır
   const endActivitySession = async () => {
-    if (!user || !currentSessionId) {
-      console.log('⚠️ Aktivite oturumu sonlandırma atlandı: Kullanıcı veya session ID yok');
+    if (!user?.id || !currentSessionId) {
       return;
     }
     
     try {
-      console.log(`🛑 Aktivite oturumu sonlandırılıyor... Session ID: ${currentSessionId}`);
-      
       const response = await authedFetch(getFullUrl(API_ENDPOINTS.END_ACTIVITY_SESSION(user.id)), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -399,8 +387,6 @@ const KuryeHome = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          console.log(`✅ Aktivite oturumu sonlandırıldı: ${data.durationMinutes} dakika`);
-          
           // Local state'i güncelle
           setCurrentSessionId(null);
           setSessionStartTime(null);
@@ -408,24 +394,18 @@ const KuryeHome = () => {
           // Günlük istatistikleri güncelle
           fetchDailyActivityStats();
         } else {
-          console.log('⚠️ Aktivite oturumu sonlandırma başarısız:', data.message);
           // Backend'de oturum yoksa local state'i temizle
           setCurrentSessionId(null);
           setSessionStartTime(null);
         }
       } else {
-        const errorData = await response.json();
-        console.log('❌ Aktivite oturumu sonlandırma hatası:', errorData.message);
-        
-        // 404 hatası (oturum bulunamadı) durumunda local state'i temizle
+        // Hata durumunda local state'i temizle
         if (response.status === 404) {
-          console.log('📝 Aktif oturum bulunamadı, local state temizleniyor');
           setCurrentSessionId(null);
           setSessionStartTime(null);
         }
       }
     } catch (error) {
-      console.log('❌ Aktivite oturumu sonlandırma network hatası:', error);
       // Network hatası durumunda da local state'i temizle
       setCurrentSessionId(null);
       setSessionStartTime(null);
@@ -453,19 +433,37 @@ const KuryeHome = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Günlük aktivite istatistikleri alınırken hata:', error);
+      // Sessizce hata yakala
     }
   };
 
 
 
-  // Notification permission setup
+  // Notification permission setup and push token registration
   useEffect(() => {
     const setupNotifications = async () => {
-      // Request notification permissions
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('Notification permission not granted');
+      try {
+        // Request notification permissions
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('❌ Push notification izni reddedildi');
+          return;
+        }
+
+        // Push notification token'ını kaydet
+        const storedUser = await AsyncStorage.getItem('userData');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          if (userData.id) {
+            const token = await PushNotificationService.registerForPushNotifications(
+              userData.id.toString(), 
+              'courier'
+            );
+            console.log('✅ Courier push token kaydedildi:', token ? 'başarılı' : 'başarısız');
+          }
+        }
+      } catch (error) {
+        console.error('Error setting up push notifications:', error);
       }
     };
     
@@ -521,7 +519,6 @@ const KuryeHome = () => {
       const now = new Date();
       setIsOnline(true);
       setOnlineStartTime(now);
-      setOnlineMinutes(0);
       
       // Aktivite oturumu başlat
       await startActivitySession();
@@ -566,9 +563,7 @@ const KuryeHome = () => {
             style: "destructive",
             onPress: async () => {
               // Çevrimdışı olmadan önce süreyi kaydet
-              if (onlineStartTime && onlineMinutes > 0) {
-                await saveTotalOnlineTime(user.id, onlineMinutes);
-              }
+              // Not: Online time tracking geçici olarak devre dışı
               
               // Aktivite oturumu sonlandır
               await endActivitySession();
@@ -576,7 +571,6 @@ const KuryeHome = () => {
               // Çevrimdışı olacak
               setIsOnline(false);
               setOnlineStartTime(null);
-              setOnlineMinutes(0);
               
               // Backend'e çevrimdışı durumunu bildir
               if (socketRef.current) {
@@ -594,28 +588,7 @@ const KuryeHome = () => {
     }
   }, [isOnline, user, selectedOrders, currentActiveOrders, packageLimit, acceptedOrders, startActivitySession, endActivitySession, fetchDailyActivityStats]);
 
-  // Çevrimiçi süresini takip eden useEffect
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    
-    if (isOnline && onlineStartTime) {
-      // İlk güncellemeyi hemen yap
-      const updateTime = () => {
-        const now = new Date();
-        const diffInMinutes = Math.floor((now.getTime() - onlineStartTime.getTime()) / (1000 * 60));
-        setOnlineMinutes(diffInMinutes);
-      };
-      
-      updateTime(); // İlk çalıştırma
-      interval = setInterval(updateTime, 10000); // Her 10 saniyede güncelle
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isOnline, onlineStartTime]);
+  // Çevrimiçi süre takibi geçici olarak devre dışı
 
   // Heartbeat sistemi - çevrimiçi durumunu sürdürmek için
   useEffect(() => {
@@ -640,13 +613,9 @@ const KuryeHome = () => {
     };
   }, [isOnline, user]);
 
-  // Uygulama kapanırken çevrimiçi süresini kaydet ve aktivite oturumu sonlandır
+  // Uygulama kapanırken aktivite oturumu sonlandır
   useEffect(() => {
     const handleAppStateChange = async () => {
-      if (isOnline && onlineStartTime && onlineMinutes > 0 && user) {
-        await saveTotalOnlineTime(user.id, onlineMinutes);
-      }
-      
       // Aktivite oturumu sonlandır
       if (currentSessionId) {
         await endActivitySession();
@@ -656,7 +625,7 @@ const KuryeHome = () => {
     return () => {
       handleAppStateChange();
     };
-  }, [isOnline, onlineStartTime, onlineMinutes, user, currentSessionId, endActivitySession]);
+  }, [currentSessionId, endActivitySession]);
 
   // Real-time socket connection for new orders
   useEffect(() => {
@@ -766,8 +735,8 @@ const KuryeHome = () => {
           return prevOrders;
         });
 
-        // Show notification
-        showOrderNotification(order);
+        // Show notification - BU ARTIK PUSH NOTIFICATION ILE YAPILIYOR
+        // showOrderNotification(order);
       }
     });
 
@@ -1154,11 +1123,9 @@ const KuryeHome = () => {
       if (response.ok) {
         const data = await response.json();
         setPackageLimit(data.data?.package_limit || 5);
-      } else {
-        console.error('Failed to fetch courier info:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching courier info:', error);
+      // Sessizce hata yakala
     }
   }, [user]);
 
@@ -2124,14 +2091,10 @@ const KuryeHome = () => {
                   reason = "Kullanıcı tarafından çevrimdışı yapılmış";
                 }
                 
-                console.log(`🔄 Otomatik durum: ${shouldBeOnline ? 'ÇEVRİMİÇİ' : 'ÇEVRİMDIŞI'} - ${reason}`);
-                
                 if (shouldBeOnline) {
                   const now = new Date();
-                  console.log(`🟢 Otomatik çevrimiçi yapılıyor - Başlangıç zamanı: ${now.toISOString()}`);
                   setIsOnline(true);
                   setOnlineStartTime(now);
-                  setOnlineMinutes(0);
                   
                   // AsyncStorage'ı güncelle
                   await AsyncStorage.setItem('courierOnlineStatus', 'true');
@@ -2141,21 +2104,15 @@ const KuryeHome = () => {
                     await startActivitySession();
                     await fetchDailyActivityStats();
                   }, 2000); // Socket bağlantısı için 2 saniye bekle
-                  
-                  console.log("🟢 Otomatik çevrimiçi yapıldı:", reason);
                 } else {
                   setIsOnline(false);
-                  console.log("🔴 Çevrimdışı kaldı:", reason);
                 }
                 
               } catch (error) {
-                console.log("❌ Otomatik çevrimiçi olma sırasında hata:", error);
                 // Hata durumunda varsayılan olarak çevrimiçi ol
                 setIsOnline(true);
                 setOnlineStartTime(new Date());
-                setOnlineMinutes(0);
                 await AsyncStorage.setItem('courierOnlineStatus', 'true');
-                console.log("🟡 Hata nedeniyle varsayılan çevrimiçi yapıldı");
               }
             }, 1500); // 1.5 saniye gecikme ile socket bağlantısının kurulması için
             
@@ -2165,7 +2122,6 @@ const KuryeHome = () => {
             setTimeout(() => {
               setIsOnline(true);
               setOnlineStartTime(new Date());
-              setOnlineMinutes(0);
               console.log("🟡 Ana hata nedeniyle varsayılan çevrimiçi yapıldı");
             }, 1500);
           }
@@ -2192,10 +2148,7 @@ const KuryeHome = () => {
   // Çevrimiçi durumu kontrol eden yardımcı fonksiyon
   const checkAndSetOnlineStatus = useCallback(async (userId: string) => {
     try {
-      console.log("🔍 Çevrimiçi durum kontrolü başlatıldı...");
-      
       const savedOnlineStatus = await AsyncStorage.getItem('courierOnlineStatus');
-      console.log("💾 Kaydedilmiş durum:", savedOnlineStatus);
       
       // Aktif siparişleri kontrol et
       try {
@@ -2205,38 +2158,28 @@ const KuryeHome = () => {
         if (response.ok) {
           const data = await response.json();
           hasActiveOrders = (data.data || []).length > 0;
-          console.log("📦 Aktif sipariş durumu:", hasActiveOrders, "Sayı:", (data.data || []).length);
         }
         
         // Çevrimiçi olma mantığı
         let shouldBeOnline = true; // Varsayılan çevrimiçi
-        let reason = "Varsayılan durum";
         
         if (hasActiveOrders) {
           shouldBeOnline = true;
-          reason = "Aktif siparişler nedeniyle";
         } else if (savedOnlineStatus === 'false') {
           // Sadece açıkça false ise çevrimdışı yap
           shouldBeOnline = false;
-          reason = "Kullanıcı tercihi";
         } else {
           shouldBeOnline = true;
-          reason = savedOnlineStatus === 'true' ? "Önceki oturum" : "İlk kullanım";
         }
-        
-        console.log(`🎯 Final karar: ${shouldBeOnline ? 'ÇEVRİMİÇİ' : 'ÇEVRİMDIŞI'} (${reason})`);
         
         setIsOnline(shouldBeOnline);
         if (shouldBeOnline) {
           const now = new Date();
-          console.log(`🟢 CheckAndSet fonksiyonunda çevrimiçi yapılıyor - Başlangıç zamanı: ${now.toISOString()}`);
           setOnlineStartTime(now);
-          setOnlineMinutes(0);
           await AsyncStorage.setItem('courierOnlineStatus', 'true');
         }
         
       } catch (error) {
-        console.log("❌ Aktif sipariş kontrolü hatası:", error);
         // Hata durumunda çevrimiçi kal
         setIsOnline(true);
         setOnlineStartTime(new Date());
@@ -2244,7 +2187,6 @@ const KuryeHome = () => {
       }
       
     } catch (error) {
-      console.log("❌ Çevrimiçi durum kontrolü genel hatası:", error);
       // Ana hata durumunda da çevrimiçi kal
       setIsOnline(true);
       setOnlineStartTime(new Date());
@@ -2564,12 +2506,6 @@ const KuryeHome = () => {
             
             {/* Alt Metrik Bilgileri */}
             <View style={styles.modernMetricsRow}>
-              <View style={styles.modernMetricItem}>
-                <Ionicons name="stopwatch-outline" size={14} color="rgba(255, 255, 255, 0.9)" />
-                <Text style={styles.modernMetricText}>
-                  Aktif: {Math.floor(onlineMinutes / 60)}s {onlineMinutes % 60}dk
-                </Text>
-              </View>
               <View style={styles.modernMetricItem}>
                 <Ionicons name="cube-outline" size={14} color="rgba(255, 255, 255, 0.9)" />
                 <Text style={styles.modernMetricText}>

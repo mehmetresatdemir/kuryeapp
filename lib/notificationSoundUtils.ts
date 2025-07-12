@@ -45,7 +45,22 @@ export const playNotificationSound = async (soundData?: any) => {
 
     if (!soundData?.file_path) {
       console.log('Bildirim sesi bulunamadı, varsayılan sesi kullan');
-      return;
+      // Varsayılan yerel sesi çal
+      try {
+        soundObject = new Audio.Sound();
+        await soundObject.loadAsync(require('../assets/sounds/default-notification.wav'));
+        await soundObject.playAsync();
+        soundObject.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            soundObject?.unloadAsync();
+            soundObject = null;
+          }
+        });
+        return;
+      } catch (defaultError) {
+        console.error('Varsayılan bildirim sesi çalınamadı:', defaultError);
+        return;
+      }
     }
 
     // Ses dosyasının URL'ini oluştur

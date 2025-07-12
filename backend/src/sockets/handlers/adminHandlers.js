@@ -1,4 +1,4 @@
-const { sql, safeQuery } = require('../../config/db-config');
+const { sql } = require('../../config/db-config');
 
 const registerAdminHandlers = (io, socket) => {
   // Admin için connection tracking

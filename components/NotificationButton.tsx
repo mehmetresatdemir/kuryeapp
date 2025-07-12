@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG, getFullUrl, authedFetch } from '../constants/api';
+import { API_CONFIG, authedFetch } from '../constants/api';
 
 interface Notification {
   id: number;
@@ -83,7 +82,7 @@ const NotificationButton: React.FC<NotificationButtonProps> = ({ userType, userI
   };
 
   // Okunmamış bildirim sayısını yükle
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     try {
       const response = await authedFetch(`${API_CONFIG.BASE_URL}/api/admin/notifications/${userType}/${userId}/unread-count`);
       
@@ -109,7 +108,7 @@ const NotificationButton: React.FC<NotificationButtonProps> = ({ userType, userI
     } catch (error) {
       console.error('Okunmamış bildirim sayısı yüklenirken hata:', error);
     }
-  };
+  }, [userType, userId]);
 
   // Bildirimleri okundu olarak işaretle
   const markAsRead = async (notificationIds?: number[]) => {
@@ -227,7 +226,7 @@ const NotificationButton: React.FC<NotificationButtonProps> = ({ userType, userI
     // Her 30 saniyede bir okunmamış sayıyı güncelle
     const interval = setInterval(loadUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadUnreadCount]);
 
   // Yenile
   const onRefresh = () => {

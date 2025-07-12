@@ -3,10 +3,8 @@ import {
   Text,
   View,
   Modal,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
-  Button,
   Alert,
   Image,
   TextInput,
@@ -25,11 +23,12 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import io from "socket.io-client";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import NotificationButton from "../../components/NotificationButton";
 import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
+import PushNotificationService from "../../lib/pushNotificationService";
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruzir
 
 // Configure notifications
@@ -56,15 +55,7 @@ interface Neighborhood {
   deliveryPriceId: number;
 }
 
-// Restoran mahalle verisi için tip tanımı
-interface RestaurantNeighborhoodData {
-  restaurant: {
-    id: number;
-    name: string;
-  };
-  availableNeighborhoods: Neighborhood[];
-  totalNeighborhoods: number;
-}
+
 
 // Resim verisi için tip tanımı
 interface ImageAsset {
@@ -244,9 +235,6 @@ const TabBadge: React.FC<{ count: number, color: string }> = ({ count, color }) 
 };
 
 const RestaurantHome = () => {
-  const navigation = useNavigation();
-
-  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [pendingApprovalOrders, setPendingApprovalOrders] = useState<Order[]>([]);
@@ -280,9 +268,8 @@ const RestaurantHome = () => {
 
   // Mahalle seçimi için yeni state'ler
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
-  const [neighborhoodsLoading, setNeighborhoodsLoading] = useState(false);
+  const [neighborhoodsLoading] = useState(false);
   const [neighborhoodModalVisible, setNeighborhoodModalVisible] = useState(false);
-  const [totalNeighborhoods, setTotalNeighborhoods] = useState(0);
 
   // Sipariş ekleme/düzenleme modalı (yeni veya düzenleme için)
   const [modalVisible, setModalVisible] = useState<boolean>(false);
@@ -333,7 +320,7 @@ const RestaurantHome = () => {
     notificationTimeouts.current.set(notificationId, timeout);
   }, []);
 
-  // Setup notifications
+  // Setup notifications and push tokens
   useEffect(() => {
     const setupNotifications = async () => {
       try {
@@ -346,7 +333,21 @@ const RestaurantHome = () => {
         }
         
         if (finalStatus !== 'granted') {
+          console.log('❌ Push notification izni reddedildi');
           return;
+        }
+
+        // Push notification token'ını kaydet
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          if (user.id) {
+            const token = await PushNotificationService.registerForPushNotifications(
+              user.id.toString(), 
+              'restaurant'
+            );
+            console.log('✅ Restaurant push token kaydedildi:', token ? 'başarılı' : 'başarısız');
+          }
         }
       } catch (error) {
         console.error('Error setting up notifications:', error);
@@ -857,7 +858,6 @@ const RestaurantHome = () => {
         }));
 
         setNeighborhoods(neighborhoods);
-        setTotalNeighborhoods(neighborhoods.length);
       } else {
         throw new Error(data.message || 'Mahalle bilgileri alınamadı');
       }
@@ -1055,8 +1055,8 @@ const RestaurantHome = () => {
     // Eğer tam URL ise doğrudan kullan
     if (imageUrl.startsWith('http')) {
       // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-      if (imageUrl.startsWith('https://red.enucuzal.com')) {
-        return imageUrl.replace('https://red.enucuzal.com', 'http://red.enucuzal.com');
+      if (imageUrl.startsWith('https://admin.enucuzal.com')) {
+        return imageUrl.replace('https://admin.enucuzal.com', 'http://admin.enucuzal.com');
       }
       return imageUrl;
     }
@@ -1619,7 +1619,7 @@ const RestaurantHome = () => {
                   <View style={styles.firmInfoContainer}>
                     <View style={styles.firmInfoRow}>
                       <View style={styles.firmIconBox}>
-                        <Icon name="account-balance-wallet" size={16} color="#FFFFFF" />
+                        <Icon name="attach-money" size={16} color="#FFFFFF" />
                       </View>
                       <View>
                         <Text style={styles.firmLabel}>
@@ -2186,7 +2186,7 @@ const RestaurantHome = () => {
                       <View style={styles.detailCard}>
                         <View style={styles.detailCardRow}>
                           <View style={[styles.detailCardIconBox, { backgroundColor: '#EEF2FF' }]}>
-                            <Icon name="account-balance-wallet" size={24} color="#4F46E5" />
+                            <Icon name="attach-money" size={24} color="#4F46E5" />
                           </View>
                           <View>
                             <Text style={styles.detailCardLabel}>Toplam Tutar</Text>
