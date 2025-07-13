@@ -283,8 +283,6 @@ const KuryeHome = () => {
   const [isOnline, setIsOnline] = useState<boolean>(true); // Varsayılan olarak çevrimiçi
   const [onlineStartTime, setOnlineStartTime] = useState<Date | null>(null); // Başlangıçta null, sonra doğru zamanla set edilecek
 
-  const [totalOnlineTime, setTotalOnlineTime] = useState<{ hours: number, minutes: number }>({ hours: 0, minutes: 0 });
-  
   // Kurye paket limit bilgileri
   const [packageLimit, setPackageLimit] = useState<number>(5);
   const [currentActiveOrders, setCurrentActiveOrders] = useState<number>(0);
@@ -300,144 +298,6 @@ const KuryeHome = () => {
 
   const socketRef = useRef<any>(null);
   const acceptSelectedOrdersRef = useRef<(() => Promise<void>) | null>(null);
-
-  // Toplam çevrimiçi süresini yükle
-  const loadTotalOnlineTime = async (courierId: string) => {
-    try {
-      const response = await authedFetch(getFullUrl(`/api/couriers/${courierId}/total-online-time`));
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.totalTime) {
-          setTotalOnlineTime({
-            hours: data.totalTime.hours || 0,
-            minutes: data.totalTime.minutes || 0
-          });
-        }
-      }
-    } catch (error) {
-      // Sessizce hata yakala
-    }
-  };
-
-  // Çevrimiçi süresini veritabanına kaydet
-  const saveTotalOnlineTime = async (courierId: string, additionalMinutes: number) => {
-    try {
-      const response = await authedFetch(getFullUrl(`/api/couriers/${courierId}/total-online-time`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ additionalMinutes })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.totalTime) {
-          setTotalOnlineTime({
-            hours: data.totalTime.hours || 0,
-            minutes: data.totalTime.minutes || 0
-          });
-        }
-      }
-    } catch (error) {
-      // Sessizce hata yakala
-    }
-  };
-
-  // Aktivite oturumu başlat
-  const startActivitySession = async () => {
-    if (!user?.id) {
-      return;
-    }
-    
-    if (currentSessionId) {
-      return;
-    }
-    
-    try {
-      const response = await authedFetch(getFullUrl(API_ENDPOINTS.START_ACTIVITY_SESSION(user.id)), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setCurrentSessionId(data.sessionId);
-          setSessionStartTime(new Date());
-        }
-      }
-    } catch (error) {
-      // Sessizce hata yakala
-    }
-  };
-
-  // Aktivite oturumu sonlandır
-  const endActivitySession = async () => {
-    if (!user?.id || !currentSessionId) {
-      return;
-    }
-    
-    try {
-      const response = await authedFetch(getFullUrl(API_ENDPOINTS.END_ACTIVITY_SESSION(user.id)), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Local state'i güncelle
-          setCurrentSessionId(null);
-          setSessionStartTime(null);
-          
-          // Günlük istatistikleri güncelle
-          fetchDailyActivityStats();
-        } else {
-          // Backend'de oturum yoksa local state'i temizle
-          setCurrentSessionId(null);
-          setSessionStartTime(null);
-        }
-      } else {
-        // Hata durumunda local state'i temizle
-        if (response.status === 404) {
-          setCurrentSessionId(null);
-          setSessionStartTime(null);
-        }
-      }
-    } catch (error) {
-      // Network hatası durumunda da local state'i temizle
-      setCurrentSessionId(null);
-      setSessionStartTime(null);
-    }
-  };
-
-  // Günlük aktivite istatistiklerini getir
-  const fetchDailyActivityStats = async () => {
-    if (!user) return;
-    
-    try {
-      const response = await authedFetch(
-        `${getFullUrl(API_ENDPOINTS.GET_COURIER_ACTIVITY_REPORT(user.id))}?period=daily&limit=1`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data.daily && data.data.daily.length > 0) {
-          const todayData = data.data.daily[0];
-          setDailyStats({
-            todayMinutes: todayData.total_minutes || 0,
-            todayHours: todayData.hours || 0,
-            todaySessions: todayData.session_count || 0
-          });
-        }
-      }
-    } catch (error) {
-      // Sessizce hata yakala
-    }
-  };
-
-
 
   // Notification permission setup and push token registration
   useEffect(() => {
@@ -652,10 +512,6 @@ const KuryeHome = () => {
       // Join courier room to receive new orders
       console.log(`📡 Kurye odasına katılıyor: courier_${user.id}`);
       socket.emit("joinCourierRoom", { courierId: user.id, token });
-      
-      // Genel kuryeler odasına da katıl
-      console.log("📡 Genel kuryeler odasına katılıyor: couriers");
-      socket.emit("joinRoom", { room: "couriers" });
       
       // Bağlantı test et
       setTimeout(() => {
@@ -2116,8 +1972,6 @@ const KuryeHome = () => {
           }
           
           setUser(parsedUser);
-          // Toplam çevrimiçi süresini yükle
-          await loadTotalOnlineTime(parsedUser.id);
           
           // Otomatik çevrimiçi olma özelliği - Geliştirilmiş
           try {

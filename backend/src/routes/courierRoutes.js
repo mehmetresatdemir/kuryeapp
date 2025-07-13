@@ -28,10 +28,6 @@ router.post('/:courierId/activity/end', protect, courierController.endCourierAct
 router.get('/:courierId/activity-report', protect, courierController.getCourierActivityReport);
 router.get('/activity/summary', protect, courierController.getAllCouriersActivitySummary);
 
-// Toplam çevrimiçi süre endpoint'leri
-router.get('/:courierId/total-online-time', protect, courierController.getTotalOnlineTime);
-router.post('/:courierId/total-online-time', protect, courierController.updateTotalOnlineTime);
-
 // Kurye konumu güncelleme
 router.post('/:id/location', protect, async (req, res) => {
     try {

@@ -582,41 +582,6 @@ const getAllCouriersActivitySummary = async (req, res) => {
     }
 };
 
-// Kurye toplam çevrimiçi süresini getir
-const getTotalOnlineTime = async (req, res) => {
-    try {
-        // Geçici olarak sıfır değer döndür
-        res.json({ 
-            success: true, 
-            totalTime: {
-                hours: 0,
-                minutes: 0,
-                totalMinutes: 0
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Sunucu hatası' });
-    }
-};
-
-// Kurye toplam çevrimiçi süresini güncelle (ek dakika ekle)
-const updateTotalOnlineTime = async (req, res) => {
-    try {
-        // Geçici olarak dummy response döndür
-        res.json({ 
-            success: true, 
-            message: 'Çevrimiçi süre başarıyla kaydedildi',
-            totalTime: {
-                hours: 0,
-                minutes: 0,
-                totalMinutes: 0
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Sunucu hatası' });
-    }
-};
-
 module.exports = {
     getAllCouriers,
     getCourierById,
@@ -635,7 +600,4 @@ module.exports = {
     endCourierActivitySession,
     getCourierActivityReport,
     getAllCouriersActivitySummary,
-    // Toplam çevrimiçi süre fonksiyonları
-    getTotalOnlineTime,
-    updateTotalOnlineTime
-}; 
+};
