@@ -11,7 +11,7 @@ import {
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import * as Location from "expo-location";
 import io from "socket.io-client";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from "@expo/vector-icons";
 import { API_CONFIG } from "../../constants/api";
@@ -132,14 +132,17 @@ const RestaurantLiveMap = () => {
         socketRef.current = null;
       }
       socketRef.current = io(API_CONFIG.SOCKET_URL, { transports: ["websocket"] });
-      socketRef.current.on("connect", () => {
+      socketRef.current.on("connect", async () => {
         console.log(`🔌 Restoran socket bağlandı - FirmID: ${firmId}`);
+        
+        // Get user token for session management
+        const token = await AsyncStorage.getItem('userToken');
         
         // Otomatik olarak aktif siparişleri iste
         socketRef.current.emit("requestActiveOrders", { firmId });
         
         // Restoran odasına katıl
-        socketRef.current.emit("joinRestaurantRoom", { restaurantId: firmId });
+        socketRef.current.emit("joinRestaurantRoom", { restaurantId: firmId, token });
         
         setIsLoading(false);
       });
@@ -234,6 +237,35 @@ const RestaurantLiveMap = () => {
         console.log(`📦 Sipariş teslim edildi:`, data);
         // Sipariş teslim edildiğinde aktif siparişleri güncelle
         socketRef.current.emit("requestActiveOrders", { firmId });
+      });
+
+      // Listen for force logout events (concurrent session control)
+      socketRef.current.on("forceLogout", async (data: { reason: string, message: string }) => {
+        console.log("🔐 Force logout event received:", data);
+        
+        // Show alert to user
+        Alert.alert(
+          "Oturum Sonlandırıldı",
+          data.message || "Hesabınıza başka bir cihazdan giriş yapıldı.",
+          [
+            {
+              text: "Tamam",
+              onPress: async () => {
+                try {
+                  // Clear all user data
+                  await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                  
+                  // Navigate to login screen
+                  router.replace("/(auth)/sign-in");
+                } catch (error) {
+                  console.error("Force logout cleanup error:", error);
+                  router.replace("/(auth)/sign-in");
+                }
+              }
+            }
+          ],
+          { cancelable: false }
+        );
       });
 
       // Periyodik güncelleme - 30 saniyede bir aktif siparişleri kontrol et

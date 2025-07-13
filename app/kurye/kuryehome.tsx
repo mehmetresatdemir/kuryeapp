@@ -642,12 +642,26 @@ const KuryeHome = () => {
       upgrade: true
     });
 
-    socket.on("connect", () => {
-      console.log("Socket connected successfully");
+    socket.on("connect", async () => {
+      console.log("🔌 Socket connected successfully - Kurye ID:", user.id);
       setError(null); // Clear any previous connection errors
       
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
       // Join courier room to receive new orders
-      socket.emit("joinCourierRoom", { courierId: user.id });
+      console.log(`📡 Kurye odasına katılıyor: courier_${user.id}`);
+      socket.emit("joinCourierRoom", { courierId: user.id, token });
+      
+      // Genel kuryeler odasına da katıl
+      console.log("📡 Genel kuryeler odasına katılıyor: couriers");
+      socket.emit("joinRoom", { room: "couriers" });
+      
+      // Bağlantı test et
+      setTimeout(() => {
+        console.log("🧪 Socket bağlantısı test ediliyor...");
+        socket.emit("testConnection", { courierId: user.id, timestamp: Date.now() });
+      }, 2000);
       
       // Eğer çevrimiçi durumdaysa backend'e bildir
       if (isOnline) {
@@ -701,10 +715,26 @@ const KuryeHome = () => {
       setError("Yeniden bağlanma başarısız");
     });
 
+    // Test connection response
+    socket.on("testConnectionResponse", (data: any) => {
+      console.log("🧪 Test connection response alındı:", data);
+      console.log(`✅ Socket bağlantısı çalışıyor - Ping: ${data.serverTimestamp - data.clientTimestamp}ms`);
+    });
+
     // Listen for new orders
     socket.on("newOrder", (order: Order) => {
+      console.log("📥 newOrder event alındı:", {
+        orderId: order.id,
+        status: order.status,
+        firma_adi: order.firma_adi,
+        mahalle: order.mahalle,
+        courier_price: order.courier_price
+      });
+      
       // Add to orders list if it's waiting
       if (order.status === "bekleniyor") {
+        console.log(`✅ Yeni sipariş listeye ekleniyor: #${order.id} - ${order.firma_adi}`);
+        
         // İlk 10 saniye için siparişi blokla
         setBlockedOrders(prev => {
           const newSet = new Set(prev);
@@ -725,18 +755,23 @@ const KuryeHome = () => {
           // Check if order already exists
           const exists = prevOrders.some(o => o.id === order.id);
           if (!exists) {
+            console.log(`📋 Sipariş #${order.id} listeye eklendi`);
             const orders = [order, ...prevOrders];
             // Sort by creation date
             return orders.sort(
               (a: Order, b: Order) =>
                 new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
+          } else {
+            console.log(`⚠️ Sipariş #${order.id} zaten listede mevcut`);
           }
           return prevOrders;
         });
 
         // Show notification - BU ARTIK PUSH NOTIFICATION ILE YAPILIYOR
         // showOrderNotification(order);
+      } else {
+        console.log(`❌ Sipariş #${order.id} bekleniyor durumunda değil: ${order.status}`);
       }
     });
 
@@ -1013,7 +1048,7 @@ const KuryeHome = () => {
         content: {
           title: "✅ Sipariş Onaylandı!",
           body: `Sipariş #${data.orderId} restoran tarafından onaylandı. Ödeme tahsil edildi.`,
-          sound: 'default',
+          sound: 'custom-notification',
           data: { 
             orderId: data.orderId,
             restaurantId: data.restaurantId,
@@ -1053,6 +1088,35 @@ const KuryeHome = () => {
       console.log("🔄 Order lists refreshed due to:", data.action);
     });
 
+    // Listen for force logout events (concurrent session control)
+    socket.on("forceLogout", async (data: { reason: string, message: string }) => {
+      console.log("🔐 Force logout event received:", data);
+      
+      // Show alert to user
+      Alert.alert(
+        "Oturum Sonlandırıldı",
+        data.message || "Hesabınıza başka bir cihazdan giriş yapıldı.",
+        [
+          {
+            text: "Tamam",
+            onPress: async () => {
+              try {
+                // Clear all user data
+                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                
+                // Navigate to login screen
+                router.replace("/(auth)/sign-in");
+              } catch (error) {
+                console.error("Force logout cleanup error:", error);
+                router.replace("/(auth)/sign-in");
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    });
+
     socketRef.current = socket;
 
     return () => {
@@ -1072,7 +1136,7 @@ const KuryeHome = () => {
     if (!user) return;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const response = await authedFetch(getFullUrl(API_ENDPOINTS.GET_ACTIVE_ORDERS(user.id)), {
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
@@ -1108,7 +1172,11 @@ const KuryeHome = () => {
         setCurrentActiveOrders(0);
       }
     } catch (error) {
-      console.error(`❌ KuryeHome: Error fetching accepted orders:`, error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn(`⏱️ KuryeHome: Accepted orders request timeout (15s aşıldı)`);
+      } else {
+        console.error(`❌ KuryeHome: Error fetching accepted orders:`, error);
+      }
       setAcceptedOrders([]);
       setCurrentActiveOrders(0);
     }

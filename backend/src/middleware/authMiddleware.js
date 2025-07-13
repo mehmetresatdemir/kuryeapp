@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { verifyToken } = require('../config/auth');
+const SessionService = require('../services/sessionService');
 
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -16,8 +17,20 @@ const protect = (req, res, next) => {
             // Verify token using centralized auth config
             const decoded = verifyToken(token);
 
+            // Session validation - check if session is still active
+            const session = await SessionService.validateSession(token);
+            
+            if (!session) {
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Session geçersiz veya expire olmuş, lütfen tekrar giriş yapın.',
+                    shouldLogout: true
+                });
+            }
+
             // Attach user to the request
             req.user = decoded; // Contains { id, name, role, aud, iss, etc. }
+            req.session = session; // Session bilgilerini de ekle
             
             return next();
         } catch (error) {

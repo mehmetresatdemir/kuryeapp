@@ -48,8 +48,15 @@ export const playNotificationSound = async (soundData?: any) => {
       // Varsayılan yerel sesi çal
       try {
         soundObject = new Audio.Sound();
-        await soundObject.loadAsync(require('../assets/sounds/default-notification.wav'));
+        // Önce default-notification.wav dosyasını dene
+        try {
+          await soundObject.loadAsync(require('../assets/sounds/default-notification.wav'));
+        } catch (loadError) {
+          console.log('default-notification.wav bulunamadı, default_notification.wav deneniyor');
+          await soundObject.loadAsync(require('../assets/sounds/default_notification.wav'));
+        }
         await soundObject.playAsync();
+        console.log('✅ Varsayılan bildirim sesi çalındı');
         soundObject.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
             soundObject?.unloadAsync();

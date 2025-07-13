@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { sql } = require('../config/db-config');
 const { protect } = require('../middleware/authMiddleware');
 const { verifyUser } = require('../services/authService');
@@ -243,11 +244,16 @@ const addRestaurant = async (req, res) => {
             return res.status(409).json({ success: false, message: 'Bu e-posta adresi zaten kullanımda.' });
         }
 
-        // Düz şifre kullanıyoruz, bcrypt yok
+        // Dual role kontrolü - Bu email ile courier kayıtlı mı?
+        const existingCourier = await sql`SELECT id FROM couriers WHERE email = ${email}`;
+        if (existingCourier.length > 0) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'Bu e-posta adresi zaten kurye olarak kayıtlı. Aynı kullanıcı hem kurye hem restoran olamaz.' 
+            });
+        }
 
-        // Türkiye saati SQL ifadesini al
-        
-
+        // Şifreyi düz metin olarak sakla
         const newRestaurant = await sql`
             INSERT INTO restaurants (
                 name, 
@@ -302,8 +308,7 @@ const updateRestaurant = async (req, res) => {
         
         // Eğer şifre verilmişse şifreyi de güncelle
         if (password && password.trim() !== '') {
-            // Düz şifre kullanıyoruz, bcrypt yok
-            
+            // Şifreyi düz metin olarak sakla
             console.log('📝 Updating with password');
             const result = await sql`
                 UPDATE restaurants
@@ -554,7 +559,7 @@ const changeRestaurantPassword = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Restoran bulunamadı' });
         }
 
-        // Mevcut şifreyi kontrol et (plain text karşılaştırması)
+        // Mevcut şifreyi kontrol et (düz metin karşılaştırması)
         if (restaurant.password !== currentPassword) {
             return res.status(400).json({ 
                 success: false, 
@@ -562,10 +567,7 @@ const changeRestaurantPassword = async (req, res) => {
             });
         }
 
-        // Türkiye saati SQL ifadesini al
-        
-
-        // Yeni şifreyi güncelle (plain text olarak)
+        // Yeni şifreyi düz metin olarak güncelle
         await sql`
             UPDATE restaurants 
             SET 

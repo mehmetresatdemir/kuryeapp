@@ -12,7 +12,9 @@ import {
   StyleSheet,
   StatusBar,
   RefreshControl,
- Image } from "react-native";
+  Image,
+  Platform,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -728,29 +730,29 @@ const RestaurantProfile = () => {
         </View>
       </Modal>
 
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <LinearGradient
-          colors={['#059669', '#10B981']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
+      <LinearGradient
+        colors={["#8B5CF6", "#6366F1", "#4F46E5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.fullScreenGradient}
+      >
+        <SafeAreaView style={styles.container}>
+          {/* Header */}
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Restoran Profili</Text>
             <Text style={styles.headerSubtitle}>İşletme bilgilerinizi yönetin</Text>
           </View>
-        </LinearGradient>
 
-        {/* Content */}
-        <ScrollView 
-          style={styles.scrollView} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          <View style={styles.contentContainer}>
+          {/* Content Container */}
+          <View style={styles.contentBackground}>
+            <ScrollView 
+              style={styles.scrollView} 
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+              <View style={styles.contentContainer}>
             
             {/* Profile Card */}
             <View style={styles.profileCard}>
@@ -790,24 +792,14 @@ const RestaurantProfile = () => {
                     </TouchableOpacity>
                   )}
                   
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBadgeColor() }]}>
-                    <Ionicons 
-                      name={restaurantData.is_active ? "checkmark-circle" : "close-circle"} 
-                      size={16} 
-                      color="#FFFFFF" 
-                    />
-                  </View>
+                  {/* Aktif/Pasif Restoran badge'i kaldırıldı */}
                 </View>
 
                 {/* Restaurant Info */}
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{restaurantData.name}</Text>
                   <Text style={styles.userEmail}>{restaurantData.email}</Text>
-                  <View style={[styles.roleBadge, { backgroundColor: getStatusBadgeColor() + '20' }]}>
-                    <Text style={[styles.roleBadgeText, { color: getStatusBadgeColor() }]}>
-                      🏢 {getStatusText()} Restoran
-                    </Text>
-                  </View>
+                  {/* Aktif/Pasif Restoran badge'i kaldırıldı */}
                 </View>
               </View>
             </View>
@@ -1001,18 +993,31 @@ const RestaurantProfile = () => {
 
             {/* Footer spacing */}
             <View style={styles.footer} />
+              </View>
+            </ScrollView>
           </View>
-        </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
     </>
   );
 };
 
 const styles = StyleSheet.create({
   // Base styles
+  fullScreenGradient: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
+  },
+  contentBackground: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: 0,
   },
   loadingContainer: {
     flex: 1,
@@ -1070,33 +1075,31 @@ const styles = StyleSheet.create({
   },
 
   // Header styles
-  header: {
-    paddingTop: 20,
-    paddingBottom: 40,
-    backgroundColor: '#8B5CF6',
-  },
   headerContent: {
     paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 2,
+    textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
   },
 
   // Content styles
   scrollView: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'transparent',
   },
   contentContainer: {
     paddingHorizontal: 20,
-    marginTop: -20,
+    paddingTop: 12,
   },
 
   // Profile card styles

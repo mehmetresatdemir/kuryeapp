@@ -261,26 +261,6 @@ const getActiveOrdersForCourier = async (req, res) => {
     }
 
     try {
-        
-        // Let's also check all kuryede orders in the system
-        const allKuryedeOrders = await sql`
-            SELECT id, status, kuryeid, firmaid, created_at 
-            FROM orders 
-            WHERE status = 'kuryede'
-            ORDER BY created_at DESC
-        `;
-        allKuryedeOrders.forEach((order, index) => {
-            console.log(`🔍 Kuryede Order ${index}: id=${order.id}, kuryeid=${order.kuryeid}, firmaid=${order.firmaid}`);
-        });
-        
-        // First, let's check what orders exist for this courier at all
-        const allOrders = await sql`
-            SELECT id, status, kuryeid, firmaid, created_at 
-            FROM orders 
-            WHERE kuryeid = ${courierId}
-            ORDER BY created_at DESC
-        `;
-
         const orders = await sql`
             SELECT 
                 o.*,
@@ -437,7 +417,7 @@ const deliverOrder = async (req, res) => {
         const paymentMethod = order.odeme_yontemi.toLowerCase();
 
         // Online ödeme veya hediye çeki ise direkt teslim edildi olarak işaretle
-        if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki') {
+        if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye')) {
             const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
             await sql`
                 UPDATE orders 
@@ -481,7 +461,12 @@ const deliverOrder = async (req, res) => {
             }
 
             // Bildirim oluştur
-            await createOrderDeliveredNotification(order, courier, false);
+            console.log(`📱 Online ödeme - Sipariş ${orderId} teslim edildi, bildirim gönderiliyor...`);
+            console.log(`📱 Sipariş bilgileri:`, { orderId: order.id, firmaid: order.firmaid, kuryeid: order.kuryeid });
+            console.log(`📱 Kurye bilgileri:`, { courierName: courier?.name, courierId: courier?.id });
+            
+            await createOrderDeliveredNotification(order, courier, false, req.io);
+            console.log(`✅ Online ödeme - Sipariş ${orderId} için bildirim gönderildi`);
 
             return res.status(200).json({
                 success: true,
@@ -540,8 +525,8 @@ const deliverOrder = async (req, res) => {
             });
         }
 
-        // Bildirim oluştur
-        await createOrderDeliveredNotification(order, courier, true);
+        // NOT: Nakit ödeme için bildirim socket event'i tarafından gönderiliyor
+        // Duplicate notification önlemek için createOrderDeliveredNotification çağrılmıyor
 
         res.status(200).json({
             success: true,
@@ -660,84 +645,12 @@ const approveOrder = async (req, res) => {
                 RETURNING *
             `;
 
-            // Socket.io bildirimi gönder
-            if (req.io) {
-                // Kurye odasına bildirim
-                req.io.to(`courier_${order.kuryeid}`).emit('orderDelivered', {
-                    orderId: order.id,
-                    status: 'teslim edildi',
-                    message: 'Sipariş başarıyla teslim edildi',
-                    orderDetails: updatedOrder
-                });
-                
-                // Sipariş durumu güncellemesi
-                req.io.to(`restaurant_${order.firmaid}`).emit('orderStatusUpdate', {
-                    orderId: order.id,
-                    status: 'teslim edildi',
-                    courierName: order.courier_name || `Kurye #${order.kuryeid}`
-                });
-                
-                // Tüm restoranlara bildirim
-                req.io.to('restaurants').emit('orderStatusUpdate', {
-                    orderId: order.id,
-                    status: 'teslim edildi',
-                    courierName: order.courier_name || `Kurye #${order.kuryeid}`
-                });
-                
-                // Sipariş listesini yenileme bildirimi
-                req.io.to(`restaurant_${order.firmaid}`).emit('refreshOrderList', {
-                    orderId: order.id,
-                    action: 'orderApproved',
-                    message: 'Sipariş onaylandı, liste güncelleniyor'
-                });
-                
-                // Onay bekleyen siparişleri yenileme bildirimi
-                req.io.to(`restaurant_${order.firmaid}`).emit('refreshPendingApprovalList', {
-                    orderId: order.id,
-                    action: 'orderApproved',
-                    message: 'Sipariş onaylandı, liste güncelleniyor'
-                });
-            }
-
-            // Bildirim oluştur
-            try {
-                await createOrderDeliveredNotification(order, { name: order.courier_name, phone: order.courier_phone }, false);
-            } catch (notificationError) {
-                // Silent error
-            }
-
-            return res.json({ 
-                success: true, 
-                data: updatedOrder,
-                message: 'Online/hediye çeki ödemeli sipariş otomatik onaylandı'
-            });
-        }
-
-        // Nakit veya kredi kartı ödemeleri için normal onay süreci
-        
-        const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
-        const [updatedOrder] = await sql`
-            UPDATE orders 
-            SET 
-                status = 'teslim edildi',
-                approved_at = ${turkeyTime},
-                updated_at = ${turkeyTime}
-            WHERE id = ${orderId} AND status = 'onay bekliyor'
-            RETURNING *
-        `;
-
-        if (!updatedOrder) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Sipariş onaylanamadı. Sipariş durumu uygun değil.' 
-            });
-        }
-
-        // Socket.io bildirimi gönder
+                    // Socket.io bildirimi gönder
         if (req.io) {
-            // Kurye odasına bildirim
-            req.io.to(`courier_${order.kuryeid}`).emit('orderDelivered', {
+            // Kurye odasına sipariş onaylandı bildirimi
+            req.io.to(`courier_${order.kuryeid}`).emit('orderApproved', {
                 orderId: order.id,
+                restaurantId: order.firmaid,
                 status: 'teslim edildi',
                 message: 'Sipariş başarıyla teslim edildi ve onaylandı',
                 orderDetails: updatedOrder
@@ -772,12 +685,75 @@ const approveOrder = async (req, res) => {
             });
         }
 
-        // Bildirim oluştur
-        try {
-            await createOrderDeliveredNotification(order, { name: order.courier_name, phone: order.courier_phone }, false);
-        } catch (notificationError) {
-            // Silent error
+            return res.json({ 
+                success: true, 
+                data: updatedOrder,
+                message: 'Online/hediye çeki ödemeli sipariş otomatik onaylandı'
+            });
         }
+
+        // Nakit veya kredi kartı ödemeleri için normal onay süreci
+        
+        const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
+        const [updatedOrder] = await sql`
+            UPDATE orders 
+            SET 
+                status = 'teslim edildi',
+                approved_at = ${turkeyTime},
+                updated_at = ${turkeyTime}
+            WHERE id = ${orderId} AND status = 'onay bekliyor'
+            RETURNING *
+        `;
+
+        if (!updatedOrder) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Sipariş onaylanamadı. Sipariş durumu uygun değil.' 
+            });
+        }
+
+        // Socket.io bildirimi gönder
+        if (req.io) {
+            // Kurye odasına sipariş onaylandı bildirimi
+            req.io.to(`courier_${order.kuryeid}`).emit('orderApproved', {
+                orderId: order.id,
+                restaurantId: order.firmaid,
+                status: 'teslim edildi',
+                message: 'Sipariş başarıyla teslim edildi ve onaylandı',
+                orderDetails: updatedOrder
+            });
+            
+            // Sipariş durumu güncellemesi
+            req.io.to(`restaurant_${order.firmaid}`).emit('orderStatusUpdate', {
+                orderId: order.id,
+                status: 'teslim edildi',
+                courierName: order.courier_name || `Kurye #${order.kuryeid}`
+            });
+            
+            // Tüm restoranlara bildirim
+            req.io.to('restaurants').emit('orderStatusUpdate', {
+                orderId: order.id,
+                status: 'teslim edildi',
+                courierName: order.courier_name || `Kurye #${order.kuryeid}`
+            });
+            
+            // Sipariş listesini yenileme bildirimi
+            req.io.to(`restaurant_${order.firmaid}`).emit('refreshOrderList', {
+                orderId: order.id,
+                action: 'orderApproved',
+                message: 'Sipariş onaylandı, liste güncelleniyor'
+            });
+            
+            // Onay bekleyen siparişleri yenileme bildirimi
+            req.io.to(`restaurant_${order.firmaid}`).emit('refreshPendingApprovalList', {
+                orderId: order.id,
+                action: 'orderApproved',
+                message: 'Sipariş onaylandı, liste güncelleniyor'
+            });
+        }
+
+        // NOT: Kuryeye bildirim socket event'i (orderApproved) ile gönderiliyor
+        // Duplicate notification önlemek için createOrderApprovedNotification çağrılmıyor
 
         res.json({ 
             success: true, 

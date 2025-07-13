@@ -47,20 +47,14 @@ const orderRoutes = require('./routes/orderRoutes');
 const courierRoutes = require('./routes/courierRoutes');
 const restaurantRoutes = require('./routes/restaurantRoutes');
 const adminRoutes = require('./routes/admin');
-const userRoutes = require('./routes/userRoutes'); // For unified login
+const userRoutes = require('./routes/userRoutes');
+const sessionCleanupService = require('./services/sessionCleanupService');
 const pushNotificationRoutes = require('./routes/pushNotificationRoutes');
 const updateForeignKeys = require("./migrations/20240730_update_foreign_keys");
-// const hashExistingPasswords = require("./migrations/20240731_hash_existing_passwords"); // Disabled - using plain text passwords
 const addApprovalStatus = require("./migrations/add_approval_status");
-const createAdminSettingsTable = require("./migrations/create_admin_settings_table");
-const createPreferenceSystem = require("./migrations/create_preference_system");
-const { fixCreatedAtTimezone } = require("./migrations/fix_created_at_timezone");
-const { fixDefaultTimezone } = require("./migrations/fix_default_timezone");
-const { fixDefaultTimezoneV2 } = require("./migrations/fix_default_timezone_v2");
-const { createNotificationSoundsTable } = require("./migrations/create_notification_sounds_table");
-const createPushTokensTable = require("./migrations/create_push_tokens_table");
-const setDefaultNotificationSound = require("./migrations/set_default_notification_sound");
-// const createAdminNotificationsTable = require("./migrations/create_admin_notifications_table"); // Disabled - using fixed version
+const createPasswordResetTable = require("./migrations/create_password_reset_table");
+const createAllOptionalTables = require("./migrations/create_all_optional_tables");
+const { preventDualRoleUsers } = require("./migrations/prevent_dual_role_users");
 
 const app = express();
 const server = http.createServer(app);
@@ -151,34 +145,20 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Test database connection
+// Test database connection and run migrations
 testConnection().then(() => {
   return migrateUsersToRoles();
-}).then(() => {
-  // return hashExistingPasswords(); // Disabled - using plain text passwords
-  return Promise.resolve();
 }).then(() => {
   return updateForeignKeys();
 }).then(() => {
   return addApprovalStatus();
 }).then(() => {
-  return createAdminSettingsTable();
+  return createPasswordResetTable();
 }).then(() => {
-  return createPreferenceSystem();
+  return createAllOptionalTables();
 }).then(() => {
-  return fixCreatedAtTimezone();
+  return preventDualRoleUsers();
 }).then(() => {
-  return fixDefaultTimezone();
-}).then(() => {
-  return fixDefaultTimezoneV2();
-}).then(() => {
-  return createNotificationSoundsTable();
-}).then(() => {
-  return createPushTokensTable();
-}).then(() => {
-  return setDefaultNotificationSound();
-}).then(() => {
-  // return createAdminNotificationsTable(); // Disabled - using fixed version
   const PORT = process.env.PORT || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
   
@@ -187,6 +167,9 @@ testConnection().then(() => {
       console.log(`🚀 Server running on ${HOST}:${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
     }
+    
+    // Session cleanup service'i başlat
+    sessionCleanupService.start();
   });
 }).catch(err => {
   console.error('❌ Database initialization failed:', err);

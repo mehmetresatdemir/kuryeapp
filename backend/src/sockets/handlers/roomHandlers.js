@@ -1,4 +1,5 @@
 const { sql } = require('../../config/db-config');
+const SessionService = require('../../services/sessionService');
 
 
 // Memory cache for location throttling - her kurye için son konum güncellemesi zamanı
@@ -83,6 +84,18 @@ const registerRoomHandlers = (io, socket) => {
         socket.join(`courier_${courierId}`);
         socket.courierId = courierId;
         
+        // Socket ID'yi aktif session'a kaydet
+        try {
+          // İlk olarak token'ı socket'den al (client'dan gönderilecek)
+          const token = data.token;
+          if (token) {
+            await SessionService.updateSocketId(token, socket.id);
+            console.log(`🔗 Socket ID ${socket.id} session'a kaydedildi - Kurye: ${courierId}`);
+          }
+        } catch (sessionError) {
+          console.warn(`⚠️ Socket ID session'a kaydedilemedi - Kurye: ${courierId}`, sessionError);
+        }
+        
         // Online kurye listesine ekle
         onlineCouriers.set(courierId, {
           socketId: socket.id,
@@ -135,12 +148,23 @@ const registerRoomHandlers = (io, socket) => {
   });
 
   // Restaurant odalarına katılma
-  socket.on("joinRestaurantRoom", (data) => {
+  socket.on("joinRestaurantRoom", async (data) => {
     const { restaurantId } = data;
     if (restaurantId) {
       socket.join("restaurants");
       socket.join(`restaurant_${restaurantId}`);
       socket.restaurantId = restaurantId;
+      
+      // Socket ID'yi aktif session'a kaydet
+      try {
+        const token = data.token;
+        if (token) {
+          await SessionService.updateSocketId(token, socket.id);
+          console.log(`🔗 Socket ID ${socket.id} session'a kaydedildi - Restaurant: ${restaurantId}`);
+        }
+      } catch (sessionError) {
+        console.warn(`⚠️ Socket ID session'a kaydedilemedi - Restaurant: ${restaurantId}`, sessionError);
+      }
       
       // Online restaurant listesine ekle
       onlineRestaurants.set(restaurantId, {
@@ -226,6 +250,29 @@ const registerRoomHandlers = (io, socket) => {
         count: 0
       });
     }
+  });
+
+  // Genel oda katılım handler'ı
+  socket.on("joinRoom", (data) => {
+    const { room } = data;
+    if (room) {
+      socket.join(room);
+      console.log(`📡 Socket ${socket.id} genel odaya katıldı: ${room}`);
+    }
+  });
+
+  // Test connection handler
+  socket.on("testConnection", (data) => {
+    const { courierId, timestamp } = data;
+    console.log(`🧪 Test connection alındı - Kurye: ${courierId}, Timestamp: ${timestamp}`);
+    
+    // Test response gönder
+    socket.emit("testConnectionResponse", {
+      courierId: courierId,
+      serverTimestamp: Date.now(),
+      clientTimestamp: timestamp,
+      message: "Bağlantı test başarılı"
+    });
   });
 
   // Kurye çevrimiçi durumu değiştirme

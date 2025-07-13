@@ -47,13 +47,6 @@ const upload = multer({
 
 // Test endpoint to debug incoming requests
 router.post('/test-upload', (req, res) => {
-  console.log('📋 Test Upload Request Debug:');
-  console.log('  - Headers:', req.headers);
-  console.log('  - Body:', req.body);
-  console.log('  - Files:', req.files);
-  console.log('  - Content-Type:', req.get('content-type'));
-  console.log('  - Content-Length:', req.get('content-length'));
-  
   res.json({
     success: true,
     message: 'Test endpoint reached',
@@ -65,21 +58,9 @@ router.post('/test-upload', (req, res) => {
 });
 
 // Upload endpoint'i - API constants ile uyumlu
-router.post('/uploadImage', (req, res, next) => {
-  console.log('🚀 Before multer middleware:');
-  console.log('  - Content-Type:', req.get('content-type'));
-  console.log('  - Content-Length:', req.get('content-length'));
-  console.log('  - Headers:', req.headers);
-  next();
-}, upload.single('image'), (req, res) => {
-  console.log('🔍 Upload Image Request Received:');
-  console.log('  - Body:', req.body);
-  console.log('  - File:', req.file);
-  console.log('  - Content-Type:', req.get('content-type'));
-  
+router.post('/uploadImage', upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
-      console.log('❌ No file in request');
       return res.status(400).json({
         success: false,
         message: 'Resim dosyası gerekli'

@@ -185,6 +185,15 @@ const addCourier = async (req, res) => {
             return res.status(409).json({ success: false, message: 'Bu e-posta adresi zaten kullanımda.' });
         }
 
+        // Dual role kontrolü - Bu email ile restaurant kayıtlı mı?
+        const existingRestaurant = await sql`SELECT id FROM restaurants WHERE email = ${email}`;
+        if (existingRestaurant.length > 0) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'Bu e-posta adresi zaten restoran olarak kayıtlı. Aynı kullanıcı hem restoran hem kurye olamaz.' 
+            });
+        }
+
         // Düz şifre kullanıyoruz, bcrypt yok
 
         // Türkiye saati SQL ifadesini al
@@ -387,7 +396,7 @@ const updatePackageLimit = async (req, res) => {
 // Kurye profil güncelleme fonksiyonu (konum hariç)
 const updateCourierProfile = async (req, res) => {
     const { id } = req.params;
-    const { name, phone, password } = req.body;
+    const { name, phone, password, email } = req.body;
     const { id: userId, role } = req.user;
 
     // Authorization check - sadece kendi profilini güncelleyebilir
@@ -396,32 +405,60 @@ const updateCourierProfile = async (req, res) => {
     }
 
     try {
-        // Türkiye saati SQL ifadesini al
-        
+        // E-posta güncelleniyorsa, aynı e-posta ile başka kurye var mı kontrol et
+        if (email) {
+            const existingCourier = await sql`
+                SELECT id FROM couriers 
+                WHERE email = ${email} AND id != ${id}
+            `;
+            
+            if (existingCourier.length > 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Bu e-posta adresi zaten başka bir kurye tarafından kullanılıyor.' 
+                });
+            }
+        }
         
         let updateQuery;
+        // Mevcut kurye bilgilerini al
+        const [currentCourier] = await sql`
+            SELECT name, email, phone FROM couriers WHERE id = ${id}
+        `;
+        
+        if (!currentCourier) {
+            return res.status(404).json({ success: false, message: 'Kurye bulunamadı' });
+        }
+        
+        // Güncelleme için değerleri hazırla (gönderilmeyen alanlar mevcut değerlerini korur)
+        const updateName = name || currentCourier.name;
+        const updateEmail = email || currentCourier.email;
+        const updatePhone = phone || currentCourier.phone;
+
         if (password) {
             // Şifre de güncellenecekse
             updateQuery = sql`
                 UPDATE couriers
                 SET 
-                    name = ${name},
-                    phone_number = ${phone_number || null},
+                    name = ${updateName},
+                    email = ${updateEmail},
+                    phone = ${updatePhone},
                     password = ${password},
                     updated_at = NOW()
                 WHERE id = ${id}
-                RETURNING id, name, email, phone_number, package_limit, total_earnings, total_deliveries, created_at, updated_at
+                RETURNING id, name, email, phone, package_limit, total_earnings, total_deliveries, created_at, updated_at
             `;
         } else {
-            // Sadece isim ve telefon güncellenecek
+            // Sadece isim, e-posta ve telefon güncellenecek
             updateQuery = sql`
                 UPDATE couriers
                 SET 
-                    name = ${name},
-                    phone_number = ${phone_number || null},
+                    name = ${updateName},
+                    email = ${updateEmail},
+                    phone = ${updatePhone},
                     updated_at = NOW()
                 WHERE id = ${id}
-                RETURNING id, name, email, phone_number, package_limit, total_earnings, total_deliveries, created_at, updated_at
+                RETURNING id, name, email, phone, package_limit, total_earnings, total_deliveries, created_at, updated_at
             `;
         }
 

@@ -70,7 +70,7 @@ const SignIn = () => {
               
               console.log(`--- AsyncStorage'a KAYDETME BAŞARILI ---`);
               
-              Alert.alert("Başarılı", `${user.name} olarak giriş yaptınız!`);
+              
               router.replace("/");
   
             } catch (storageError) {
@@ -105,15 +105,64 @@ const SignIn = () => {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert(
+    Alert.prompt(
       "Şifremi Unuttum", 
-      "Şifre sıfırlama için lütfen destek ekibiyle iletişime geçin.\n\nDestek: support@kuryeapp.com",
+      "Şifre sıfırlama e-postası almak için e-posta adresinizi girin:",
       [
         {
-          text: "Tamam",
-          style: "default"
+          text: "İptal",
+          style: "cancel"
+        },
+        {
+          text: "Gönder",
+          onPress: async (emailInput) => {
+            if (!emailInput) {
+              Alert.alert("Hata", "Lütfen e-posta adresinizi girin");
+              return;
+            }
+
+            // E-posta formatını kontrol et
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailInput)) {
+              Alert.alert("Hata", "Lütfen geçerli bir e-posta adresi girin");
+              return;
+            }
+
+            try {
+              setLoading(true);
+              const response = await fetch(getFullUrl(API_ENDPOINTS.FORGOT_PASSWORD), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: emailInput,
+                }),
+              });
+
+              const data = await response.json();
+
+              if (response.ok && data.success) {
+                Alert.alert(
+                  "Başarılı",
+                  "Şifre sıfırlama e-postası gönderildi. Lütfen e-posta kutunuzu kontrol edin.",
+                  [{ text: "Tamam" }]
+                );
+              } else {
+                Alert.alert("Hata", data.message || "E-posta gönderilemedi");
+              }
+            } catch (error) {
+              console.error('Şifre sıfırlama hatası:', error);
+              Alert.alert("Hata", "Sunucu bağlantı hatası. Lütfen tekrar deneyin.");
+            } finally {
+              setLoading(false);
+            }
+          }
         }
-      ]
+      ],
+      "plain-text",
+      "",
+      "email-address"
     );
   };
 
@@ -197,6 +246,20 @@ const SignIn = () => {
                       <Text style={styles.buttonIcon}>→</Text>
                     </>
                   )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Courier Register Button */}
+              <TouchableOpacity 
+                style={styles.registerButton}
+                onPress={() => router.push('/(auth)/courier-register')}
+              >
+                <LinearGradient
+                  colors={['#F59E0B', '#D97706']}
+                  style={styles.buttonGradient}
+                >
+                  <Text style={styles.buttonText}>🚴‍♂️ Kurye Olarak Kayıt Ol</Text>
+                  <Text style={styles.buttonIcon}>→</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -329,6 +392,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  registerButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    marginTop: 16,
   },
   buttonGradient: {
     flexDirection: 'row',

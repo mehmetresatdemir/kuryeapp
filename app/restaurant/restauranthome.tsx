@@ -24,6 +24,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import io from "socket.io-client";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import NotificationButton from "../../components/NotificationButton";
@@ -324,33 +325,68 @@ const RestaurantHome = () => {
   useEffect(() => {
     const setupNotifications = async () => {
       try {
+        console.log('🔔 RESTORAN: setupNotifications başlatılıyor...');
+        
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        console.log('🔔 RESTORAN: Mevcut izin durumu:', existingStatus);
         let finalStatus = existingStatus;
         
         if (existingStatus !== 'granted') {
+          console.log('🔔 RESTORAN: İzin isteniyor...');
           const { status } = await Notifications.requestPermissionsAsync();
           finalStatus = status;
+          console.log('🔔 RESTORAN: İzin sonucu:', status);
         }
         
         if (finalStatus !== 'granted') {
-          console.log('❌ Push notification izni reddedildi');
+          console.log('❌ RESTORAN: Push notification izni reddedildi');
           return;
         }
 
-        // Push notification token'ını kaydet
-        const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          if (user.id) {
-            const token = await PushNotificationService.registerForPushNotifications(
-              user.id.toString(), 
-              'restaurant'
-            );
-            console.log('✅ Restaurant push token kaydedildi:', token ? 'başarılı' : 'başarısız');
+        console.log('✅ RESTORAN: Push notification izni alındı');
+
+        // Push notification token'ını kaydet - HER ZAMAN ÇALIŞ
+        console.log('🔔 RESTORAN: Push token kaydı ZORLANARAK başlatılıyor...');
+        
+        // Doğrudan user objesi kullan (zaten yüklü)
+        if (user && user.id) {
+          console.log('🔔 RESTORAN: User mevcut - ID:', user.id);
+          console.log('🔔 RESTORAN: PushNotificationService.registerForPushNotifications çağrılıyor...');
+          
+          const token = await PushNotificationService.registerForPushNotifications(
+            user.id.toString(), 
+            'restaurant'
+          );
+          
+          console.log('✅ RESTORAN: Push token sonucu:', token ? 'BAŞARILI' : 'BAŞARISIZ');
+          console.log('✅ RESTORAN: Token değeri:', token);
+          
+          // Token kaydedildiyse bildir
+          if (token) {
+            console.log('🎉 RESTORAN: Gerçek push token başarıyla kaydedildi!');
+          }
+        } else {
+          console.log('❌ RESTORAN: User bulunamadı!');
+          
+          // AsyncStorage'dan da dene
+          const storedUser = await AsyncStorage.getItem('user');
+          console.log('🔔 RESTORAN: Stored user:', storedUser ? 'MEVCUT' : 'YOK');
+          
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            console.log('🔔 RESTORAN: Parsed User ID:', parsedUser.id);
+            
+            if (parsedUser.id) {
+              const token = await PushNotificationService.registerForPushNotifications(
+                parsedUser.id.toString(), 
+                'restaurant'
+              );
+              console.log('✅ RESTORAN: AsyncStorage token sonucu:', token ? 'BAŞARILI' : 'BAŞARISIZ');
+            }
           }
         }
       } catch (error) {
-        console.error('Error setting up notifications:', error);
+        console.error('❌ RESTORAN: setupNotifications hatası:', error);
       }
     };
     
@@ -374,10 +410,14 @@ const RestaurantHome = () => {
       upgrade: true
     });
 
-    socket.on("connect", () => {
+    socket.on("connect", async () => {
       console.log("🔗 Restaurant socket connected");
+      
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
       // Join restaurant room to receive order status updates
-      socket.emit("joinRestaurantRoom", { restaurantId: user.id });
+      socket.emit("joinRestaurantRoom", { restaurantId: user.id, token });
     });
 
     socket.on("connect_error", (err: any) => {
@@ -410,6 +450,35 @@ const RestaurantHome = () => {
       }
     });
 
+    // Listen for force logout events (concurrent session control)
+    socket.on("forceLogout", async (data: { reason: string, message: string }) => {
+      console.log("🔐 Force logout event received:", data);
+      
+      // Show alert to user
+      Alert.alert(
+        "Oturum Sonlandırıldı",
+        data.message || "Hesabınıza başka bir cihazdan giriş yapıldı.",
+        [
+          {
+            text: "Tamam",
+            onPress: async () => {
+              try {
+                // Clear all user data
+                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                
+                // Navigate to login screen
+                router.replace("/(auth)/sign-in");
+              } catch (error) {
+                console.error("Force logout cleanup error:", error);
+                router.replace("/(auth)/sign-in");
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    });
+
     // Listen for order deletion events (already handled in deleteOrder function)
     socket.on("orderDeleted", (data: { orderId: string | number, message: string }) => {
       console.log("🗑️ Restaurant received order deletion:", data);
@@ -419,20 +488,29 @@ const RestaurantHome = () => {
     // Listen for new orders from other restaurants (for general awareness)
     socket.on("newOrder", (data: any) => {
       console.log("🆕 Restaurant received new order notification:", data);
-      // Refresh orders list when new order is created
-      fetchOrders();
+      
+      // Kendi siparişimizi kendimize bildirmeyelim
+      if (data.firmaid && data.firmaid.toString() !== user.id.toString()) {
+        // Refresh orders list when new order is created by other restaurants
+        fetchOrders();
+      }
     });
 
     // Listen for order cancellations specifically
     socket.on("orderCancelled", (data: { orderId: string, message: string }) => {
       console.log("❌ Restaurant received order cancellation:", data);
       
+      // Özel bildirim sesi çal
+      playNotificationSound().catch(error => {
+        console.log('Bildirim sesi çalınamadı:', error);
+      });
+      
       // Send debounced push notification
       sendNotificationDebounced(`orderCancelled_${data.orderId}`, {
         content: {
           title: "🔄 Sipariş İptal Edildi",
           body: `Sipariş #${data.orderId} kurye tarafından iptal edildi ve tekrar bekleme listesine alındı.`,
-          sound: 'default',
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
           data: { 
             orderId: data.orderId,
             type: 'orderCancelled'
@@ -457,12 +535,17 @@ const RestaurantHome = () => {
     }) => {
       console.log("✅ Restaurant received order acceptance:", data);
       
+      // Özel bildirim sesi çal
+      playNotificationSound().catch(error => {
+        console.log('Bildirim sesi çalınamadı:', error);
+      });
+      
       // Send debounced push notification
       sendNotificationDebounced(`orderAccepted_${data.orderId}`, {
         content: {
           title: "✅ Sipariş Kabul Edildi!",
           body: `Sipariş #${data.orderId} ${data.courierName} tarafından kabul edildi.`,
-          sound: 'default',
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
           data: { 
             orderId: data.orderId,
             courierName: data.courierName,
@@ -484,12 +567,17 @@ const RestaurantHome = () => {
       // Sipariş artık aktif listeden çıkıp onay bekleyen listeye geçiyor, anlık olarak kaldır
       setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
       
+      // Özel bildirim sesi çal
+      playNotificationSound().catch(error => {
+        console.log('Bildirim sesi çalınamadı:', error);
+      });
+      
       // Send debounced push notification
       sendNotificationDebounced(`orderPendingApproval_${data.orderId}`, {
         content: {
           title: "⏳ Sipariş Onay Bekliyor",
           body: `Sipariş #${data.orderId} teslim edildi ve onayınızı bekliyor.`,
-          sound: 'default',
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
           data: { 
             orderId: data.orderId,
             courierId: data.courierId,
@@ -510,12 +598,17 @@ const RestaurantHome = () => {
       // Anlık olarak siparişi listeden kaldır
       setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
       
+      // Özel bildirim sesi çal
+      playNotificationSound().catch(error => {
+        console.log('Bildirim sesi çalınamadı:', error);
+      });
+      
       // Send debounced push notification
       sendNotificationDebounced(`orderDelivered_${data.orderId}`, {
         content: {
           title: "✅ Sipariş Teslim Edildi",
           body: `Sipariş #${data.orderId} başarıyla teslim edildi! Kurye Ücreti: ${data.orderDetails?.courier_price} ₺`,
-          sound: 'default',
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
           data: { 
             orderId: data.orderId,
             courierTip: data.orderDetails?.courier_price,
@@ -527,6 +620,38 @@ const RestaurantHome = () => {
       
       // Refresh order list to update status (backup)
       fetchOrders();
+    });
+
+    // Listen for delivery needs approval notifications
+    socket.on("delivery:needs-approval", (data: { orderId: string, courierId: string, courierName: string, message: string, orderDetails: any }) => {
+      console.log("⏳ Restaurant received delivery needs approval notification:", data);
+      
+      // Anlık olarak siparişi aktif listeden kaldır
+      setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
+      
+      // Özel bildirim sesi çal
+      playNotificationSound().catch(error => {
+        console.log('Bildirim sesi çalınamadı:', error);
+      });
+      
+      // Send debounced push notification
+      sendNotificationDebounced(`deliveryNeedsApproval_${data.orderId}`, {
+        content: {
+          title: "⏳ Sipariş Onay Bekliyor",
+          body: `${data.courierName} sipariş #${data.orderId} teslim ettiğini bildirdi. Onayınız bekleniyor.`,
+          sound: false, // Kendi ses sistemimizi kullanıyoruz
+          data: { 
+            orderId: data.orderId,
+            courierId: data.courierId,
+            courierName: data.courierName,
+            type: 'deliveryNeedsApproval'
+          },
+        },
+        trigger: null,
+      });
+      
+      // Refresh pending approval orders list
+      fetchPendingApprovalOrders();
     });
 
     // Listen for automatic order deletion notifications
@@ -1237,7 +1362,7 @@ const RestaurantHome = () => {
           }
         });
         
-        Alert.alert("Başarılı", "Sipariş oluşturuldu ve kuryelere bildirildi! 🚴‍♂️");
+        // Sipariş oluşturuldu - sessizce devam et
       } else if (editingOrder) {
         Alert.alert("Başarılı", "Sipariş başarıyla güncellendi");
       }

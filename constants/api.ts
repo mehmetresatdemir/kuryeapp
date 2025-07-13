@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_HOST = '192.168.1.105'; // Forced IP for mobile testing
 const API_PORT = '3000';
 const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'admin.enucuzal.com';
-const USE_REMOTE = true; // Force local for testing
+const USE_REMOTE = false; // Force local for testing
 
 // API Configuration
 export const API_CONFIG = {
@@ -42,6 +42,8 @@ export const API_CONFIG = {
 export const API_ENDPOINTS = {
   // Auth
   LOGIN: "/api/login",
+  FORGOT_PASSWORD: "/api/forgot-password",
+  RESET_PASSWORD: "/api/reset-password",
   
   // Users
   GET_USER: (id: string | number) => `/api/user/${id}`,

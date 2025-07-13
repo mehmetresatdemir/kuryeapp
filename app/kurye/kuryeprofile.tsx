@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   StatusBar,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,7 +34,6 @@ interface UserData {
   last_seen: string;
   created_at: string;
   updated_at: string;
-  total_online_time?: number; // Toplam çevrimiçi süre (dakika)
 }
 
 const KuryeProfile = () => {
@@ -51,7 +51,6 @@ const KuryeProfile = () => {
     last_seen: "",
     created_at: "",
     updated_at: "",
-    total_online_time: 0,
   });
   const [loading, setLoading] = useState(true);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -81,7 +80,6 @@ const KuryeProfile = () => {
     last_seen: "",
     created_at: "",
     updated_at: "",
-    total_online_time: 0,
   });
 
 
@@ -116,7 +114,6 @@ const KuryeProfile = () => {
               last_seen: courierData.last_seen || "",
               created_at: courierData.created_at || "",
               updated_at: courierData.updated_at || "",
-              total_online_time: 0,
             };
             setUserData(userInfo);
             setEditUserData(userInfo);
@@ -189,6 +186,7 @@ const KuryeProfile = () => {
         },
         body: JSON.stringify({
           name: editUserData.name,
+          email: editUserData.email,
           phone: editUserData.phone,
         }),
       });
@@ -199,6 +197,7 @@ const KuryeProfile = () => {
         const userInfo: UserData = {
           ...userData,
           name: updatedData.name,
+          email: updatedData.email,
           phone: updatedData.phone,
           updated_at: updatedData.updated_at,
         };
@@ -311,20 +310,6 @@ const KuryeProfile = () => {
 
   // Kurye renk şeması
   const getCourierColor = (): readonly [string, string] => ['#8B5CF6', '#8B5CF6'];
-
-  // Toplam oturum süresini formatla
-  const formatTotalOnlineTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    
-    if (hours === 0) {
-      return `${remainingMinutes} dakika`;
-    } else if (remainingMinutes === 0) {
-      return `${hours} saat`;
-    } else {
-      return `${hours} saat ${remainingMinutes} dakika`;
-    }
-  };
 
   if (loading) {
     return (
@@ -615,23 +600,23 @@ const KuryeProfile = () => {
         </View>
       </Modal>
 
-      <SafeAreaView style={styles.container}>
-        {/* Header - Küçültülmüş */}
-        <LinearGradient
-          colors={getCourierColor() as readonly [string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
+      <LinearGradient
+        colors={["#8B5CF6", "#6366F1", "#4F46E5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.fullScreenGradient}
+      >
+        <SafeAreaView style={styles.container}>
+          {/* Header - Küçültülmüş */}
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Kurye Profili</Text>
             <Text style={styles.headerSubtitle}>Hesap bilgilerinizi yönetin</Text>
           </View>
-        </LinearGradient>
 
-        {/* Content */}
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={styles.contentContainer}>
+          {/* Content Container */}
+          <View style={styles.contentBackground}>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.contentContainer}>
             
             {/* Profile Card */}
             <View style={styles.profileCard}>
@@ -732,20 +717,6 @@ const KuryeProfile = () => {
                 </View>
               </View>
 
-              <View style={styles.infoItem}>
-                <View style={styles.infoItemLeft}>
-                  <View style={[styles.infoIcon, { backgroundColor: '#EFF6FF' }]}>
-                    <Ionicons name="timer-outline" size={20} color="#3B82F6" />
-                  </View>
-                  <View>
-                    <Text style={styles.infoLabel}>Toplam Çevrimiçi Süre</Text>
-                    <Text style={styles.infoValue}>
-                      {formatTotalOnlineTime(userData.total_online_time || 0)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
               <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
                 <View style={styles.infoItemLeft}>
                   <View style={[styles.infoIcon, { backgroundColor: '#F3F4F6' }]}>
@@ -840,18 +811,31 @@ const KuryeProfile = () => {
 
             {/* Footer spacing */}
             <View style={styles.footer} />
+              </View>
+            </ScrollView>
           </View>
-        </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
     </>
   );
 };
 
 const styles = StyleSheet.create({
   // Base styles
+  fullScreenGradient: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
+  },
+  contentBackground: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: 0,
   },
   loadingContainer: {
     flex: 1,
@@ -909,33 +893,31 @@ const styles = StyleSheet.create({
   },
 
   // Header styles
-  header: {
-    paddingTop: 15,
-    paddingBottom: 20,
-    backgroundColor: '#8B5CF6',
-  },
   headerContent: {
     paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 2,
+    textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
   },
 
   // Content styles
   scrollView: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'transparent',
   },
   contentContainer: {
     paddingHorizontal: 20,
-    marginTop: -20,
+    paddingTop: 12,
   },
 
   // Profile card styles

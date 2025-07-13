@@ -20,7 +20,7 @@ const registerOrderFlowHandlers = (io, socket) => {
       const paymentMethod = orderData.odeme_yontemi.toLowerCase();
       
       // Online ödeme veya hediye çeki ise direkt teslim edildi olarak işaretle
-      if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki') {
+      if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye')) {
         
 
         await sql`
@@ -261,10 +261,10 @@ const registerOrderFlowHandlers = (io, socket) => {
     try {
       // Kurye bilgilerini al
       const [courier] = await sql`
-        SELECT ad, soyad, telefon FROM kuryeler WHERE id = ${courierId}
+        SELECT name, phone FROM couriers WHERE id = ${courierId}
       `;
 
-      const courierName = courier ? `${courier.ad} ${courier.soyad}` : `Kurye #${courierId}`;
+      const courierName = courier ? courier.name : `Kurye #${courierId}`;
 
       // Türkiye saati SQL ifadesini al
       
@@ -299,6 +299,99 @@ const registerOrderFlowHandlers = (io, socket) => {
     } catch (error) {
       console.error(`Sipariş #${orderId} teslim işlemi işlenirken hata:`, error);
       socket.emit('error', { message: 'İşlem sırasında bir sunucu hatası oluştu.' });
+    }
+  });
+
+  // Kurye tarafından orderDelivered event'i (frontend'den gelen)
+  socket.on('orderDelivered', async ({ orderId, courierId, firmaid, message, orderDetails }) => {
+    if (!orderId || !courierId || !firmaid) {
+      console.warn('📦 orderDelivered: Eksik bilgi - orderId, courierId ve firmaid gereklidir.');
+      return;
+    }
+
+    try {
+      console.log(`📦 orderDelivered event alındı - Sipariş: ${orderId}, Kurye: ${courierId}, Restoran: ${firmaid}`);
+      
+      // Kurye bilgilerini al
+      const [courier] = await sql`
+        SELECT name, phone FROM couriers WHERE id = ${courierId}
+      `;
+
+      const courierName = courier ? courier.name : `Kurye #${courierId}`;
+
+      // Siparişin durumunu kontrol et
+      const [order] = await sql`
+        SELECT id, status, odeme_yontemi, firmaid, kuryeid FROM orders 
+        WHERE id = ${orderId} AND kuryeid = ${courierId} AND firmaid = ${firmaid}
+      `;
+
+      if (!order) {
+        console.warn(`📦 orderDelivered: Sipariş bulunamadı - OrderID: ${orderId}, CourierID: ${courierId}, FirmaID: ${firmaid}`);
+        return;
+      }
+
+      const paymentMethod = order.odeme_yontemi.toLowerCase();
+      const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
+      
+      // Ödeme yöntemine göre durum güncelle
+      if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye')) {
+        // Online ödeme - direkt teslim edildi
+        await sql`
+          UPDATE orders 
+          SET status = 'teslim edildi', delivered_at = ${turkeyTime}, updated_at = ${turkeyTime} 
+          WHERE id = ${orderId}
+        `;
+        
+        // Restorana bildirim gönder
+        io.to(`restaurant_${firmaid}`).emit('orderDelivered', { 
+          orderId: orderId,
+          courierId: courierId,
+          courierName: courierName,
+          message: `Sipariş ${courierName} tarafından başarıyla teslim edildi!`,
+          orderDetails: orderDetails,
+          paymentMethod: paymentMethod,
+          finalStatus: 'teslim edildi'
+        });
+        
+        console.log(`📦 ✅ Sipariş ${orderId} direkt teslim edildi - Restaurant ${firmaid} bildirildi`);
+      } else {
+        // Nakit/Kart ödeme - onay bekliyor
+        await sql`
+          UPDATE orders 
+          SET status = 'onay bekliyor', delivered_at = ${turkeyTime}, updated_at = ${turkeyTime} 
+          WHERE id = ${orderId}
+        `;
+        
+        // Restorana onay bekliyor bildirimi gönder
+        io.to(`restaurant_${firmaid}`).emit('delivery:needs-approval', { 
+          orderId: orderId,
+          courierId: courierId,
+          courierName: courierName,
+          message: `${courierName} siparişi teslim ettiğini bildirdi. Onayınız bekleniyor.`,
+          orderDetails: orderDetails,
+          paymentMethod: paymentMethod,
+          finalStatus: 'onay bekliyor'
+        });
+        
+        console.log(`📦 ⏳ Sipariş ${orderId} onay bekliyor - Restaurant ${firmaid} bildirildi`);
+      }
+
+      // Tüm restoranlara ve adminlere bildirim
+      io.to('restaurants').emit('orderStatusUpdate', { 
+        orderId: orderId, 
+        status: paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye') ? 'teslim edildi' : 'onay bekliyor',
+        courierName: courierName 
+      });
+      
+      io.to('admins').emit('orderStatusUpdate', { 
+        orderId: orderId, 
+        status: paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye') ? 'teslim edildi' : 'onay bekliyor',
+        courierName: courierName 
+      });
+      
+    } catch (error) {
+      console.error(`📦 orderDelivered event işlenirken hata:`, error);
+      socket.emit('error', { message: 'Teslim işlemi sırasında bir sunucu hatası oluştu.' });
     }
   });
 

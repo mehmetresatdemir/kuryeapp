@@ -43,7 +43,7 @@ async function verifyUser(email, password, role) {
       return null;
     }
 
-    // Direct password comparison
+    // Direct password comparison (plain text)
     const isMatch = password === user.password;
 
     if (!isMatch) {

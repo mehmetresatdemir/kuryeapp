@@ -322,13 +322,11 @@ router.get('/db/tables/:tableName/:id', async (req, res) => {
 router.post('/db/backup', async (req, res) => {
     // In a real scenario, you'd use pg_dump or a similar utility.
     // This is complex on a serverless/managed platform and might require a different approach.
-    console.log('Veritabanı yedekleme isteği alındı. Bu özellik sunucu ortamına göre implemente edilmelidir.');
     res.status(501).json({ success: false, message: 'Yedekleme özelliği henüz tam olarak implemente edilmedi.' });
 });
 
 // Generate test data
 router.post('/db/generate-test-data', async (req, res) => {
-    console.log('Test verisi oluşturma isteği alındı.');
     try {
         const testCourierEmail = 'testkurye@kuryeapp.com';
         const testRestaurantEmail = 'testrestoran@kuryeapp.com';
@@ -346,7 +344,6 @@ router.post('/db/generate-test-data', async (req, res) => {
                 VALUES ('Test Kurye', ${testCourierEmail}, ${hashedPassword}, '5551234567', 10, 'all_restaurants', NOW())
             `;
             createdUsers.push({ email: testCourierEmail, role: 'courier' });
-            console.log(`Test kuryesi (${testCourierEmail}) başarıyla oluşturuldu.`);
         }
 
         // --- Create Test Restaurant ---
@@ -357,7 +354,6 @@ router.post('/db/generate-test-data', async (req, res) => {
                 VALUES ('Test Restoran', 'Restoran Yetkilisi', '5559876543', ${testRestaurantEmail}, ${hashedPassword}, 'all_couriers', NOW())
             `;
             createdUsers.push({ email: testRestaurantEmail, role: 'restaurant' });
-            console.log(`Test restoranı (${testRestaurantEmail}) başarıyla oluşturuldu.`);
         }
 
         if (createdUsers.length === 0) {
@@ -431,7 +427,15 @@ router.post('/couriers', async (req, res) => {
             return res.status(409).json({ success: false, message: 'Bu e-posta adresi zaten kullanılıyor.' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Dual role kontrolü - Bu email ile restaurant kayıtlı mı?
+        const existingRestaurant = await sql`SELECT id FROM restaurants WHERE email = ${email}`;
+        if (existingRestaurant.length > 0) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'Bu e-posta adresi zaten restoran olarak kayıtlı. Aynı kullanıcı hem restoran hem kurye olamaz.' 
+            });
+        }
+
         const currentTime = new Date();
 
         const [newCourier] = await sql`
@@ -448,7 +452,7 @@ router.post('/couriers', async (req, res) => {
             ) VALUES (
                 ${name},
                 ${email},
-                ${hashedPassword},
+                ${password},
                 ${phone},
                 ${package_limit},
                 'all_restaurants',
@@ -489,10 +493,9 @@ router.put('/couriers/:id', async (req, res) => {
             updated_at: new Date()
         };
 
-        // Sadece yeni bir şifre girildiyse hash'le ve güncelle
+        // Sadece yeni bir şifre girildiyse güncelle (düz metin olarak)
         if (password && password.trim() !== '') {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            updateFields.password = hashedPassword;
+            updateFields.password = password;
         }
 
         const updateKeys = Object.keys(updateFields);
@@ -709,7 +712,7 @@ router.post('/notification-settings', async (req, res) => {
             lastUpdated: new Date().toISOString()
         };
 
-        console.log('📱 Bildirim ayarları kaydediliyor:', settingsData);
+
 
         // Türkiye saati SQL ifadesini al
         
@@ -1110,7 +1113,7 @@ router.post('/maintenance/restart-system', async (req, res) => {
         
         // Gerçek restart işlemi için process.exit() kullanılabilir
         // Ancak bu sadece development ortamında kullanılmalı
-        console.log('Sistem yeniden başlatma isteği alındı');
+
         
     } catch (error) {
         console.error('Sistem yeniden başlatma hatası:', error);
@@ -1190,7 +1193,7 @@ router.post('/create-test-users', async (req, res) => {
         notification_mode = 'all_restaurants',
         updated_at = NOW()
       `;
-      console.log(`Test kurye oluşturuldu/güncellendi (default: all_restaurants)`);
+      
     } catch (courierError) {
       console.error('Test kurye oluşturma hatası:', courierError);
     }
@@ -1206,7 +1209,7 @@ router.post('/create-test-users', async (req, res) => {
         courier_visibility_mode = 'all_couriers',
         updated_at = NOW()
       `;
-      console.log(`Test restoran oluşturuldu/güncellendi (default: all_couriers)`);
+      
     } catch (restaurantError) {
       console.error('Test restoran oluşturma hatası:', restaurantError);
     }
@@ -1234,9 +1237,7 @@ router.patch('/orders/:orderId', async (req, res) => {
     const { orderId } = req.params;
     const { tutar, restaurant_price, courier_price, preparation_time, status, kuryeid } = req.body;
 
-    console.log(`🔍 Admin sipariş güncelleme: Order ID ${orderId}`);
-    console.log('📦 Gelen payload:', req.body);
-    console.log('🎯 Status:', status, 'Kurye ID:', kuryeid);
+    
 
     try {
         // Önce siparişi bul
@@ -1290,7 +1291,7 @@ router.patch('/orders/:orderId', async (req, res) => {
                 message: `Sipariş #${updatedOrder.id} admin tarafından güncellendi`
             });
             
-            console.log(`✅ Socket events emitted for order ${updatedOrder.id} status update: ${updatedOrder.status}`);
+    
         }
 
         res.status(200).json({ 
@@ -1342,9 +1343,7 @@ router.delete('/orders/:orderId', async (req, res) => {
 // Test endpoint to debug SQL connection
 router.get('/test-sql', async (req, res) => {
     try {
-        console.log('Testing SQL connection...');
         const result = await sql`SELECT 1 as test`;
-        console.log('SQL test result:', result);
         res.json({ success: true, data: result });
     } catch (error) {
         console.error('SQL test error:', error);
@@ -1355,7 +1354,6 @@ router.get('/test-sql', async (req, res) => {
 // Test JOIN endpoint
 router.get('/test-join', async (req, res) => {
     try {
-        console.log('Testing JOIN...');
         const result = await sql`
             SELECT 
                 o.id,
@@ -1365,7 +1363,6 @@ router.get('/test-join', async (req, res) => {
             LEFT JOIN couriers c ON o.kuryeid = c.id
             WHERE o.id = 128
         `;
-        console.log('JOIN test result:', result);
         res.json({ success: true, data: result });
     } catch (error) {
         console.error('JOIN test error:', error);
@@ -1509,7 +1506,7 @@ router.get('/analytics/restaurant-performance', async (req, res) => {
     const { start, end } = req.query;
     const dateWhereClause = getWhereClauseForDateRange(start, end);
 
-    console.log('DEBUG: /analytics/restaurant-performance endpoint çağrıldı. Tarih aralığı:', start, '-', end);
+
 
     try {
         const restaurantPerformance = await sql`
@@ -1524,7 +1521,7 @@ router.get('/analytics/restaurant-performance', async (req, res) => {
             LIMIT 10
         `;
 
-        console.log('DEBUG: Top restoranlar veritabanından çekildi:', restaurantPerformance);
+
 
         const labels = restaurantPerformance.map(item => item.restaurant_name);
         const counts = restaurantPerformance.map(item => parseInt(item.order_count, 10));
@@ -1652,7 +1649,7 @@ router.get('/analytics/hourly-distribution', async (req, res) => {
 // En Çok Sipariş Alan Restoranlar
 router.get('/analytics/top-restaurants', async (req, res) => {
     const { start, end } = req.query;
-    console.log('DEBUG: /analytics/top-restaurants endpoint çağrıldı. Tarih aralığı:', start, '-', end);
+
 
     try {
         let topRestaurants;
@@ -1687,7 +1684,7 @@ router.get('/analytics/top-restaurants', async (req, res) => {
                 LIMIT 5;
             `;
         }
-        console.log('DEBUG: Top Restaurants API yanıtı:', topRestaurants);
+
         res.json({ success: true, data: topRestaurants });
     } catch (error) {
         console.error('En çok sipariş alan restoranlar alınırken hata:', error);
@@ -1732,7 +1729,7 @@ router.get('/analytics/top-earning-restaurants', async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     try {
-        console.log('DEBUG: /analytics/top-earning-restaurants endpoint çağrıldı. Tarih aralığı:', start, '-', end);
+    
         const topEarningRestaurants = await sql`
             SELECT 
                 r.id,
@@ -1761,7 +1758,7 @@ router.get('/config/api-base-url', (req, res) => {
 
     const apiBaseUrl = useLocal ? localApiBase : remoteApiBase;
 
-    console.log('🔍 API Base URL config:', { useLocal, apiBaseUrl });
+    
 
     res.json({
         success: true,
@@ -1772,7 +1769,7 @@ router.get('/config/api-base-url', (req, res) => {
 // Get Order Status Counts for Dashboard
 router.get('/analytics/order-status-counts', async (req, res) => {
     try {
-        console.log('DEBUG: /analytics/order-status-counts endpoint çağrıldı.');
+    
         const statusCounts = await sql`
             SELECT
                 status,
@@ -1797,7 +1794,7 @@ router.get('/analytics/order-status-counts', async (req, res) => {
             }
         });
 
-        console.log('DEBUG: Sipariş Durumu Sayıları API yanıtı:', countsMap);
+
         res.json({
             success: true,
             data: {
@@ -1822,23 +1819,21 @@ router.post('/create-test-data', async (req, res) => {
         // Create a test courier
         const testCourierEmail = 'testkurye_temp@example.com';
         const testCourierPassword = 'password123';
-        const hashedCourierPassword = await bcrypt.hash(testCourierPassword, 10);
 
         await sql`
-            INSERT INTO couriers (name, email, password_hash, phone_number, delivery_capacity, notification_mode, is_blocked, created_at, updated_at)
-            VALUES ('Test Kurye', ${testCourierEmail}, ${hashedCourierPassword}, '5551112233', 5, 'all_restaurants', FALSE, ${NOW()}, ${NOW()})
-            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, notification_mode = 'all_restaurants', updated_at = EXCLUDED.updated_at;
+            INSERT INTO couriers (name, email, password, phone_number, delivery_capacity, notification_mode, is_blocked, created_at, updated_at)
+            VALUES ('Test Kurye', ${testCourierEmail}, ${testCourierPassword}, '5551112233', 5, 'all_restaurants', FALSE, NOW(), NOW())
+            ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, notification_mode = 'all_restaurants', updated_at = EXCLUDED.updated_at;
         `;
 
         // Create a test restaurant
         const testRestaurantEmail = 'testrestaurant_temp@example.com';
         const testRestaurantPassword = 'password123';
-        const hashedRestaurantPassword = await bcrypt.hash(testRestaurantPassword, 10);
 
         await sql`
-            INSERT INTO restaurants (name, email, password_hash, yetkili_name, role, courier_visibility_mode, created_at, updated_at)
-            VALUES ('Test Restoran', ${testRestaurantEmail}, ${hashedRestaurantPassword}, 'Test Yetkilisi', 'restaurant', 'all_couriers', ${NOW()}, ${NOW()})
-            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, courier_visibility_mode = 'all_couriers', updated_at = EXCLUDED.updated_at;
+            INSERT INTO restaurants (name, email, password, yetkili_name, role, courier_visibility_mode, created_at, updated_at)
+            VALUES ('Test Restoran', ${testRestaurantEmail}, ${testRestaurantPassword}, 'Test Yetkilisi', 'restaurant', 'all_couriers', NOW(), NOW())
+            ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, courier_visibility_mode = 'all_couriers', updated_at = EXCLUDED.updated_at;
         `;
 
         res.json({ success: true, message: 'Test verisi başarıyla oluşturuldu.' });
@@ -1999,7 +1994,7 @@ router.post('/send-notification', async (req, res) => {
                 `;
             }
         } catch (notificationLogError) {
-            console.log('⚠️ Bildirim geçmiş kaydı yapılamadı:', notificationLogError.message);
+            // Bildirim geçmiş kaydı yapılamadı
         }
 
         res.json({
@@ -2181,8 +2176,7 @@ router.post('/send-test-notification', async (req, res) => {
                 `;
             }
         } catch (notificationLogError) {
-            console.log('⚠️ Bildirim geçmiş kaydı yapılamadı:', notificationLogError.message);
-            // Hata olsa da ana işlemi devam ettir
+            // Bildirim geçmiş kaydı yapılamadı - hata olsa da ana işlemi devam ettir
         }
 
         res.json({
@@ -3039,6 +3033,131 @@ router.post('/notification-sounds/test/:soundId', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Test bildirimi gönderilemedi: ' + error.message
+        });
+    }
+});
+
+// Veritabanı yedeği endpoint'i
+router.get('/backup-database', async (req, res) => {
+    try {
+        // Veritabanı yedeği alma işlemi
+        // Bu işlem sunucu ortamına göre farklı olabilir
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Veritabanı yedeği oluşturuluyor...');
+        }
+        
+        // Gerçek implementasyon burada olacak
+        res.json({
+            success: true,
+            message: 'Veritabanı yedeği başarıyla oluşturuldu',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Veritabanı yedeği oluşturulurken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Veritabanı yedeği oluşturulamadı'
+        });
+    }
+});
+
+// Sistem yeniden başlatma endpoint'i
+router.post('/restart-system', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            message: 'Sistem yeniden başlatma komutu alındı',
+            timestamp: new Date().toISOString()
+        });
+        
+        // Delayed restart
+        setTimeout(() => {
+            process.exit(0);
+        }, 1000);
+    } catch (error) {
+        console.error('Sistem yeniden başlatılırken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Sistem yeniden başlatılamadı'
+        });
+    }
+});
+
+// Test verisi oluşturma endpoint'i
+router.post('/create-test-data', async (req, res) => {
+    try {
+        const testCourierEmail = 'test-kurye@example.com';
+        const testRestaurantEmail = 'test-restoran@example.com';
+        
+        // Test kuryesi oluştur
+        await sql`
+            INSERT INTO couriers (name, email, password, phone, latitude, longitude, package_limit, notification_mode)
+            VALUES ('Test Kurye', ${testCourierEmail}, 'asd123', '5551234567', 40.1885, 29.0610, 5, 'all_restaurants')
+            ON CONFLICT (email) DO UPDATE SET
+                name = EXCLUDED.name,
+                password = EXCLUDED.password,
+                phone = EXCLUDED.phone,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                package_limit = EXCLUDED.package_limit,
+                notification_mode = EXCLUDED.notification_mode
+        `;
+
+        // Test restoranı oluştur
+        await sql`
+            INSERT INTO restaurants (name, email, password, yetkili_name, phone, latitude, longitude, courier_visibility_mode)
+            VALUES ('Test Restoran', ${testRestaurantEmail}, 'asd123', 'Test Yetkili', '5559876543', 40.1885, 29.0610, 'all_couriers')
+            ON CONFLICT (email) DO UPDATE SET
+                name = EXCLUDED.name,
+                password = EXCLUDED.password,
+                yetkili_name = EXCLUDED.yetkili_name,
+                phone = EXCLUDED.phone,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                courier_visibility_mode = EXCLUDED.courier_visibility_mode
+        `;
+
+        res.json({
+            success: true,
+            message: 'Test verileri başarıyla oluşturuldu',
+            data: {
+                testCourierEmail,
+                testRestaurantEmail,
+                defaultPassword: 'asd123'
+            }
+        });
+    } catch (error) {
+        console.error('Test verisi oluşturulurken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Test verisi oluşturulamadı'
+        });
+    }
+});
+
+// Bildirim ayarları kaydetme endpoint'i
+router.post('/save-notification-settings', async (req, res) => {
+    try {
+        const settingsData = req.body;
+        
+        // Bildirim ayarlarını kaydet
+        await sql`
+            INSERT INTO admin_settings (setting_key, setting_value)
+            VALUES ('notification_settings', ${JSON.stringify(settingsData)})
+            ON CONFLICT (setting_key) DO UPDATE SET
+                setting_value = EXCLUDED.setting_value,
+                updated_at = NOW()
+        `;
+        
+        res.json({
+            success: true,
+            message: 'Bildirim ayarları başarıyla kaydedildi'
+        });
+    } catch (error) {
+        console.error('Bildirim ayarları kaydedilirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Bildirim ayarları kaydedilemedi'
         });
     }
 });

@@ -356,7 +356,6 @@ const KuryeOrders = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
-  const [debugShowOnlyKurye, setDebugShowOnlyKurye] = useState(false);
 
   // Tüm fonksiyonları useCallback ile sarmalayıp hook'lardan önce tanımlıyorum
   const fetchActiveOrders = useCallback(async () => {
@@ -909,11 +908,14 @@ const KuryeOrders = () => {
     console.log("Socket effect: Connecting to socket for user:", user.id);
     socketRef.current = io(API_CONFIG.SOCKET_URL, { transports: ["websocket"] });
     
-    const joinBasicRooms = () => {
+    const joinBasicRooms = async () => {
       console.log(`🚚 KuryeOrders: Joining basic rooms for courier ${user.id}`);
       
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
       // Kurye kendi odasına katılsın
-      socketRef.current.emit("joinCourierRoom", { courierId: user.id });
+      socketRef.current.emit("joinCourierRoom", { courierId: user.id, token });
       console.log(`🚚 KuryeOrders: Joined courier room: courier_${user.id}`);
       
       // Genel kuryeler odasına katıl
@@ -978,6 +980,35 @@ const KuryeOrders = () => {
       fetchActiveOrders();
       fetchPendingApprovalOrders();
     });
+
+    // Listen for force logout events (concurrent session control)
+    socketRef.current.on("forceLogout", async (data: { reason: string, message: string }) => {
+      console.log("🔐 Force logout event received:", data);
+      
+      // Show alert to user
+      Alert.alert(
+        "Oturum Sonlandırıldı",
+        data.message || "Hesabınıza başka bir cihazdan giriş yapıldı.",
+        [
+          {
+            text: "Tamam",
+            onPress: async () => {
+              try {
+                // Clear all user data
+                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                
+                // Navigate to login screen
+                router.replace("/(auth)/sign-in");
+              } catch (error) {
+                console.error("Force logout cleanup error:", error);
+                router.replace("/(auth)/sign-in");
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    });
     
     socketRef.current.on("orderApproved", (data: any) => {
       console.log("✅ KuryeOrders: orderApproved event received:", data);
@@ -997,7 +1028,7 @@ const KuryeOrders = () => {
         content: {
           title: "✅ Sipariş Onaylandı!",
           body: `Sipariş #${data.orderId} restoran tarafından onaylandı. Ödeme tahsil edildi.`,
-          sound: 'default',
+          sound: 'custom-notification',
           data: { 
             orderId: data.orderId,
             restaurantId: data.restaurantId,
@@ -1324,63 +1355,93 @@ const KuryeOrders = () => {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Siparişlerim</Text>
-        </View>
-        <TouchableOpacity 
-          style={{
-            backgroundColor: debugShowOnlyKurye ? '#EF4444' : '#10B981',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 8,
-            marginRight: 8
-          }}
-          onPress={() => setDebugShowOnlyKurye(!debugShowOnlyKurye)}
-        >
-          <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>
-            {debugShowOnlyKurye ? 'Tüm Siparişler' : 'Sadece Kuryede'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+    return (
+    <LinearGradient
+      colors={["#8B5CF6", "#6366F1", "#4F46E5"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.fullScreenGradient}
+    >
+            <SafeAreaView style={styles.container}>
+        {/* Modern Header with Gradient */}
+        <View style={styles.headerContainer}>
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <View style={styles.statIconBox}>
+                <Ionicons name="bicycle" size={12} color="#8B5CF6" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statNumber}>{activeOrders.length}</Text>
+                <Text style={styles.statLabel}>Aktif</Text>
+              </View>
+            </View>
+            
+            <View style={styles.statCard}>
+              <View style={[styles.statIconBox, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="time" size={12} color="#F59E0B" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statNumber}>{pendingApprovalOrders.length}</Text>
+                <Text style={styles.statLabel}>Onay Bekliyor</Text>
+              </View>
+            </View>
+          </View>
 
-      {/* Tab Buttons */}
-      {/* Tab Butonları - Onay bekleyen sipariş varsa iki tab, yoksa sadece aktif tab */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton, 
-            activeTab === 'active' && styles.activeTabButton,
-            pendingApprovalOrders.length === 0 && styles.singleTabButton
-          ]}
-          onPress={() => setActiveTab('active')}
-        >
-          <Text style={[styles.tabButtonText, activeTab === 'active' && styles.activeTabButtonText]}>
-            {pendingApprovalOrders.length === 0 ? `Siparişler (${activeOrders.length})` : `Aktif (${activeOrders.length})`}
-          </Text>
-        </TouchableOpacity>
-        {pendingApprovalOrders.length > 0 && (
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'pending' && styles.activeTabButton]}
-            onPress={() => setActiveTab('pending')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'pending' && styles.activeTabButtonText]}>
-              Onay Bekleyen ({pendingApprovalOrders.length})
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsContainer}>
+            {pendingApprovalOrders.length > 0 && (
+              <TouchableOpacity 
+                style={[
+                  styles.headerActionButton,
+                  { backgroundColor: '#F59E0B' }
+                ]}
+                onPress={() => setActiveTab('pending')}
+              >
+                <Ionicons 
+                  name="time" 
+                  size={12} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.headerActionButtonText}>
+                  Onay Bekleyen ({pendingApprovalOrders.length})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Content Container */}
+        <View style={styles.contentContainer}>
+          {/* Tab Buttons */}
+          {/* Tab Butonları - Onay bekleyen sipariş varsa iki tab, yoksa sadece aktif tab */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tabButton, 
+                activeTab === 'active' && styles.activeTabButton,
+                pendingApprovalOrders.length === 0 && styles.singleTabButton
+              ]}
+              onPress={() => setActiveTab('active')}
+            >
+              <Text style={[styles.tabButtonText, activeTab === 'active' && styles.activeTabButtonText]}>
+                {pendingApprovalOrders.length === 0 ? `Siparişler (${activeOrders.length})` : `Aktif (${activeOrders.length})`}
+              </Text>
+            </TouchableOpacity>
+            {pendingApprovalOrders.length > 0 && (
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'pending' && styles.activeTabButton]}
+                onPress={() => setActiveTab('pending')}
+              >
+                <Text style={[styles.tabButtonText, activeTab === 'pending' && styles.activeTabButtonText]}>
+                  Onay Bekleyen ({pendingApprovalOrders.length})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
       <FlatList
-        data={(() => {
-          let dataToUse = activeTab === 'active' ? activeOrders : pendingApprovalOrders;
-          if (debugShowOnlyKurye && activeTab === 'active') {
-            dataToUse = activeOrders.filter(order => order.status === "kuryede");
-          }
-          return dataToUse;
-        })()}
+        data={activeTab === 'active' ? activeOrders : pendingApprovalOrders}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
           return (
@@ -1559,22 +1620,26 @@ const KuryeOrders = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sipariş Detayları</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setModalVisible(false);
+                  setSelectedImage(null);
+                }}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Scrollable Content */}
             <ScrollView 
+              style={styles.modalScroll}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.modalScrollContent}
             >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Sipariş Detayları</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setModalVisible(false);
-                    setSelectedImage(null);
-                  }}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={24} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
               {selectedOrder && (
                 <View style={styles.detailsContainer}>
                   {/* Firma Bilgileri */}
@@ -1625,6 +1690,7 @@ const KuryeOrders = () => {
               )}
             </ScrollView>
 
+            {/* Fixed Action Buttons */}
             {selectedOrder && selectedOrder.status !== 'onay bekliyor' && (
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -1646,15 +1712,121 @@ const KuryeOrders = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreenGradient: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: 0,
+  },
+  // Modern Header Styles
+  headerContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 8,
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statIconBox: {
+    backgroundColor: '#EDE9FE',
+    padding: 4,
+    borderRadius: 6,
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  actionButtonsContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  headerActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  headerActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  // Legacy header styles (keeping for compatibility)
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1664,30 +1836,25 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     backgroundColor: '#8B5CF6',
   },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  orderItem: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginHorizontal: 12,
-  },
-  orderContent: {
-    padding: 10,
-    gap: 8,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flex: 1,
+  },
+  orderItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginHorizontal: 10,
+  },
+  orderContent: {
+    padding: 8,
+    gap: 6,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerInfo: {
     flex: 1,
@@ -1813,7 +1980,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   listContainer: {
-    padding: 12,
+    padding: 10,
   },
   modalContainer: {
     flex: 1,
@@ -1824,16 +1991,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    minHeight: '80%',
+    maxHeight: '85%',
+    flex: 1,
+    paddingBottom: 100, // Butonlar için alan bırak (20px bottom + 80px buton alanı)
   },
   modalScrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 40, // Butonların üstünde kalması için ekstra alan
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   modalTitle: {
     fontSize: 20,
@@ -1844,7 +2018,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   modalScroll: {
-    maxHeight: '80%',
+    flex: 1,
   },
   detailsContainer: {
     gap: 20,
@@ -1881,7 +2055,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    position: 'absolute',
+    bottom: 25,
+    left: 0,
+    right: 0,
   },
   modalActionButton: {
     flex: 1,
@@ -1975,16 +2157,22 @@ const styles = StyleSheet.create({
   // Tab styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    margin: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    margin: 10,
+    marginTop: 12,
     padding: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tabButton: {
     flex: 1,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 6,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1992,9 +2180,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 4,
   },
   tabButtonText: {
     fontSize: 14,

@@ -12,9 +12,11 @@ import {
   Platform,
   ScrollView,
   Image,
+  Alert,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { io } from "socket.io-client";
@@ -222,10 +224,14 @@ const RestaurantOrders = () => {
       upgrade: true
     });
 
-    socket.on("connect", () => {
+    socket.on("connect", async () => {
       console.log("RestaurantOrders: Socket connected successfully");
+      
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
       // Join restaurant room to receive order updates
-      socket.emit("joinRestaurantRoom", { restaurantId: user.id });
+      socket.emit("joinRestaurantRoom", { restaurantId: user.id, token });
     });
 
     socket.on("connect_error", (err: any) => {
@@ -268,6 +274,35 @@ const RestaurantOrders = () => {
       if (data.status === 'teslim edildi') {
         fetchData();
       }
+    });
+
+    // Listen for force logout events (concurrent session control)
+    socket.on("forceLogout", async (data: { reason: string, message: string }) => {
+      console.log("🔐 Force logout event received:", data);
+      
+      // Show alert to user
+      Alert.alert(
+        "Oturum Sonlandırıldı",
+        data.message || "Hesabınıza başka bir cihazdan giriş yapıldı.",
+        [
+          {
+            text: "Tamam",
+            onPress: async () => {
+              try {
+                // Clear all user data
+                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                
+                // Navigate to login screen
+                router.replace("/(auth)/sign-in");
+              } catch (error) {
+                console.error("Force logout cleanup error:", error);
+                router.replace("/(auth)/sign-in");
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
     });
 
     socketRef.current = socket;

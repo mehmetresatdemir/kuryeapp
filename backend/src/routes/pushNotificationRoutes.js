@@ -9,7 +9,13 @@ const expo = new Expo();
 // Push token kaydet
 router.post('/register', async (req, res) => {
     try {
+        console.log('📥 PUSH TOKEN ENDPOINT HIT!');
+        console.log('📥 Request body:', req.body);
+        console.log('📥 Request headers:', req.headers);
+        
         const { token, userId, userType, platform } = req.body;
+        
+        console.log('🔧 Push token kaydetme isteği:', { userId, userType, token: token?.substring(0, 20) + '...', platform });
         
         if (!token || !userId || !userType) {
             return res.status(400).json({
@@ -26,9 +32,48 @@ router.post('/register', async (req, res) => {
             });
         }
         
-        console.log(`📱 Push token kaydediliyor: ${userType}_${userId}`);
+        // Önce aynı token'ın zaten var olup olmadığını kontrol et
+        const [existingToken] = await sql`
+            SELECT id, user_id, user_type, is_active 
+            FROM push_tokens 
+            WHERE token = ${token}
+            ORDER BY updated_at DESC
+            LIMIT 1
+        `;
         
-        // Mevcut token'ı güncelle veya yeni ekle
+        if (existingToken) {
+            // Eğer aynı token aynı kullanıcıya aitse, sadece güncelle
+            if (existingToken.user_id === userId && existingToken.user_type === userType) {
+                await sql`
+                    UPDATE push_tokens 
+                    SET is_active = true, updated_at = NOW(), platform = ${platform || 'unknown'}
+                    WHERE token = ${token}
+                `;
+                
+                console.log('✅ Mevcut push token güncellendi:', { userId, userType });
+                return res.json({
+                    success: true,
+                    message: 'Push token başarıyla güncellendi'
+                });
+            } else {
+                // Farklı kullanıcıya aitse, eski token'ı deaktif et
+                await sql`
+                    UPDATE push_tokens 
+                    SET is_active = false, updated_at = NOW()
+                    WHERE token = ${token}
+                `;
+                console.log('🔄 Eski kullanıcının token\'ı deaktif edildi:', { oldUserId: existingToken.user_id, oldUserType: existingToken.user_type });
+            }
+        }
+        
+        // Kullanıcının diğer aktif token'larını deaktif et
+        await sql`
+            UPDATE push_tokens 
+            SET is_active = false, updated_at = NOW()
+            WHERE user_id = ${userId} AND user_type = ${userType} AND is_active = true AND token != ${token}
+        `;
+        
+        // UPSERT kullanarak token'ı kaydet/güncelle
         await sql`
             INSERT INTO push_tokens (user_id, user_type, token, platform, created_at, updated_at, is_active)
             VALUES (${userId}, ${userType}, ${token}, ${platform || 'unknown'}, NOW(), NOW(), true)
@@ -40,6 +85,7 @@ router.post('/register', async (req, res) => {
                 is_active = true
         `;
         
+        console.log('✅ Push token başarıyla kaydedildi:', { userId, userType });
         res.json({
             success: true,
             message: 'Push token başarıyla kaydedildi'
@@ -49,7 +95,8 @@ router.post('/register', async (req, res) => {
         console.error('❌ Push token kaydetme hatası:', error);
         res.status(500).json({
             success: false,
-            message: 'Push token kaydedilemedi'
+            message: 'Push token kaydedilemedi',
+            error: error.message
         });
     }
 });
@@ -66,7 +113,7 @@ router.post('/unregister', async (req, res) => {
             });
         }
         
-        console.log(`📱 Push token kaldırılıyor: ${userType}_${userId}`);
+    
         
         // Token'ı pasif yap
         await sql`
@@ -194,7 +241,6 @@ async function sendExpoPushNotification(message, userId = null, userType = null)
             `;
             
             if (!tokenRecord) {
-                console.log(`⚠️ Push token bulunamadı: ${userType}_${userId}`);
                 return { success: false, error: 'No active push token found' };
             }
             
@@ -207,30 +253,75 @@ async function sendExpoPushNotification(message, userId = null, userType = null)
             return { success: false, error: 'Invalid push token' };
         }
         
-        // Notification mesajını oluştur
+        // Ses dosyasını platforma göre ayarla
+        const soundFile = message.sound || 'default-notification.wav';
+        const androidSound = soundFile;
+        const iosSound = soundFile.endsWith('.wav') ? soundFile.replace('.wav', '') : soundFile; // iOS için .wav uzantısı kaldır
+        
+        // Platform tespiti - ExponentPushToken format: ExponentPushToken[xxxxx] (iOS) veya ExponentPushToken[xxxxxx] (Android)
+        // Daha iyi platform tespiti için veritabanından kontrol edelim
+        const [tokenRecord] = await sql`
+            SELECT platform FROM push_tokens WHERE token = ${pushToken} LIMIT 1
+        `;
+        
+        const platform = tokenRecord?.platform || 'unknown';
+        const finalSound = platform === 'ios' ? iosSound : androidSound;
+        
+        console.log(`🔊 Push notification ses ayarları - Platform: ${platform}, Android: ${androidSound}, iOS: ${iosSound}, Final: ${finalSound}`);
+        
+        // Notification mesajını oluştur - Background için optimize edilmiş
         const notification = {
             to: pushToken,
             title: message.title,
             body: message.body,
             data: message.data || {},
-            sound: message.sound || 'default',
+            sound: finalSound, // Platform'a göre doğru ses formatını kullan
             badge: 1,
             priority: 'high',
-            channelId: 'default',
+            channelId: message.channelId || 'default',
+            // Background notification için kritik ayarlar
+            android: {
+                priority: 'high',
+                channelId: message.channelId || 'default',
+                sound: androidSound,
+                vibrate: [0, 250, 250, 250],
+                lights: true,
+                color: '#3B82F6',
+                sticky: false,
+                autoCancel: true,
+                showWhen: true,
+                largeIcon: null,
+                bigText: message.body,
+                subText: null,
+                badgeIconType: 'large',
+                actions: [],
+            },
+            ios: {
+                priority: 'high',
+                sound: iosSound,
+                badge: 1,
+                subtitle: message.subtitle || null,
+                categoryId: message.categoryId || null,
+                threadId: message.threadId || null,
+                targetContentId: message.targetContentId || null,
+                summaryArgument: message.summaryArgument || null,
+                summaryArgumentCount: message.summaryArgumentCount || 0,
+                interruptionLevel: 'active', // active, passive, timeSensitive, critical
+                relevanceScore: 1.0,
+                filterCriteria: null,
+                storyId: null,
+                attachments: [],
+                launchImageName: null,
+                actions: [],
+            },
         };
-        
-        console.log('📤 Expo push notification gönderiliyor:', {
-            to: pushToken.substring(0, 20) + '...',
-            title: message.title
-        });
         
         // Push notification gönder
         const ticketChunk = await expo.sendPushNotificationsAsync([notification]);
         
-        console.log('✅ Push notification gönderildi:', ticketChunk[0]);
-        
         // Receipt'i kontrol et (opsiyonel)
         if (ticketChunk[0].status === 'ok') {
+            console.log('✅ Push notification başarıyla gönderildi:', ticketChunk[0].id);
             return { success: true, ticket: ticketChunk[0] };
         } else {
             console.error('❌ Push notification hatası:', ticketChunk[0]);
@@ -252,22 +343,22 @@ async function sendExpoPushNotification(message, userId = null, userType = null)
 async function sendBulkExpoPushNotifications(messageData, userIds, userType) {
     let tokens = [];
     try {
-        // userIds'ye göre token'ları al
+        // userIds'ye göre token'ları al (her kullanıcı için sadece en son token)
         if (userIds && userIds.length > 0) {
             const tokenRecords = await sql`
-                SELECT token FROM push_tokens 
+                SELECT DISTINCT ON (user_id) token, user_id 
+                FROM push_tokens 
                 WHERE user_type = ${userType} AND user_id = ANY(${userIds}) AND is_active = true
+                ORDER BY user_id, updated_at DESC
             `;
             tokens = tokenRecords.map(r => r.token);
         } else {
-            console.log('⚠️ Toplu bildirim için kullanıcı ID listesi boş.');
-            return;
+            return [];
         }
 
         // Geçerli token yoksa bitir
         if (tokens.length === 0) {
-            console.log('⚠️ Toplu bildirim için aktif push token bulunamadı.');
-            return;
+            return [];
         }
 
         // Geçersiz token'ları filtrele
@@ -280,47 +371,85 @@ async function sendBulkExpoPushNotifications(messageData, userIds, userType) {
         });
 
         if (validPushTokens.length === 0) {
-            console.log('⚠️ Gönderilecek geçerli push token bulunamadı.');
-            return;
+            return [];
         }
 
-        // Mesajları oluştur
+        // Ses dosyasını platforma göre ayarla
+        const soundFile = messageData.sound || 'default-notification.wav';
+        const androidSound = soundFile;
+        const iosSound = soundFile.replace('.wav', ''); // iOS için .wav uzantısı kaldır
+        
+        console.log(`🔊 Bulk push notification ses ayarları - Android: ${androidSound}, iOS: ${iosSound}`);
+
+        // Mesajları oluştur - Background için optimize edilmiş
         const messages = validPushTokens.map(pushToken => ({
             to: pushToken,
-            sound: {
-                name: messageData.sound || 'default-notification.wav',
-                critical: true,
-                volume: 1.0,
-            },
             title: messageData.title,
             body: messageData.body,
             data: messageData.data || {},
+            sound: androidSound, // Varsayılan olarak Android formatını kullan
             badge: 1,
             priority: 'high',
-            channelId: 'default',
+            channelId: messageData.channelId || 'default',
+            // Background notification için kritik ayarlar
+            android: {
+                priority: 'high',
+                channelId: messageData.channelId || 'default',
+                sound: androidSound,
+                vibrate: [0, 250, 250, 250],
+                lights: true,
+                color: '#3B82F6',
+                sticky: false,
+                autoCancel: true,
+                showWhen: true,
+                largeIcon: null,
+                bigText: messageData.body,
+                subText: null,
+                badgeIconType: 'large',
+                actions: [],
+            },
+            ios: {
+                priority: 'high',
+                sound: iosSound,
+                badge: 1,
+                subtitle: messageData.subtitle || null,
+                categoryId: messageData.categoryId || null,
+                threadId: messageData.threadId || null,
+                targetContentId: messageData.targetContentId || null,
+                summaryArgument: messageData.summaryArgument || null,
+                summaryArgumentCount: messageData.summaryArgumentCount || 0,
+                interruptionLevel: 'active', // active, passive, timeSensitive, critical
+                relevanceScore: 1.0,
+                filterCriteria: null,
+                storyId: null,
+                attachments: [],
+                launchImageName: null,
+                actions: [],
+            },
         }));
 
         // Mesajları chunk'lara böl
         const chunks = expo.chunkPushNotifications(messages);
         const tickets = [];
 
+        // Her chunk'ı gönder
         for (const chunk of chunks) {
             try {
                 const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
                 tickets.push(...ticketChunk);
-                ticketChunk.forEach(ticket => {
-                    console.log(`✅ Push notification gönderildi:`, ticket);
-                });
+                console.log(`✅ ${chunk.length} push notification gönderildi`);
             } catch (error) {
-                console.error('❌ Push notification chunk gönderme hatası:', error);
+                console.error('❌ Chunk gönderme hatası:', error);
+                // Chunk hatası olsa bile diğer chunk'ları göndermeye devam et
+                tickets.push(...chunk.map(() => ({ status: 'error', message: error.message })));
             }
         }
         
         return tickets;
 
     } catch (error) {
-        console.error('❌ Bulk push notification gönderme hatası:', error);
-        throw error;
+        console.error('❌ Bulk push notification hatası:', error);
+        return [];
     }
 }
 
