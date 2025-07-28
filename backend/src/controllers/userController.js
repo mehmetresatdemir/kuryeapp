@@ -92,12 +92,12 @@ const unifiedLogin = async (req, res) => {
         let couriers = [];
         if (isPhoneNumber) {
             couriers = await sql`
-                SELECT id, name as courier_name, email, phone, phone_number, password FROM couriers 
-                WHERE phone = ${email} OR phone_number = ${email} OR phone = ${email.replace(/\s/g, '')} OR phone_number = ${email.replace(/\s/g, '')}
+                SELECT id, name as courier_name, email, phone, password FROM couriers 
+                WHERE phone = ${email} OR phone = ${email.replace(/\s/g, '')}
             `;
         } else {
             couriers = await sql`
-                SELECT id, name as courier_name, email, phone, phone_number, password FROM couriers 
+                SELECT id, name as courier_name, email, phone, password FROM couriers 
                 WHERE email = ${email}
             `;
         }
@@ -111,7 +111,7 @@ const unifiedLogin = async (req, res) => {
                     id: courier.id,
                     name: courier.courier_name,
                     email: courier.email,
-                    phone: courier.phone || courier.phone_number,
+                    phone: courier.phone,
                     role: 'courier'
                 };
 
@@ -236,18 +236,17 @@ const loginUser = async (req, res) => {
     // Check couriers
     let courierRecords = [];
     if (isPhoneNumber) {
-      // Search by phone number (check both phone and phone_number columns)
+      // Search by phone number
       courierRecords = await sql`
         SELECT 
           id, 
           name, 
           email, 
           phone,
-          phone_number,
           password,
           'courier' as role 
         FROM couriers 
-        WHERE phone = ${email} OR phone_number = ${email} OR phone = ${email.replace(/\s/g, '')} OR phone_number = ${email.replace(/\s/g, '')}
+        WHERE phone = ${email} OR phone = ${email.replace(/\s/g, '')}
       `;
     } else {
       // Search by email
@@ -257,7 +256,6 @@ const loginUser = async (req, res) => {
           name, 
           email, 
           phone,
-          phone_number,
           password,
           'courier' as role 
         FROM couriers 
@@ -275,7 +273,7 @@ const loginUser = async (req, res) => {
           id: courier.id,
           email: courier.email,
           name: courier.name,
-          phone: courier.phone || courier.phone_number,
+          phone: courier.phone,
           role: 'courier'
         };
         

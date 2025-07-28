@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from "react";
+import React, { useState, useEffect, Fragment, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,22 +7,26 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
-  SafeAreaView,
   TouchableOpacity,
   Modal,
   Platform,
   ScrollView,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
+import { getFullUrl, API_ENDPOINTS, authedFetch, API_CONFIG } from "../../constants/api";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { getCurrentDate, getCurrentWeek, getCurrentMonth, getWeekStart, getCurrentDateTime } from "../../lib/timeUtils";
+import io from "socket.io-client";
+import { useFocusEffect } from "expo-router";
 
 
 interface DeliveredOrder {
   id: string;
   created_at: string;
+  delivered_at?: string;
+  approved_at?: string;
+  actual_completion_time?: string;
   courier_price: string;
   nakit_tutari: string;
   banka_tutari: string;
@@ -41,9 +45,12 @@ const KuryeEarnings = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   
+  // Socket ref for real-time updates
+  const socketRef = useRef<any>(null);
+  
   // Görünüm modları
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
   
   // Özel tarih aralığı için state'ler
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -102,37 +109,30 @@ const KuryeEarnings = () => {
 
 
 
-  // Hafta hesaplama fonksiyonları
-  const getWeekStart = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setUTCDate(diff));
-  };
-
-  const getCurrentWeek = (): string => {
-    const now = new Date();
-    const weekStart = getWeekStart(now);
-    return weekStart.toISOString().slice(0, 10);
-  };
-
   // View mode değiştiğinde selectedDate'i uygun şekilde ayarla
   const handleViewModeChange = (newMode: 'daily' | 'weekly' | 'monthly' | 'custom') => {
+    console.log(`🔄 KuryeEarnings: View mode changing from ${viewMode} to ${newMode}`);
+    
     if (newMode === 'weekly' && viewMode !== 'weekly') {
-      // Haftalık moda geçerken bu haftanın başlangıcını ayarla
-      setSelectedDate(getCurrentWeek());
+      // Haftalık moda geçerken bu haftanın başlangıcını ayarla (Turkey timezone)
+      const weekStart = getCurrentWeek();
+      console.log(`📅 Setting weekly date to: ${weekStart}`);
+      setSelectedDate(weekStart);
     } else if (newMode === 'daily' && viewMode !== 'daily') {
-      // Günlük moda geçerken bugünü ayarla
-      setSelectedDate(new Date().toISOString().slice(0, 10));
+      // Günlük moda geçerken bugünü ayarla (Turkey timezone)
+      const today = getCurrentDate();
+      console.log(`📅 Setting daily date to: ${today}`);
+      setSelectedDate(today);
     } else if (newMode === 'monthly' && viewMode !== 'monthly') {
-      // Aylık moda geçerken bu ayın 1'ini ayarla
-      const today = new Date();
-      setSelectedDate(today.toISOString().slice(0, 7) + '-01');
+      // Aylık moda geçerken bu ayın 1'ini ayarla (Turkey timezone)
+      const monthStart = getCurrentMonth();
+      console.log(`📅 Setting monthly date to: ${monthStart}`);
+      setSelectedDate(monthStart);
     }
     setViewMode(newMode);
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     try {
       setError(null);
@@ -142,9 +142,7 @@ const KuryeEarnings = () => {
       if (viewMode === 'daily') {
         endpoint = `?date=${selectedDate}`;
       } else if (viewMode === 'weekly') {
-        const currentDate = new Date(selectedDate + 'T00:00:00Z');
-        const weekStart = getWeekStart(currentDate);
-        const weekStartStr = weekStart.toISOString().slice(0, 10);
+        const weekStartStr = getWeekStart(selectedDate);
         endpoint = `?week=${weekStartStr}`;
       } else if (viewMode === 'monthly') {
         const monthStr = selectedDate.length > 7 ? selectedDate.slice(0, 7) : selectedDate;
@@ -171,7 +169,7 @@ const KuryeEarnings = () => {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user, selectedDate, viewMode, customStartDate, customEndDate]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -193,14 +191,93 @@ const KuryeEarnings = () => {
     if (isLoaded && user && viewMode !== 'custom') {
       fetchData();
     }
-  }, [isLoaded, user, selectedDate, viewMode]);
+  }, [isLoaded, user, selectedDate, viewMode, fetchData]);
 
   // Custom mode için ayrı useEffect
   useEffect(() => {
     if (isLoaded && user && viewMode === 'custom' && customStartDate && customEndDate) {
       fetchData();
     }
-  }, [isLoaded, user, viewMode, customStartDate, customEndDate]);
+  }, [isLoaded, user, viewMode, customStartDate, customEndDate, fetchData]);
+
+  // Socket bağlantısı ve real-time güncellenme
+  useEffect(() => {
+    if (!user) return;
+
+    console.log("🔌 KuryeEarnings: Socket bağlantısı kuruluyor");
+    socketRef.current = io(API_CONFIG.SOCKET_URL, { 
+      transports: ["websocket", "polling"],
+      forceNew: true,
+      timeout: 45000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000
+    });
+
+    socketRef.current.on("connect", async () => {
+      console.log("🔌 KuryeEarnings: Socket bağlandı - Kurye ID:", user.id);
+      
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
+      // Join courier room to receive real-time updates
+      socketRef.current.emit("joinCourierRoom", { courierId: user.id, token });
+      console.log(`📡 KuryeEarnings: Kurye odasına katıldı: courier_${user.id}`);
+    });
+
+    // Listen for order approval confirmations - refresh earnings when order is approved
+    socketRef.current.on("orderApproved", (data: { orderId: string, restaurantId: string, message: string, orderDetails: any }) => {
+      console.log("✅ KuryeEarnings: Order approved event received:", data);
+      
+      // Refresh earnings data when an order is approved (completed)
+      fetchData();
+    });
+
+    // Listen for order delivery confirmations - refresh earnings when order is delivered
+    socketRef.current.on("orderDelivered", (data: { orderId: string, courierId: string, message: string }) => {
+      console.log("📦 KuryeEarnings: Order delivered event received:", data);
+      
+      // Refresh earnings data when an order is delivered
+      if (data.courierId.toString() === user.id.toString()) {
+        fetchData();
+      }
+    });
+
+    // Listen for order status updates that might affect earnings
+    socketRef.current.on("orderStatusUpdate", (data: { orderId: string, status: string, courierId?: string }) => {
+      console.log("📡 KuryeEarnings: Order status update received:", data);
+      
+      // Refresh earnings if order status changes to 'teslim edildi' for this courier
+      if (data.status === "teslim edildi" && data.courierId?.toString() === user.id.toString()) {
+        fetchData();
+      }
+    });
+
+    socketRef.current.on("connect_error", (err: any) => {
+      console.error("KuryeEarnings Socket connection error:", err);
+    });
+
+    socketRef.current.on("disconnect", (reason: string) => {
+      console.log("KuryeEarnings Socket disconnected:", reason);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        console.log("🔌 KuryeEarnings: Socket bağlantısı kapatıldı");
+      }
+    };
+  }, [user, fetchData]);
+
+  // Screen focus/blur events
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        console.log("KuryeEarnings: Screen focused, refreshing data");
+        fetchData();
+      }
+    }, [user, fetchData])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -209,31 +286,46 @@ const KuryeEarnings = () => {
 
   // Günler/haftalar arası geçiş
   const handleDateChange = (direction: number) => {
-    const currentDate = new Date(selectedDate + 'T00:00:00Z');
-    
     if (viewMode === 'daily') {
+      const currentDate = new Date(selectedDate + 'T12:00:00Z'); // Gün ortası kullan
       currentDate.setUTCDate(currentDate.getUTCDate() + direction);
       const newDate = currentDate.toISOString().slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getCurrentDate();
       
       if (direction > 0 && newDate > today) return;
       setSelectedDate(newDate);
     } else if (viewMode === 'weekly') {
       // Haftalık modda 7 gün ekle/çıkar
+      const currentDate = new Date(selectedDate + 'T12:00:00Z');
       currentDate.setUTCDate(currentDate.getUTCDate() + (direction * 7));
       const newDate = currentDate.toISOString().slice(0, 10);
       setSelectedDate(newDate);
     } else if (viewMode === 'monthly') {
-      // Aylık modda ay ekle/çıkar
-      currentDate.setUTCMonth(currentDate.getUTCMonth() + direction);
-      // Ayın ilk günü olarak ayarla
-      currentDate.setUTCDate(1);
-      const newDate = currentDate.toISOString().slice(0, 10);
-      const today = new Date();
-      
-      // Gelecek aya gitmeyi engelle
-      if (direction > 0 && currentDate > today) return;
-      setSelectedDate(newDate);
+      // Aylık modda ay ekle/çıkar - tarih parse problemini çöz
+      const dateParts = selectedDate.split('-');
+      if (dateParts.length >= 2) {
+        let year = parseInt(dateParts[0]);
+        let month = parseInt(dateParts[1]);
+        
+        month += direction;
+        
+        // Ay sınırlarını kontrol et
+        if (month > 12) {
+          year += Math.floor((month - 1) / 12);
+          month = ((month - 1) % 12) + 1;
+        } else if (month < 1) {
+          year += Math.floor((month - 12) / 12);
+          month = ((month - 1) % 12) + 12;
+        }
+        
+        const newDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const today = getCurrentDateTime();
+        const newDateObj = new Date(newDate + 'T12:00:00Z');
+        
+        // Gelecek aya gitmeyi engelle
+        if (direction > 0 && newDateObj > today) return;
+        setSelectedDate(newDate);
+      }
     }
   };
 
@@ -301,20 +393,18 @@ const KuryeEarnings = () => {
           timeZone: 'UTC'
         });
       case 'weekly':
-        const currentDate = new Date(selectedDate + 'T00:00:00Z');
-        const weekStart = getWeekStart(currentDate);
+        const weekStartStr = getWeekStart(selectedDate);
+        const weekStart = new Date(weekStartStr + 'T12:00:00');
         const weekEnd = new Date(weekStart);
-        weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+        weekEnd.setDate(weekEnd.getDate() + 6);
         
         return `${weekStart.toLocaleDateString('tr-TR', { 
           day: 'numeric', 
-          month: 'short',
-          timeZone: 'UTC'
+          month: 'short'
         })} - ${weekEnd.toLocaleDateString('tr-TR', { 
           day: 'numeric', 
           month: 'short', 
-          year: 'numeric',
-          timeZone: 'UTC'
+          year: 'numeric'
         })}`;
       case 'monthly':
         const monthStr = selectedDate.length > 7 ? selectedDate.slice(0, 7) : selectedDate;
@@ -393,7 +483,7 @@ const KuryeEarnings = () => {
               onPress={() => handleDateChange(1)} 
               style={styles.dateArrow}
               disabled={
-                (viewMode === 'daily' && selectedDate >= new Date().toISOString().slice(0, 10)) ||
+                (viewMode === 'daily' && selectedDate >= getCurrentDate()) ||
                 (viewMode === 'monthly' && new Date(selectedDate).getMonth() >= new Date().getMonth() && new Date(selectedDate).getFullYear() >= new Date().getFullYear())
               }
             >
@@ -401,7 +491,7 @@ const KuryeEarnings = () => {
                 name="chevron-forward" 
                 size={24} 
                 color={
-                  (viewMode === 'daily' && selectedDate >= new Date().toISOString().slice(0, 10)) ||
+                  (viewMode === 'daily' && selectedDate >= getCurrentDate()) ||
                   (viewMode === 'monthly' && new Date(selectedDate).getMonth() >= new Date().getMonth() && new Date(selectedDate).getFullYear() >= new Date().getFullYear())
                     ? '#D1D5DB' 
                     : '#4B5563'
@@ -439,7 +529,12 @@ const KuryeEarnings = () => {
               >
                 <View style={styles.orderHeader}>
                   <Text style={styles.orderTitle}>{item.firma_adi}</Text>
-                  <Text style={styles.orderDate}>{new Date(item.created_at).toLocaleDateString('tr-TR')}</Text>
+                  <Text style={styles.orderDate}>
+                    {item.actual_completion_time 
+                      ? new Date(item.actual_completion_time).toLocaleDateString('tr-TR')
+                      : new Date(item.created_at).toLocaleDateString('tr-TR')
+                    }
+                  </Text>
                 </View>
                 <View style={styles.orderDetails}>
                   <Text style={styles.orderIdText}>Sipariş ID: {item.id}</Text>
@@ -703,11 +798,21 @@ const KuryeEarnings = () => {
                   </View>
                   
                 <View style={styles.orderDetailRow}>
-                  <Text style={styles.orderDetailLabel}>Tarih:</Text>
+                  <Text style={styles.orderDetailLabel}>Sipariş Tarihi:</Text>
                   <Text style={styles.orderDetailValue}>
                     {new Date(selectedOrder.created_at).toLocaleDateString('tr-TR')} - {new Date(selectedOrder.created_at).toLocaleTimeString('tr-TR')}
                   </Text>
-                    </View>
+                </View>
+
+                <View style={styles.orderDetailRow}>
+                  <Text style={styles.orderDetailLabel}>Teslim Saati:</Text>
+                  <Text style={styles.orderDetailValue}>
+                    {selectedOrder.actual_completion_time 
+                      ? new Date(selectedOrder.actual_completion_time).toLocaleDateString('tr-TR') + ' - ' + new Date(selectedOrder.actual_completion_time).toLocaleTimeString('tr-TR')
+                      : 'Henüz teslim edilmemiş'
+                    }
+                  </Text>
+                </View>
                     
                 <View style={styles.orderDetailRow}>
                   <Text style={styles.orderDetailLabel}>Ödeme Tipi:</Text>

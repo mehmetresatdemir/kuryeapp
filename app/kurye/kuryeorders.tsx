@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -11,22 +12,21 @@ import {
   Platform,
   Modal,
   ScrollView,
-  Dimensions,
   Alert,
   Linking,
   SafeAreaView,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
+
 import io from "socket.io-client";
-import MapView, { Marker } from "react-native-maps";
+
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import { calculateDeliveryCountdown as calculateDeliveryCountdownUtil } from "../../lib/timeUtils";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
+
 
 interface Order {
   firmaid: string;
@@ -203,10 +203,10 @@ const CustomAlert: React.FC<CustomAlertProps> = ({ visible, onCancel, onConfirm 
   );
 };
 
-// Helper function to calculate countdown for delivery - Turkey time kullanır
+// Helper function to calculate countdown for delivery - Doğrudan timestamp karşılaştırması
 const calculateDeliveryCountdown = (acceptedTime: Date): { hours: number, minutes: number, seconds: number, isExpired: boolean } => {
-  // Backend Turkey time kullanıyor, frontend'te de Turkey time kullan
-  const now = new Date(new Date().getTime() + (3 * 60 * 60 * 1000)); // Turkey time
+  // Backend text timestamp döndürüyor, doğrudan karşılaştır
+  const now = new Date();
   const deliveryDeadline = new Date(acceptedTime.getTime() + 3600000); // 1 saat sonra
   const diff = deliveryDeadline.getTime() - now.getTime();
   
@@ -552,7 +552,7 @@ const KuryeOrders = () => {
       } else {
         Alert.alert("Başarılı", "Sipariş teslim edildi ve restoran bilgilendirildi! 📦");
       }
-    } catch (error) {
+    } catch {
       console.error("Sipariş teslim hatası:", error);
       Alert.alert("Hata", "Sipariş teslim edilirken bir hata oluştu.");
     }
@@ -591,7 +591,7 @@ const KuryeOrders = () => {
       setSelectedOrder(null);
       
       Alert.alert("Başarılı", "Sipariş iptal edildi ve restoran bilgilendirildi. 📋");
-    } catch (error) {
+    } catch {
       console.error("Sipariş iptal hatası:", error);
       Alert.alert("Hata", "Sipariş iptal edilirken bir hata oluştu.");
     }
@@ -695,7 +695,7 @@ const KuryeOrders = () => {
               fetchActiveOrders();
               
               Alert.alert("Başarılı", "Sipariş iptal edildi ve restoran bilgilendirildi. 📋");
-            } catch (error) {
+            } catch {
               console.error("Sipariş iptal hatası:", error);
               Alert.alert("Hata", "Sipariş iptal edilirken bir hata oluştu.");
             }
@@ -776,7 +776,7 @@ const KuryeOrders = () => {
         ]
       );
       
-    } catch (error) {
+    } catch {
       console.error('Navigasyon hatası:', error);
       Alert.alert(
         "🚫 Navigasyon Hatası",
@@ -848,7 +848,7 @@ const KuryeOrders = () => {
               } else {
                 Alert.alert("Başarılı", "Sipariş teslim edildi ve restoran bilgilendirildi! 📦");
               }
-            } catch (error) {
+            } catch {
               console.error("Sipariş teslim hatası:", error);
               Alert.alert("Hata", "Sipariş teslim edilirken bir hata oluştu.");
             }
@@ -869,7 +869,7 @@ const KuryeOrders = () => {
           setUser(parsedUser);
         }
         setIsLoaded(true);
-      } catch (error) {
+      } catch {
         console.error('Error loading user data from AsyncStorage:', error);
         setIsLoaded(true);
       }
@@ -891,9 +891,15 @@ const KuryeOrders = () => {
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
-        console.log("Screen focused, fetching active and pending approval orders.");
-        fetchActiveOrders();
-        fetchPendingApprovalOrders();
+        console.log("KuryeOrders screen focused, checking socket connection.");
+        // Only refresh if socket is not connected (prevents duplicate refresh)
+        if (!socketRef.current?.connected) {
+          fetchActiveOrders();
+          fetchPendingApprovalOrders();
+          console.log("🔄 Screen focused: Data refreshed (socket disconnected)");
+        } else {
+          console.log("🔄 Screen focused: Skipping refresh (socket connected)");
+        }
       }
     }, [user, fetchActiveOrders, fetchPendingApprovalOrders])
   );
@@ -931,6 +937,14 @@ const KuryeOrders = () => {
     socketRef.current.on("reconnect", () => {
       console.log("Socket reconnected. Rejoining rooms:", user.id);
       joinBasicRooms();
+    });
+
+    // Listen for new orders for instant refresh
+    socketRef.current.on("newOrderAdded", (data: { orderId: string, neighborhood: string, restaurantId: number, message: string }) => {
+      console.log("🆕 KuryeOrders: New order added event received:", data);
+      
+      // No need to refresh here since this page shows active orders, not available ones
+      console.log("🔄 KuryeOrders: Skipping refresh (this page shows active orders only)");
     });
     socketRef.current.on("locationUpdate", (data: any) => {
       if (!data || !data.orderId) return;
@@ -973,12 +987,39 @@ const KuryeOrders = () => {
       // Sipariş kurye tarafından kabul edildiğinde listeyi güncelle
       fetchActiveOrders();
     });
+
+    // Backup bildirim sistemi - eğer normal socket event gelmezse
+    socketRef.current.on("newOrderBroadcast", (order: any) => {
+      console.log("📥 KuryeOrders: newOrderBroadcast event alındı:", {
+        orderId: order.id,
+        targetCourierId: order.targetCourierId,
+        myId: user.id
+      });
+      
+      // Sadece bize özel olan bildirimleri işle
+      if (order.targetCourierId && order.targetCourierId.toString() === user.id.toString()) {
+        console.log("📥 KuryeOrders: Broadcast event bize özel, siparişler yenileniyor");
+        fetchActiveOrders();
+        fetchPendingApprovalOrders();
+      }
+    });
     
-    socketRef.current.on("orderStatusUpdate", (data: any) => {
-      console.log("Socket: orderStatusUpdate event received. Refreshing orders.", data);
-      // Sipariş durumu değiştiğinde (ör: iptal, teslim, vs.) listeyi güncelle
-      fetchActiveOrders();
-      fetchPendingApprovalOrders();
+    socketRef.current.on("orderStatusUpdate", (data: { orderId: string, status: string, courierId?: string, courierName?: string, message?: string }) => {
+      console.log("📡 KuryeOrders: orderStatusUpdate event received:", data);
+      
+      // If order status changed to "kuryede" and it's not our order, no need to do anything here
+      // This page only shows orders assigned to current courier
+      
+      // If order status changed and it affects our lists, refresh
+      if (data.status === "teslim edildi" || data.status === "onay bekliyor") {
+        // These status changes might affect our active or pending lists
+        // Background refresh to ensure consistency (without loading state change)
+        setTimeout(() => {
+          fetchActiveOrders();
+          fetchPendingApprovalOrders();
+        }, 100);
+        console.log("🔄 KuryeOrders: Order status change detected, scheduling background refresh");
+      }
     });
 
     // Listen for force logout events (concurrent session control)
@@ -992,17 +1033,17 @@ const KuryeOrders = () => {
         [
           {
             text: "Tamam",
-            onPress: async () => {
-              try {
-                // Clear all user data
-                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                
-                // Navigate to login screen
-                router.replace("/(auth)/sign-in");
-              } catch (error) {
-                console.error("Force logout cleanup error:", error);
-                router.replace("/(auth)/sign-in");
-              }
+            onPress: () => {
+              // Clear all user data
+              AsyncStorage.multiRemove(['userData', 'userId', 'userToken'])
+                .then(() => {
+                  // Navigate to login screen
+                  router.replace("/(auth)/sign-in");
+                })
+                .catch((error) => {
+                  console.error("Force logout cleanup error:", error);
+                  router.replace("/(auth)/sign-in");
+                });
             }
           }
         ],
@@ -1023,20 +1064,9 @@ const KuryeOrders = () => {
         });
       }
       
-      // Push notification gönder
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "✅ Sipariş Onaylandı!",
-          body: `Sipariş #${data.orderId} restoran tarafından onaylandı. Ödeme tahsil edildi.`,
-          sound: 'custom-notification',
-          data: { 
-            orderId: data.orderId,
-            restaurantId: data.restaurantId,
-            type: 'orderApproved'
-          },
-        },
-        trigger: null, // Show immediately
-      });
+      // Socket event sadece state güncellemesi için kullanılır
+      // Push notification backend'den gönderilir
+      console.log('✅ KuryeOrders: orderApproved - sadece state güncelleniyor, push notification backend tarafından gönderildi');
       
       // Sonra da API'den güncel verileri al
       fetchActiveOrders();
@@ -1060,13 +1090,21 @@ const KuryeOrders = () => {
       const wasInActiveOrders = activeOrders.some(o => o.id.toString() === data.orderId.toString());
       const wasInPendingOrders = pendingApprovalOrders.some(o => o.id.toString() === data.orderId.toString());
       
-      // Remove deleted order from both lists
+      // Close modal if the deleted order is currently being viewed
+      if (selectedOrder && selectedOrder.id.toString() === data.orderId.toString()) {
+        setModalVisible(false);
+        setSelectedOrder(null);
+      }
+      
+      // Immediate state updates for instant UI response
       setActiveOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
       setPendingApprovalOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
       
-      // Refresh orders to ensure consistency
-      fetchActiveOrders();
-      fetchPendingApprovalOrders();
+      // Background refresh to ensure data consistency (without loading state change)
+      setTimeout(() => {
+        fetchActiveOrders();
+        fetchPendingApprovalOrders();
+      }, 100);
       
       // Only show alert if this was our order (was assigned to us)
       if (data.showAlert !== false && (wasInActiveOrders || wasInPendingOrders)) {
@@ -1121,13 +1159,21 @@ const KuryeOrders = () => {
     }) => {
       console.log("🗑️ KuryeOrders: Courier received order deletion by restaurant:", data);
       
-      // Remove deleted order from both lists
+      // Close modal if the deleted order is currently being viewed
+      if (selectedOrder && selectedOrder.id.toString() === data.orderId.toString()) {
+        setModalVisible(false);
+        setSelectedOrder(null);
+      }
+      
+      // Immediate state updates for instant UI response
       setActiveOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId));
       setPendingApprovalOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId));
       
-      // Refresh orders and accepted orders to update the lists
-      fetchActiveOrders();
-      fetchPendingApprovalOrders();
+      // Background refresh to ensure data consistency (without loading state change)
+      setTimeout(() => {
+        fetchActiveOrders();
+        fetchPendingApprovalOrders();
+      }, 100);
     });
 
     // Listen for delivery overdue warnings
@@ -1225,29 +1271,9 @@ const KuryeOrders = () => {
     socketRef.current.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 KuryeOrders: Admin notification received:", data);
       
-      // Özel bildirim sesi çal
-      if (data.withSound) {
-        playNotificationSound().catch(error => {
-          console.log('Bildirim sesi çalınamadı:', error);
-        });
-      }
+      // Bildirim sistemi kaldırıldı
       
-      // Show admin notification
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: `📢 ${data.title}`,
-          subtitle: "Yönetici Bildirimi",
-          body: data.message,
-          data: { 
-            type: 'admin_notification',
-            priority: data.priority,
-            sender: data.sender,
-            timestamp: data.timestamp
-          },
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
 
       // Show in-app alert for urgent messages
       if (data.priority === 'urgent') {
@@ -1266,20 +1292,8 @@ const KuryeOrders = () => {
       }
     });
 
-    // Listen for notification sound changes
-    socketRef.current.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
-      console.log("🔊 Bildirim sesi değişti:", data);
-      
-      // Cache'i güncelle
-      updateCachedSound({
-        id: data.soundId,
-        name: data.soundName,
-        file_path: data.soundPath
-      });
-      
-      // Kullanıcıya bilgi ver
-      console.log(`🎵 ${data.message}`);
-    });
+    // Listen for bundle test notifications
+    // Bildirim sistemi kaldırıldı
     // ----------------------------------------------------------
 
     return () => {

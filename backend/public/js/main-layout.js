@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="admin-earnings.html" class="nav-link ${pageName === 'Earnings' ? 'active' : ''}">Kazançlar</a>
                 <a href="admin-analytics.html" class="nav-link ${pageName === 'Analytics' ? 'active' : ''}">Analiz</a>
                 <a href="admin-settings.html" class="nav-link ${pageName === 'Settings' ? 'active' : ''}">Ayarlar</a>
+                <a href="admin-support.html" class="nav-link ${pageName === 'Support' ? 'active' : ''}">🎧 Destek</a>
                 <a href="admin-db-management.html" class="nav-link ${pageName === 'DB Management' ? 'active' : ''}">Veritabanı</a>
             </div>
         </div>

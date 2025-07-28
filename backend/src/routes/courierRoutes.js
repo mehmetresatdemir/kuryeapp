@@ -4,6 +4,7 @@ const courierController = require('../controllers/courierController');
 const { protect } = require('../middleware/authMiddleware');
 const { sql } = require('../config/db-config');
 
+
 // Tüm kuryeleri getir (admin paneli için)
 router.get('/', courierController.getAllCouriers);
 
@@ -28,6 +29,10 @@ router.post('/:courierId/activity/end', protect, courierController.endCourierAct
 router.get('/:courierId/activity-report', protect, courierController.getCourierActivityReport);
 router.get('/activity/summary', protect, courierController.getAllCouriersActivitySummary);
 
+// Toplam çevrimiçi süre endpoint'leri
+router.get('/:courierId/total-online-time', protect, courierController.getTotalOnlineTime);
+router.post('/:courierId/total-online-time', protect, courierController.updateTotalOnlineTime);
+
 // Kurye konumu güncelleme
 router.post('/:id/location', protect, async (req, res) => {
     try {
@@ -42,7 +47,7 @@ router.post('/:id/location', protect, async (req, res) => {
 
         await sql`
             UPDATE couriers 
-            SET latitude = ${latitude}, longitude = ${longitude}, updated_at = NOW()
+            SET latitude = ${latitude}, longitude = ${longitude}, updated_at = ${new Date()}
             WHERE id = ${id}
         `;
 
@@ -53,7 +58,7 @@ router.post('/:id/location', protect, async (req, res) => {
                 courierId: id,
                 latitude: parseFloat(latitude),
                 longitude: parseFloat(longitude),
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toLocaleString('tr-TR')
             });
 
             // Aktif siparişi olan restoranlara konum gönder
@@ -68,7 +73,7 @@ router.post('/:id/location', protect, async (req, res) => {
                     courierId: id,
                     latitude: parseFloat(latitude),
                     longitude: parseFloat(longitude),
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toLocaleString('tr-TR')
                 });
             });
         }

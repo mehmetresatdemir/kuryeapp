@@ -1,9 +1,10 @@
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 // Get environment variables - FORCE LOCAL IP FOR MOBILE TESTING
-const API_HOST = '192.168.1.105'; // Forced IP for mobile testing
+const API_HOST = '192.168.1.106'; // Forced IP for mobile testing
 const API_PORT = '3000';
 const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'admin.enucuzal.com';
 const USE_REMOTE = false; // Force local for testing
@@ -13,6 +14,9 @@ export const API_CONFIG = {
   // Development URLs
   LOCALHOST: `http://${API_HOST}:${API_PORT}`,
   REMOTE_URL: `https://${REMOTE_API_HOST}`, // HTTPS kullan - Railway otomatik yönlendiriyor
+  
+  // Expo Push Notification Project ID
+  EXPO_PROJECT_ID: '2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91',
   
   // Auto-detect environment and use appropriate URL
   get BASE_URL() {
@@ -67,13 +71,13 @@ export const API_ENDPOINTS = {
   
   // Earnings
   MONTHLY_EARNINGS_COURIER: (courierId: string | number, dateParam?: string) => 
-    `/api/earnings/monthly/${courierId}${dateParam || ''}`,
+    `/api/earnings/courier/${courierId}${dateParam || ''}`,
   DELIVERED_ORDERS_COURIER: (courierId: string | number, dateParam?: string) => 
-    `/api/earnings/delivered/${courierId}${dateParam || ''}`,
+    `/api/earnings/courier/${courierId}/details${dateParam || ''}`,
   MONTHLY_EARNINGS_FIRM: (firmId: string | number, dateParam?: string) => 
-    `/api/earnings/firmmonthly/${firmId}${dateParam || ''}`,
+    `/api/earnings/restaurant/${firmId}${dateParam || ''}`,
   DELIVERED_ORDERS_FIRM: (firmId: string | number, dateParam?: string) => 
-    `/api/earnings/firmdelivered/${firmId}${dateParam || ''}`,
+    `/api/earnings/restaurant/${firmId}/details${dateParam || ''}`,
   
   // Restaurants
   GET_ALL_RESTAURANTS: "/api/restaurants",
@@ -125,8 +129,7 @@ export const API_ENDPOINTS = {
   GET_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
   UPDATE_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
   
-  // Notification Sounds
-  GET_ACTIVE_NOTIFICATION_SOUND: "/api/admin/notification-sounds/active",
+  // Notification Sounds (Kaldırıldı - Artık sadece local assets kullanılıyor)
 };
 
 // Helper function to get full URL
@@ -163,16 +166,55 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
 
   const response = await fetch(url, finalOptions);
   
-  // Eğer 401 hatası alırsa, token'ı temizle ve logout işlemi başlat
+  // 401 hatası durumunda otomatik logout ve anasayfaya yönlendirme
   if (response.status === 401) {
-    console.log('🔴 Token geçersiz (401), AsyncStorage temizleniyor...');
-    await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+    console.warn('⚠️ Session expire - otomatik logout yapılıyor');
     
-    // Bu error'u yakalayan component'ler logout işlemi yapabilir
-    const error = new Error('Token expired or invalid');
-    (error as any).isTokenExpired = true;
-    (error as any).shouldLogout = true;
-    throw error;
+    try {
+      // Response body'yi kontrol et
+      const responseData = await response.clone().json();
+      
+      // Eğer shouldLogout flag'i varsa veya session expire mesajı varsa logout yap
+      if (responseData.shouldLogout || responseData.message?.includes('session') || responseData.message?.includes('expire')) {
+        console.log('🔄 Session expire tespit edildi, logout işlemi başlatılıyor...');
+        
+        // AsyncStorage'ı temizle
+        await AsyncStorage.multiRemove([
+          'userData', 
+          'userToken', 
+          'pushToken', 
+          'pushTokenUserId', 
+          'pushTokenUserType',
+          'expoPushToken'
+        ]);
+        
+        console.log('✅ AsyncStorage temizlendi');
+        
+        // Anasayfaya yönlendir ve uyarı göster
+        setTimeout(() => {
+          Alert.alert(
+            '🔐 Oturum Süresi Doldu',
+            'Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
+            [
+              {
+                text: 'Giriş Yap',
+                onPress: () => {
+                  router.replace('/(auth)/sign-in');
+                }
+              }
+            ],
+            { cancelable: false }
+          );
+        }, 100);
+        
+        // Hemen sign-in sayfasına yönlendir
+        router.replace('/(auth)/sign-in');
+      }
+    } catch (error) {
+      console.error('❌ Session expire handling error:', error);
+      // Hata olsa bile logout yap
+      router.replace('/(auth)/sign-in');
+    }
   }
 
   return response;

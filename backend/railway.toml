@@ -5,7 +5,7 @@ command = "npm install"
 watchPatterns = ["src/**/*.js", "package.json", "*.js", "public/**/*.html", "public/**/*.css", "public/**/*.js"]
 
 [deploy]
-# Start komutunu belirt
+# Start komutunu belirt - deprecation warning'lerini bastır
 startCommand = "npm start"
 restartPolicyType = "always"
 restartPolicyMaxRetries = 3

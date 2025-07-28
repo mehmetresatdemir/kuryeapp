@@ -38,7 +38,12 @@ class SessionService {
         ) VALUES (
           ${userId}, ${userRole}, ${sessionToken}, ${deviceInfo}, ${ipAddress}, ${socketId}, ${expiresAt}
         )
-        RETURNING *
+        RETURNING 
+          id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+          created_at::text as created_at,
+          
+          expires_at::text as expires_at,
+          last_activity::text as last_activity
       `;
       
       console.log(`✅ Yeni session oluşturuldu - User: ${userId}, Role: ${userRole}`);
@@ -58,16 +63,26 @@ class SessionService {
       if (excludeToken) {
         query = sql`
           UPDATE active_sessions 
-          SET is_active = FALSE, last_activity = NOW() 
+          SET is_active = FALSE, last_activity = ${new Date()} 
           WHERE user_id = ${userId} AND user_role = ${userRole} AND session_token != ${excludeToken} AND is_active = TRUE
-          RETURNING *
+          RETURNING 
+            id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+            created_at::text as created_at,
+            
+            expires_at::text as expires_at,
+            last_activity::text as last_activity
         `;
       } else {
         query = sql`
           UPDATE active_sessions 
-          SET is_active = FALSE, last_activity = NOW() 
+          SET is_active = FALSE, last_activity = ${new Date()} 
           WHERE user_id = ${userId} AND user_role = ${userRole} AND is_active = TRUE
-          RETURNING *
+          RETURNING 
+            id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+            created_at::text as created_at,
+            
+            expires_at::text as expires_at,
+            last_activity::text as last_activity
         `;
       }
       
@@ -91,9 +106,14 @@ class SessionService {
     try {
       const [session] = await sql`
         UPDATE active_sessions 
-        SET is_active = FALSE, last_activity = NOW() 
+        SET is_active = FALSE, last_activity = ${new Date()} 
         WHERE session_token = ${sessionToken} AND is_active = TRUE
-        RETURNING *
+        RETURNING 
+          id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+          created_at::text as created_at,
+          
+          expires_at::text as expires_at,
+          last_activity::text as last_activity
       `;
       
       if (session) {
@@ -114,14 +134,14 @@ class SessionService {
     try {
       const [session] = await sql`
         SELECT * FROM active_sessions 
-        WHERE session_token = ${sessionToken} AND is_active = TRUE AND expires_at > NOW()
+        WHERE session_token = ${sessionToken} AND is_active = TRUE AND expires_at > ${new Date()}
       `;
       
       if (session) {
         // Last activity'yi güncelle
         await sql`
           UPDATE active_sessions 
-          SET last_activity = NOW() 
+          SET last_activity = ${new Date()} 
           WHERE id = ${session.id}
         `;
       }
@@ -140,9 +160,14 @@ class SessionService {
     try {
       const [session] = await sql`
         UPDATE active_sessions 
-        SET socket_id = ${socketId}, last_activity = NOW() 
+        SET socket_id = ${socketId}, last_activity = ${new Date()} 
         WHERE session_token = ${sessionToken} AND is_active = TRUE
-        RETURNING *
+        RETURNING 
+          id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+          created_at::text as created_at,
+          
+          expires_at::text as expires_at,
+          last_activity::text as last_activity
       `;
       
       return session;
@@ -159,8 +184,13 @@ class SessionService {
     try {
       const expiredSessions = await sql`
         DELETE FROM active_sessions 
-        WHERE expires_at < NOW() OR is_active = FALSE
-        RETURNING *
+        WHERE expires_at < ${new Date()} OR is_active = FALSE
+        RETURNING 
+          id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
+          created_at::text as created_at,
+          
+          expires_at::text as expires_at,
+          last_activity::text as last_activity
       `;
       
       if (expiredSessions.length > 0) {

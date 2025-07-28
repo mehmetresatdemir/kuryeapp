@@ -9,7 +9,9 @@ const earningsRoutes = require('./earningsRoutes');
 const userRoutes = require('./userRoutes');
 const imageRoutes = require('./imageRoutes');
 const preferenceRoutes = require('./preferenceRoutes');
-const { router: pushNotificationRoutes } = require('./pushNotificationRoutes');
+const pushNotificationRoutes = require('./pushNotificationRoutes');
+
+const supportRoutes = require('./supportRoutes');
 
 // Admin routes
 router.use('/admin', adminRoutes);
@@ -18,9 +20,12 @@ router.use('/couriers', courierRoutes);
 router.use('/restaurants', restaurantRoutes);
 router.use('/earnings', earningsRoutes);
 router.use('/preferences', preferenceRoutes);
+router.use('/push-notifications', pushNotificationRoutes);
+router.use('/', pushNotificationRoutes); // For direct /send-notification endpoint
 router.use('/', userRoutes);
 router.use('/', imageRoutes);
-router.use('/push-token', pushNotificationRoutes);
+
+router.use('/', supportRoutes);
 
 
 
@@ -33,7 +38,7 @@ router.get('/health', async (req, res) => {
     const dbHealth = await healthCheck();
     res.json({
       status: 'ok',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toLocaleString('tr-TR'),
       database: dbHealth,
       server: {
         uptime: process.uptime(),
@@ -44,7 +49,7 @@ router.get('/health', async (req, res) => {
   } catch (error) {
     res.status(503).json({
       status: 'error',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toLocaleString('tr-TR'),
       error: error.message
     });
   }

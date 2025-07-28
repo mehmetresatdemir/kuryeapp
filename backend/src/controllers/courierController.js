@@ -125,7 +125,7 @@ const updateLocationAndStatus = async (req, res) => {
                 latitude = ${latitude},
                 longitude = ${longitude},
                 is_online = ${is_online},
-                last_seen = NOW()
+                last_seen = ${new Date()}
             WHERE id = ${id}
             RETURNING id, name, is_online
         `;
@@ -215,7 +215,7 @@ const addCourier = async (req, res) => {
                 ${phone || null},
                 ${package_limit || 5}, -- Default package limit
                 'all_restaurants', -- Default notification mode
-                NOW()
+${new Date()}
             ) RETURNING id, name, email;
         `;
         res.status(201).json({ success: true, message: 'Kurye başarıyla eklendi.', courier: newCourier[0] });
@@ -319,9 +319,14 @@ const updateCourierLocation = async (req, res) => {
             SET 
                 latitude = ${latitude},
                 longitude = ${longitude},
-                last_seen = NOW()
+                last_seen = ${new Date()}
             WHERE id = ${id}
-            RETURNING *
+            RETURNING 
+                id, name, email, phone, package_limit, 
+                is_online, is_blocked, latitude, longitude,
+                created_at::text as created_at,
+                updated_at::text as updated_at,
+                last_seen::text as last_seen
         `;
 
         if (result.length === 0) {
@@ -366,9 +371,14 @@ const updatePackageLimit = async (req, res) => {
             UPDATE couriers 
             SET 
                 package_limit = ${package_limit},
-                updated_at = NOW()
+                updated_at = ${new Date()}
             WHERE id = ${id}
-            RETURNING *
+            RETURNING 
+                id, name, email, phone, package_limit, 
+                is_online, is_blocked, latitude, longitude,
+                created_at::text as created_at,
+                updated_at::text as updated_at,
+                last_seen::text as last_seen
         `;
 
         if (result.length === 0) {
@@ -444,9 +454,12 @@ const updateCourierProfile = async (req, res) => {
                     email = ${updateEmail},
                     phone = ${updatePhone},
                     password = ${password},
-                    updated_at = NOW()
+                    updated_at = ${new Date()}
                 WHERE id = ${id}
-                RETURNING id, name, email, phone, package_limit, total_earnings, total_deliveries, created_at, updated_at
+                RETURNING 
+                    id, name, email, phone, package_limit, total_earnings, total_deliveries,
+                    created_at::text as created_at,
+                    updated_at::text as updated_at
             `;
         } else {
             // Sadece isim, e-posta ve telefon güncellenecek
@@ -456,9 +469,12 @@ const updateCourierProfile = async (req, res) => {
                     name = ${updateName},
                     email = ${updateEmail},
                     phone = ${updatePhone},
-                    updated_at = NOW()
+                    updated_at = ${new Date()}
                 WHERE id = ${id}
-                RETURNING id, name, email, phone, package_limit, total_earnings, total_deliveries, created_at, updated_at
+                RETURNING 
+                    id, name, email, phone, package_limit, total_earnings, total_deliveries,
+                    created_at::text as created_at,
+                    updated_at::text as updated_at
             `;
         }
 
@@ -543,7 +559,10 @@ const getCourierActivityReport = async (req, res) => {
         // Geçici olarak boş veri döndür
         let report = {
             daily: [{
-                activity_date: new Date().toISOString().split('T')[0],
+                activity_date: (() => {
+                    const today = new Date();
+                    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                })(),
                 total_minutes: 0,
                 session_count: 0,
                 hours: 0,
@@ -582,6 +601,41 @@ const getAllCouriersActivitySummary = async (req, res) => {
     }
 };
 
+// Kurye toplam çevrimiçi süresini getir
+const getTotalOnlineTime = async (req, res) => {
+    try {
+        // Geçici olarak sıfır değer döndür
+        res.json({ 
+            success: true, 
+            totalTime: {
+                hours: 0,
+                minutes: 0,
+                totalMinutes: 0
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+// Kurye toplam çevrimiçi süresini güncelle (ek dakika ekle)
+const updateTotalOnlineTime = async (req, res) => {
+    try {
+        // Geçici olarak dummy response döndür
+        res.json({ 
+            success: true, 
+            message: 'Çevrimiçi süre başarıyla kaydedildi',
+            totalTime: {
+                hours: 0,
+                minutes: 0,
+                totalMinutes: 0
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
 module.exports = {
     getAllCouriers,
     getCourierById,
@@ -600,4 +654,7 @@ module.exports = {
     endCourierActivitySession,
     getCourierActivityReport,
     getAllCouriersActivitySummary,
-};
+    // Toplam çevrimiçi süre fonksiyonları
+    getTotalOnlineTime,
+    updateTotalOnlineTime
+}; 

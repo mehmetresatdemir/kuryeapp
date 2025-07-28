@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -14,17 +15,22 @@ import {
   Image,
   Alert,
 } from "react-native";
+import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { getCurrentDate, getCurrentWeek, getCurrentMonth, getWeekStart, getCurrentDateTime } from "../../lib/timeUtils";
 import { io } from "socket.io-client";
 import { useFocusEffect } from '@react-navigation/native';
 
 interface DeliveredOrder {
   id: string;
   created_at: string;
+  delivered_at?: string;
+  approved_at?: string;
+  actual_completion_time?: string;
   kurye_tutari: number;
   nakit_tutari: number;
   banka_tutari: number;
@@ -47,9 +53,47 @@ const RestaurantOrders = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const socketRef = useRef<any>(null);
   
+  // Notification deduplication - track recent notifications
+  const recentNotifications = useRef(new Set());
+  const NOTIFICATION_THROTTLE_MS = 3000; // 3 seconds
+
+  // Function to check if notification is duplicate
+  const isDuplicateNotification = (type: string, orderId: string) => {
+    const notificationKey = `${type}_${orderId}`;
+    if (recentNotifications.current.has(notificationKey)) {
+      console.log(`🚫 Duplicate notification blocked: ${notificationKey}`);
+      return true;
+    }
+    
+    recentNotifications.current.add(notificationKey);
+    setTimeout(() => {
+      recentNotifications.current.delete(notificationKey);
+    }, NOTIFICATION_THROTTLE_MS);
+    
+    return false;
+  };
+
+  // Ses çalma fonksiyonu
+  const playNotificationSound = useCallback(async () => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2.wav',
+          data: { local: true }
+        },
+        trigger: null, // Immediately
+      });
+      console.log("🔔 RestaurantOrders: Local notification with sound played");
+    } catch (error) {
+      console.error("❌ RestaurantOrders: Error playing notification sound:", error);
+    }
+  }, []);
+  
   // Görünüm modları
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
   
   // Özel tarih aralığı için state'ler
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -104,83 +148,155 @@ const RestaurantOrders = () => {
     onlineCount: 0
   });
 
-  // Hafta hesaplama fonksiyonları
-  const getWeekStart = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setUTCDate(diff));
-  };
-
-  const getCurrentWeek = (): string => {
-    const now = new Date();
-    const weekStart = getWeekStart(now);
-    return weekStart.toISOString().slice(0, 10);
-  };
-
   // View mode değiştiğinde selectedDate'i uygun şekilde ayarla
   const handleViewModeChange = (newMode: 'daily' | 'weekly' | 'monthly' | 'custom') => {
+    console.log(`🔄 RestaurantOrders: View mode changing from ${viewMode} to ${newMode}`);
+    
     if (newMode === 'weekly' && viewMode !== 'weekly') {
-      // Haftalık moda geçerken bu haftanın başlangıcını ayarla
-      setSelectedDate(getCurrentWeek());
+      // Haftalık moda geçerken bu haftanın başlangıcını ayarla (Turkey timezone)
+      const weekStart = getCurrentWeek();
+      console.log(`📅 Setting weekly date to: ${weekStart}`);
+      setSelectedDate(weekStart);
     } else if (newMode === 'daily' && viewMode !== 'daily') {
-      // Günlük moda geçerken bugünü ayarla
-      setSelectedDate(new Date().toISOString().slice(0, 10));
+      // Günlük moda geçerken bugünü ayarla (Turkey timezone)
+      const today = getCurrentDate();
+      console.log(`📅 Setting daily date to: ${today}`);
+      setSelectedDate(today);
     } else if (newMode === 'monthly' && viewMode !== 'monthly') {
-      // Aylık moda geçerken bu ayın 1'ini ayarla
-      const today = new Date();
-      setSelectedDate(today.toISOString().slice(0, 7) + '-01');
+      // Aylık moda geçerken bu ayın 1'ini ayarla (Turkey timezone)
+      const monthStart = getCurrentMonth();
+      console.log(`📅 Setting monthly date to: ${monthStart}`);
+      setSelectedDate(monthStart);
     }
     setViewMode(newMode);
   };
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log("👤 fetchData: User not loaded, skipping fetch");
+      return;
+    }
+    
     try {
       setError(null);
       setIsLoading(true);
       
-      let endpoint = '';
+      console.log(`📊 fetchData: Fetching data for restaurant ${user.id}, mode: ${viewMode}, date: ${selectedDate}`);
+      
+      let queryParams = '';
       if (viewMode === 'daily') {
-        endpoint = `?date=${selectedDate}`;
+        queryParams = `?date=${selectedDate}`;
       } else if (viewMode === 'weekly') {
-        const currentDate = new Date(selectedDate + 'T00:00:00Z');
-        const weekStart = getWeekStart(currentDate);
-        const weekStartStr = weekStart.toISOString().slice(0, 10);
-        endpoint = `?week=${weekStartStr}`;
+        const weekStartStr = getWeekStart(selectedDate);
+        queryParams = `?week=${weekStartStr}`;
+        console.log(`📅 Week mode: Selected date ${selectedDate}, Week start: ${weekStartStr}`);
       } else if (viewMode === 'monthly') {
         const monthStr = selectedDate.length > 7 ? selectedDate.slice(0, 7) : selectedDate;
-        endpoint = `?date=${monthStr}`;
+        queryParams = `?date=${monthStr}`;
+        console.log(`📅 Monthly mode: Using month ${monthStr}`);
       } else if (viewMode === 'custom' && customStartDate && customEndDate) {
-        endpoint = `?start=${customStartDate}&end=${customEndDate}`;
+        queryParams = `?start=${customStartDate}&end=${customEndDate}`;
+        console.log(`📅 Custom range: ${customStartDate} to ${customEndDate}`);
       }
       
+      // API URL'i doğru şekilde oluştur
+      const apiUrl = getFullUrl(API_ENDPOINTS.DELIVERED_ORDERS_FIRM(user.id, queryParams));
+      console.log(`🔗 API URL: ${apiUrl}`);
+      
       // Teslim edilen siparişleri getir
-      const deliveredResponse = await authedFetch(getFullUrl(API_ENDPOINTS.DELIVERED_ORDERS_FIRM(user.id, endpoint)));
+      const deliveredResponse = await authedFetch(apiUrl);
+      
+      console.log(`📡 API Response: Status ${deliveredResponse.status}, OK: ${deliveredResponse.ok}`);
       
       if (!deliveredResponse.ok) {
-        throw new Error(`Veri alınamadı (${deliveredResponse.status})`);
+        const errorText = await deliveredResponse.text();
+        console.error(`❌ API Error: ${deliveredResponse.status} - ${errorText}`);
+        
+        if (deliveredResponse.status === 401) {
+          throw new Error("Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
+        } else if (deliveredResponse.status === 403) {
+          throw new Error("Bu bilgilere erişim yetkiniz yok.");
+        } else if (deliveredResponse.status === 404) {
+          console.log("📭 No data found (404), setting empty array");
+          setDeliveredOrders([]);
+          return;
+        } else {
+          throw new Error(`Veri alınamadı (${deliveredResponse.status})`);
+        }
       }
       
       const deliveredData = await deliveredResponse.json();
-      setDeliveredOrders(deliveredData.data || []);
+      console.log(`✅ Data received:`, deliveredData);
+      
+      if (deliveredData.success === false) {
+        throw new Error(deliveredData.message || "Veri alınırken hata oluştu");
+      }
+      
+      const orders = deliveredData.data || [];
+      console.log(`📋 Setting ${orders.length} delivered orders`);
+      setDeliveredOrders(orders);
       
     } catch (error) {
-      console.error("Error fetching earnings data", error);
-      setError(error instanceof Error ? error.message : "Veriler yüklenirken hata oluştu");
+      console.error("❌ Error fetching earnings data:", error);
+      const errorMessage = error instanceof Error ? error.message : "Veriler yüklenirken bilinmeyen hata oluştu";
+      setError(errorMessage);
       setDeliveredOrders([]);
+      
+      // 401 durumunda sadece logla, otomatik logout yapma  
+      if (error instanceof Error && error.message.includes("Oturum süresi")) {
+        console.warn('⚠️ RestaurantOrders: Token geçersiz - otomatik logout devre dışı');
+      }
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   }, [user, viewMode, selectedDate, customStartDate, customEndDate]);
 
+  // Push token registration for restaurant
+  const registerPushToken = useCallback(async (userData: any) => {
+    if (!userData) return;
+    
+    try {
+      const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+      if (!expoPushToken) {
+        console.log('📵 No push token available for registration');
+        return;
+      }
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/push-notifications/register`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`
+        },
+                 body: JSON.stringify({
+           userId: userData.id,
+           userType: 'restaurant',
+           expoPushToken: expoPushToken,
+           platform: 'ios' // Default platform
+         })
+      });
+      
+      if (response.ok) {
+        console.log(`📱 Push token registered for restaurant ${userData.id}`);
+      } else {
+        console.error('❌ Failed to register push token:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error registering push token:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const loadUser = async () => {
       try {
         const userData = await AsyncStorage.getItem('userData');
         if (userData) {
-          setUser(JSON.parse(userData));
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          
+          // Register push token when user is loaded
+          registerPushToken(parsedUser);
         }
         setIsLoaded(true);
       } catch (error) {
@@ -189,20 +305,22 @@ const RestaurantOrders = () => {
       }
     };
     loadUser();
-  }, []);
+  }, [registerPushToken]);
 
   useEffect(() => {
     if (isLoaded && user && viewMode !== 'custom') {
+      console.log(`🔄 useEffect triggered: isLoaded=${isLoaded}, user=${!!user}, viewMode=${viewMode}, selectedDate=${selectedDate}`);
       fetchData();
     }
-  }, [isLoaded, user, selectedDate, viewMode]);
+  }, [isLoaded, user, selectedDate, viewMode, fetchData]);
 
   // Custom mode için ayrı useEffect
   useEffect(() => {
     if (isLoaded && user && viewMode === 'custom' && customStartDate && customEndDate) {
+      console.log(`🔄 Custom mode useEffect triggered: ${customStartDate} to ${customEndDate}`);
       fetchData();
     }
-  }, [isLoaded, user, viewMode, customStartDate, customEndDate]);
+  }, [isLoaded, user, viewMode, customStartDate, customEndDate, fetchData]);
 
   // Socket connection setup for real-time updates
   useEffect(() => {
@@ -276,6 +394,82 @@ const RestaurantOrders = () => {
       }
     });
 
+    // Listen for order status changes (real-time updates)
+    socket.on("orderStatusChanged", (data: { 
+      orderId: string, 
+      newStatus: string, 
+      courierName?: string, 
+      message: string, 
+      timestamp: number 
+    }) => {
+      console.log("📡 RestaurantOrders received order status change:", data);
+      
+      if (data.newStatus === "kuryede") {
+        // Play notification sound
+        playNotificationSound();
+      }
+      
+      // Background refresh to ensure data consistency
+      setTimeout(() => {
+        fetchData();
+      }, 100);
+      
+      console.log(`🔄 RestaurantOrders: Order ${data.orderId} status updated, refreshing data`);
+    });
+
+    // Listen for order cancellations
+    socket.on("orderCancelled", (data: { 
+      orderId: string, 
+      courierName: string, 
+      reason: string, 
+      message: string, 
+      newStatus: string, 
+      timestamp: number 
+    }) => {
+      console.log("❌ RestaurantOrders received order cancellation:", data);
+      
+      // Check for duplicate notification
+      if (isDuplicateNotification("order_cancelled", data.orderId)) {
+        return; // Skip duplicate
+      }
+      
+      // Play notification sound
+      playNotificationSound();
+      
+      // Background refresh to ensure data consistency
+      setTimeout(() => {
+        fetchData();
+      }, 100);
+      
+      console.log(`🔄 RestaurantOrders: Order ${data.orderId} cancelled by courier, refreshing data`);
+    });
+
+    // Listen for order delivery notifications
+    socket.on("orderDelivered", (data: { 
+      orderId: string, 
+      courierName: string, 
+      paymentMethod: string, 
+      message: string, 
+      timestamp: number 
+    }) => {
+      console.log("📦 RestaurantOrders received order delivery notification:", data);
+      
+      // Check for duplicate notification
+      if (isDuplicateNotification("order_delivered", data.orderId)) {
+        return; // Skip duplicate
+      }
+      
+      // Play notification sound
+      playNotificationSound();
+      
+      // Background refresh to ensure data consistency
+      setTimeout(() => {
+        fetchData();
+      }, 100);
+      
+      console.log(`🔄 RestaurantOrders: Order ${data.orderId} delivered by courier ${data.courierName}, refreshing data`);
+    });
+
     // Listen for force logout events (concurrent session control)
     socket.on("forceLogout", async (data: { reason: string, message: string }) => {
       console.log("🔐 Force logout event received:", data);
@@ -287,17 +481,17 @@ const RestaurantOrders = () => {
         [
           {
             text: "Tamam",
-            onPress: async () => {
-              try {
-                // Clear all user data
-                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                
-                // Navigate to login screen
-                router.replace("/(auth)/sign-in");
-              } catch (error) {
-                console.error("Force logout cleanup error:", error);
-                router.replace("/(auth)/sign-in");
-              }
+            onPress: () => {
+              // Clear all user data
+              AsyncStorage.multiRemove(['userData', 'userId', 'userToken'])
+                .then(() => {
+                  // Navigate to login screen
+                  router.replace("/(auth)/sign-in");
+                })
+                .catch((error) => {
+                  console.error("Force logout cleanup error:", error);
+                  router.replace("/(auth)/sign-in");
+                });
             }
           }
         ],
@@ -345,31 +539,46 @@ const RestaurantOrders = () => {
 
   // Günler/haftalar arası geçiş
   const handleDateChange = (direction: number) => {
-    const currentDate = new Date(selectedDate + 'T00:00:00Z');
-    
     if (viewMode === 'daily') {
+      const currentDate = new Date(selectedDate + 'T12:00:00Z'); // Gün ortası kullan
       currentDate.setUTCDate(currentDate.getUTCDate() + direction);
       const newDate = currentDate.toISOString().slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getCurrentDate();
       
       if (direction > 0 && newDate > today) return;
       setSelectedDate(newDate);
     } else if (viewMode === 'weekly') {
       // Haftalık modda 7 gün ekle/çıkar
+      const currentDate = new Date(selectedDate + 'T12:00:00Z');
       currentDate.setUTCDate(currentDate.getUTCDate() + (direction * 7));
       const newDate = currentDate.toISOString().slice(0, 10);
       setSelectedDate(newDate);
     } else if (viewMode === 'monthly') {
-      // Aylık modda ay ekle/çıkar
-      currentDate.setUTCMonth(currentDate.getUTCMonth() + direction);
-      // Ayın ilk günü olarak ayarla
-      currentDate.setUTCDate(1);
-      const newDate = currentDate.toISOString().slice(0, 10);
-      const today = new Date();
-      
-      // Gelecek aya gitmeyi engelle
-      if (direction > 0 && currentDate > today) return;
-      setSelectedDate(newDate);
+      // Aylık modda ay ekle/çıkar - tarih parse problemini çöz
+      const dateParts = selectedDate.split('-');
+      if (dateParts.length >= 2) {
+        let year = parseInt(dateParts[0]);
+        let month = parseInt(dateParts[1]);
+        
+        month += direction;
+        
+        // Ay sınırlarını kontrol et
+        if (month > 12) {
+          year += Math.floor((month - 1) / 12);
+          month = ((month - 1) % 12) + 1;
+        } else if (month < 1) {
+          year += Math.floor((month - 12) / 12);
+          month = ((month - 1) % 12) + 12;
+        }
+        
+        const newDate = `${year}-${String(month).padStart(2, '0')}-01`;
+        const today = getCurrentDateTime();
+        const newDateObj = new Date(newDate + 'T12:00:00Z');
+        
+        // Gelecek aya gitmeyi engelle
+        if (direction > 0 && newDateObj > today) return;
+        setSelectedDate(newDate);
+      }
     }
   };
 
@@ -429,20 +638,18 @@ const RestaurantOrders = () => {
           timeZone: 'UTC'
         });
       case 'weekly':
-        const currentDate = new Date(selectedDate + 'T00:00:00Z');
-        const weekStart = getWeekStart(currentDate);
+        const weekStartStr = getWeekStart(selectedDate);
+        const weekStart = new Date(weekStartStr + 'T12:00:00');
         const weekEnd = new Date(weekStart);
-        weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+        weekEnd.setDate(weekEnd.getDate() + 6);
         
         return `${weekStart.toLocaleDateString('tr-TR', { 
           day: 'numeric', 
-          month: 'short',
-          timeZone: 'UTC'
+          month: 'short'
         })} - ${weekEnd.toLocaleDateString('tr-TR', { 
           day: 'numeric', 
           month: 'short', 
-          year: 'numeric',
-          timeZone: 'UTC'
+          year: 'numeric'
         })}`;
       case 'monthly':
         const monthStr = selectedDate.length > 7 ? selectedDate.slice(0, 7) : selectedDate;
@@ -461,13 +668,14 @@ const RestaurantOrders = () => {
   };
 
   const renderDeliveredItem = ({ item }: { item: DeliveredOrder }) => {
-    const orderDate = new Date(item.created_at);
+    // Teslim saatini göster (varsa), yoksa sipariş tarihini göster
+    const displayDate = item.actual_completion_time || item.created_at;
+    const orderDate = new Date(displayDate);
     const formattedDate = orderDate.toLocaleDateString("tr-TR", { 
       day: "numeric", 
       month: "long", 
       hour: "2-digit", 
-      minute: "2-digit",
-      timeZone: 'UTC'
+      minute: "2-digit"
     });
 
     // Ödeme tipi ikonları ve renkleri
@@ -528,6 +736,20 @@ const RestaurantOrders = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Kazanç Raporu</Text>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={() => {
+              console.log("🔄 Manual refresh triggered");
+              fetchData();
+            }}
+            disabled={isLoading}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color={isLoading ? "#9CA3AF" : "#FFFFFF"} 
+            />
+          </TouchableOpacity>
         </View>
 
         {/* View Mode Selector */}
@@ -571,16 +793,16 @@ const RestaurantOrders = () => {
             <TouchableOpacity 
               onPress={() => handleDateChange(1)} 
               style={styles.dateArrow}
-              disabled={
-                (viewMode === 'daily' && selectedDate >= new Date().toISOString().slice(0, 10)) ||
-                (viewMode === 'monthly' && new Date(selectedDate).getMonth() >= new Date().getMonth() && new Date(selectedDate).getFullYear() >= new Date().getFullYear())
-              }
+                              disabled={
+                  (viewMode === 'daily' && selectedDate >= getCurrentDate()) ||
+                  (viewMode === 'monthly' && new Date(selectedDate).getMonth() >= getCurrentDateTime().getMonth() && new Date(selectedDate).getFullYear() >= getCurrentDateTime().getFullYear())
+                }
             >
               <Ionicons 
                 name="chevron-forward" 
                 size={24} 
                 color={
-                  (viewMode === 'daily' && selectedDate >= new Date().toISOString().slice(0, 10)) ||
+                  (viewMode === 'daily' && selectedDate >= getCurrentDate()) ||
                   (viewMode === 'monthly' && new Date(selectedDate).getMonth() >= new Date().getMonth() && new Date(selectedDate).getFullYear() >= new Date().getFullYear())
                     ? '#D1D5DB' 
                     : '#4B5563'
@@ -825,15 +1047,25 @@ const RestaurantOrders = () => {
                       <View>
                         <Text style={styles.detailModalTitle}>Sipariş #{selectedOrder.id}</Text>
                         <Text style={styles.detailModalSubtitle}>
-                          {new Date(selectedOrder.created_at).toLocaleDateString("tr-TR", { 
+                          Sipariş: {new Date(selectedOrder.created_at).toLocaleDateString("tr-TR", { 
                             day: "numeric", 
                             month: "long", 
                             year: "numeric",
                             hour: "2-digit", 
-                            minute: "2-digit",
-                            timeZone: 'UTC'
+                            minute: "2-digit"
                           })}
                         </Text>
+                        {selectedOrder.actual_completion_time && (
+                          <Text style={styles.detailModalSubtitle}>
+                            Teslim: {new Date(selectedOrder.actual_completion_time).toLocaleDateString("tr-TR", { 
+                              day: "numeric", 
+                              month: "long", 
+                              year: "numeric",
+                              hour: "2-digit", 
+                              minute: "2-digit"
+                            })}
+                          </Text>
+                        )}
                       </View>
                       <TouchableOpacity
                         onPress={() => setOrderDetailModalVisible(false)}
@@ -961,11 +1193,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 50 : 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 8,
+    borderRadius: 12,
   },
   viewModeContainer: {
     flexDirection: 'row',

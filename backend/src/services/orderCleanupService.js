@@ -1,6 +1,6 @@
 const { sql } = require('../config/db-config');
 
-const { createNotification } = require('../utils/notificationUtils');
+
 
 // In-memory tracking to avoid duplicate reminders
 const orderReminderTracking = new Set();
@@ -112,42 +112,7 @@ const checkOrdersForReminder = async (io) => {
       // Mark as reminded to prevent duplicates
       orderReminderTracking.add(orderIdString);
 
-      // Create notification
-      try {
-        await createNotification({
-          title: `Sipariş Hatırlatması`,
-          message: `Sipariş #${order.id} ${settings.reminderMinutes} dakikadır teslim edilmemiş. Lütfen kontrol edin.`,
-          type: 'warning',
-          userType: 'restaurant',
-          userId: order.firmaid,
-          data: { 
-            orderId: order.id, 
-            courierId: order.kuryeid,
-            reminderMinutes: settings.reminderMinutes
-          }
-        });
-
-        // Send real-time notification
-        if (io) {
-          io.to(`restaurant_${order.firmaid}`).emit('orderReminder', {
-            orderId: order.id,
-            title: 'Sipariş Hatırlatması',
-            message: `Sipariş #${order.id} ${settings.reminderMinutes} dakikadır teslim edilmemiş`,
-            reminderMinutes: settings.reminderMinutes
-          });
-          
-          io.to('admins').emit('orderReminder', {
-            orderId: order.id,
-            restaurantId: order.firmaid,
-            restaurantName: order.restaurant_name,
-            title: 'Sipariş Hatırlatması',
-            message: `Sipariş #${order.id} (${order.restaurant_name}) ${settings.reminderMinutes} dakikadır teslim edilmemiş`,
-            reminderMinutes: settings.reminderMinutes
-          });
-        }
-      } catch (notifError) {
-        console.error('Notification error:', notifError);
-      }
+      // Bildirim sistemi kaldırıldı
     }
   } catch (error) {
     console.error('❌ Sipariş hatırlatma kontrolü sırasında hata:', error);

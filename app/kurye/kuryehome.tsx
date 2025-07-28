@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -13,30 +14,22 @@ import {
   Platform,
   Linking,
   ScrollView,
+  AppState,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter, useFocusEffect, router } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
-import * as Notifications from 'expo-notifications';
+
 import io from "socket.io-client";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { API_CONFIG, API_ENDPOINTS, getFullUrl, authedFetch } from "../../constants/api";
 import { calculateAcceptanceCountdown, calculateDeletionCountdown, calculateDeliveryCountdown } from "../../lib/timeUtils";
-import NotificationButton from "../../components/NotificationButton";
-import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
-import PushNotificationService from "../../lib/pushNotificationService";
+
+
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruz
 
-// Notification handler configuration
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowList: true,
-  }),
-});
+// Notification handler global _layout.tsx'te ayarlandı, burada tekrar ayarlama
 
 interface Order {
   firmaid: string;
@@ -63,7 +56,8 @@ interface FailedOrder {
   }
   
   // Custom hook for countdown timer - Basit hesaplama (backend UTC kullanıyor)
-const useCountdown = (targetTime: Date | null, orderId: string | number) => {
+   
+  const _useCountdown = (targetTime: Date | null, orderId: string | number) => {
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0, isExpired: false });
   
   useEffect(() => {
@@ -98,7 +92,7 @@ const useCountdown = (targetTime: Date | null, orderId: string | number) => {
 };
 
 // Bekleniyor siparişler için countdown komponenti - Stateless
-const OrderCountdown: React.FC<{ order: Order }> = ({ order }) => {
+const OrderCountdown: React.FC<{ order: Order; blockTime: number }> = ({ order, blockTime }) => {
   const [tick, setTick] = useState(0); // Re-render için state
   
   useEffect(() => {
@@ -111,7 +105,7 @@ const OrderCountdown: React.FC<{ order: Order }> = ({ order }) => {
   }, []);
   
   // Stateless hesaplamalar
-  const acceptanceCountdown = calculateAcceptanceCountdown(order.created_at);
+  const acceptanceCountdown = calculateAcceptanceCountdown(order.created_at, blockTime);
   const deletionCountdown = calculateDeletionCountdown(order.created_at);
   
   // Eğer kabul yasağı devam ediyorsa
@@ -152,7 +146,7 @@ const OrderCountdown: React.FC<{ order: Order }> = ({ order }) => {
 // Delivery countdown için yardımcı fonksiyon artık timeUtils'te
 
 // Teslimat countdown hook'u - Basit hesaplama (backend UTC kullanıyor)
-const useDeliveryCountdown = (acceptedTime: Date | null, orderId: string | number) => {
+  const _useDeliveryCountdown = (acceptedTime: Date | null, orderId: string | number) => {
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0, isExpired: false });
   
   useEffect(() => {
@@ -264,6 +258,26 @@ const KuryeHome = () => {
   const [orderDetailModalVisible, setOrderDetailModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [blockedOrders, setBlockedOrders] = useState<Set<string>>(new Set());
+  const [socketConnected, setSocketConnected] = useState(false);
+  
+  // Bloklama süresi ayarları için state
+  const [orderAcceptanceBlockTime, setOrderAcceptanceBlockTime] = useState<number>(10);
+  
+  // Fetch order acceptance block time from backend
+  const fetchOrderAcceptanceBlockTime = useCallback(async () => {
+    try {
+      const response = await authedFetch(getFullUrl('/api/admin/courier-settings'));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.settings) {
+          setOrderAcceptanceBlockTime(data.settings.order_acceptance_block_time || 10);
+          console.log(`⚙️ Order acceptance block time set to ${data.settings.order_acceptance_block_time} seconds`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching order acceptance block time:', error);
+    }
+  }, []);
   
   // Tam ekran resim modalı için state'ler
   const [fullScreenModalVisible, setFullScreenModalVisible] = useState(false);
@@ -277,14 +291,50 @@ const KuryeHome = () => {
     setFullScreenModalVisible(true);
   };
   
-  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  // Bildirim sistemi kaldırıldı
 
   // Çevrimiçi durumu için yeni state'ler - İlk açılışta varsayılan true
   const [isOnline, setIsOnline] = useState<boolean>(true); // Varsayılan olarak çevrimiçi
   const [onlineStartTime, setOnlineStartTime] = useState<Date | null>(null); // Başlangıçta null, sonra doğru zamanla set edilecek
+  
+  // App state kontrolü - notification duplicate önlemek için
+  const [appState, setAppState] = useState(AppState.currentState);
+  // lastNotificationTimestamp state'i kaldırıldı - artık gerekli değil
 
+  const [totalOnlineTime, setTotalOnlineTime] = useState<{ hours: number, minutes: number }>({ hours: 0, minutes: 0 });
+  
   // Kurye paket limit bilgileri
   const [packageLimit, setPackageLimit] = useState<number>(5);
+
+  // Bloklama süresi ayarlarını backend'ten çek
+  useEffect(() => {
+    const fetchBlockSettings = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/admin/settings/courier`);
+        const data = await response.json();
+        if (data.success && data.settings) {
+          setOrderAcceptanceBlockTime(data.settings.order_acceptance_block_time || 10);
+        }
+      } catch (error) {
+        console.error('Bloklama ayarları alınırken hata:', error);
+        // Hata durumunda varsayılan değeri kullan
+        setOrderAcceptanceBlockTime(10);
+      }
+    };
+    
+    fetchBlockSettings();
+  }, []);
+
+  // App State listener - foreground/background kontrolü
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      console.log('📱 APP STATE: Değişti -', appState, '->', nextAppState);
+      setAppState(nextAppState);
+    });
+
+    return () => subscription?.remove();
+  }, [appState]);
+
   const [currentActiveOrders, setCurrentActiveOrders] = useState<number>(0);
   
   // Aktivite tracking state'leri
@@ -299,78 +349,151 @@ const KuryeHome = () => {
   const socketRef = useRef<any>(null);
   const acceptSelectedOrdersRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Notification permission setup and push token registration
-  useEffect(() => {
-    const setupNotifications = async () => {
-      try {
-        // Request notification permissions
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-          console.warn('❌ Push notification izni reddedildi');
-          return;
-        }
-
-        // Push notification token'ını kaydet
-        const storedUser = await AsyncStorage.getItem('userData');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          if (userData.id) {
-            const token = await PushNotificationService.registerForPushNotifications(
-              userData.id.toString(), 
-              'courier'
-            );
-            console.log('✅ Courier push token kaydedildi:', token ? 'başarılı' : 'başarısız');
-          }
-        }
-      } catch (error) {
-        console.error('Error setting up push notifications:', error);
-      }
-    };
-    
-    setupNotifications();
-  }, []);
-
-  // Show notification for new order
-  const showOrderNotification = useCallback(async (order: Order) => {
+  // Toplam çevrimiçi süresini yükle
+  const loadTotalOnlineTime = async (courierId: string) => {
     try {
-      // Show notification
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🆕 Yeni Sipariş!",
-          subtitle: `${order.firma_adi}`,
-          body: `${order.mahalle} - ${order.courier_price || order.kurye_tutari} ₺`,
-          data: { 
-            orderId: order.id.toString(),
-            type: 'new_order'
-          },
-          sound: true,
-        },
-        trigger: null, // Show immediately
-      });
-
-      // Removed alert popup for seamless experience
-      // Alert.alert(
-      //   "🆕 Yeni Sipariş Geldi!",
-      //   `${order.firma_adi}\n${order.mahalle} - ${order.kurye_tutari} ₺\n\nSiparişi kabul etmek istiyor musunuz?`,
-      //   [
-      //     {
-      //       text: "Daha Sonra",
-      //       style: "cancel"
-      //     },
-      //     {
-      //       text: "Kabul Et",
-      //       onPress: () => {
-      //         setSelectedOrders([order.id.toString()]);
-      //         acceptSelectedOrders();
-      //       }
-      //     }
-      //   ],
-      //   { cancelable: true }
-      // );
-    } catch (error) {
-      // Notification error handling
+      const response = await authedFetch(getFullUrl(`/api/couriers/${courierId}/total-online-time`));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.totalTime) {
+          setTotalOnlineTime({
+            hours: data.totalTime.hours || 0,
+            minutes: data.totalTime.minutes || 0
+          });
+        }
+      }
+    } catch {
+      // Sessizce hata yakala
     }
-  }, []);
+  };
+
+  // Çevrimiçi süresini veritabanına kaydet
+  const saveTotalOnlineTime = async (courierId: string, additionalMinutes: number) => {
+    try {
+      const response = await authedFetch(getFullUrl(`/api/couriers/${courierId}/total-online-time`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ additionalMinutes })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.totalTime) {
+          setTotalOnlineTime({
+            hours: data.totalTime.hours || 0,
+            minutes: data.totalTime.minutes || 0
+          });
+        }
+      }
+    } catch {
+      // Sessizce hata yakala
+    }
+  };
+
+  // Aktivite oturumu başlat
+  const startActivitySession = async () => {
+    if (!user?.id) {
+      return;
+    }
+    
+    if (currentSessionId) {
+      return;
+    }
+    
+    try {
+      const response = await authedFetch(getFullUrl(API_ENDPOINTS.START_ACTIVITY_SESSION(user.id)), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setCurrentSessionId(data.sessionId);
+          setSessionStartTime(new Date());
+        }
+      }
+    } catch {
+      // Sessizce hata yakala
+    }
+  };
+
+  // Aktivite oturumu sonlandır
+  const endActivitySession = async () => {
+    if (!user?.id || !currentSessionId) {
+      return;
+    }
+    
+    try {
+      const response = await authedFetch(getFullUrl(API_ENDPOINTS.END_ACTIVITY_SESSION(user.id)), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Local state'i güncelle
+          setCurrentSessionId(null);
+          setSessionStartTime(null);
+          
+          // Günlük istatistikleri güncelle
+          fetchDailyActivityStats();
+        } else {
+          // Backend'de oturum yoksa local state'i temizle
+          setCurrentSessionId(null);
+          setSessionStartTime(null);
+        }
+      } else {
+        // Hata durumunda local state'i temizle
+        if (response.status === 404) {
+          setCurrentSessionId(null);
+          setSessionStartTime(null);
+        }
+      }
+    } catch {
+      // Network hatası durumunda da local state'i temizle
+      setCurrentSessionId(null);
+      setSessionStartTime(null);
+    }
+  };
+
+  // Günlük aktivite istatistiklerini getir
+  const fetchDailyActivityStats = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await authedFetch(
+        `${getFullUrl(API_ENDPOINTS.GET_COURIER_ACTIVITY_REPORT(user.id))}?period=daily&limit=1`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data.daily && data.data.daily.length > 0) {
+          const todayData = data.data.daily[0];
+          setDailyStats({
+            todayMinutes: todayData.total_minutes || 0,
+            todayHours: todayData.hours || 0,
+            todaySessions: todayData.session_count || 0
+          });
+        }
+      }
+    } catch {
+      // Sessizce hata yakala
+    }
+  };
+
+
+
+  // Notification permissions setup (token kaydı artık index.tsx'te yapılıyor)
+  // Bildirim sistemi kaldırıldı
+
+
+
+  // Show notification for new order (SADECE FRONTEND NOTIFICATION - BACKEND PUSH YETERLİ)
+  // showOrderNotification fonksiyonu kaldırıldı - artık sadece push notification kullanılıyor
 
   // Çevrimiçi durumu değiştiren fonksiyon
   const toggleOnlineStatus = useCallback(async () => {
@@ -491,39 +614,130 @@ const KuryeHome = () => {
   useEffect(() => {
     if (!user) return;
 
+    console.log("🔄 Socket useEffect tetiklendi - User ID:", user.id);
+    
+    // Fetch settings when user is loaded
+    fetchOrderAcceptanceBlockTime();
+    
     const socket = io(API_CONFIG.SOCKET_URL, { 
       transports: ["websocket", "polling"],
       forceNew: true,
-      timeout: 45000,
+      timeout: 20000, // Daha kısa timeout
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-      upgrade: true
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000, // Daha hızlı reconnect
+      reconnectionDelayMax: 5000,
+      upgrade: true,
+      rememberUpgrade: false
     });
 
     socket.on("connect", async () => {
       console.log("🔌 Socket connected successfully - Kurye ID:", user.id);
-      setError(null); // Clear any previous connection errors
+      console.log("🔌 Socket ID:", socket.id);
+      setError(null);
+      setSocketConnected(true);
       
       // Get user token for session management
       const token = await AsyncStorage.getItem('userToken');
+      console.log("🔑 Token alındı:", token ? "Mevcut" : "Yok");
       
-      // Join courier room to receive new orders
+      // Room join işlemlerini sırayla yap ve confirmation bekle
       console.log(`📡 Kurye odasına katılıyor: courier_${user.id}`);
-      socket.emit("joinCourierRoom", { courierId: user.id, token });
+      socket.emit("joinCourierRoom", { 
+        courierId: user.id, 
+        token,
+        deviceInfo: {
+          platform: 'mobile',
+          appVersion: '1.0.0',
+          timestamp: Date.now()
+        }
+      });
       
-      // Bağlantı test et
+      // Bağlantı kalitesi test et
       setTimeout(() => {
         console.log("🧪 Socket bağlantısı test ediliyor...");
-        socket.emit("testConnection", { courierId: user.id, timestamp: Date.now() });
-      }, 2000);
+        socket.emit("testConnection", { 
+          courierId: user.id, 
+          timestamp: Date.now(),
+          clientTime: new Date().toISOString()
+        });
+      }, 1000);
       
       // Eğer çevrimiçi durumdaysa backend'e bildir
       if (isOnline) {
-        socket.emit("courierOnline", { courierId: user.id });
-        console.log("🔄 Socket bağlantısında çevrimiçi durum backend'e bildirildi");
+        setTimeout(() => {
+          socket.emit("courierOnline", { 
+            courierId: user.id,
+            timestamp: Date.now()
+          });
+          console.log("🔄 Socket bağlantısında çevrimiçi durum backend'e bildirildi");
+        }, 500);
       }
+      
+      // Initial fetch after connection (reduced delay)
+      setTimeout(() => {
+        fetchOrders();
+        fetchAcceptedOrders();
+        fetchPendingApprovalOrders();
+        console.log("🔄 Bağlantı sonrası sipariş listeleri yenilendi");
+      }, 500);
+    });
+
+    // Listen for new orders for instant refresh (background refresh)
+    socket.on("newOrderAdded", (data: { orderId: string, neighborhood: string, restaurantId: number, message: string }) => {
+      console.log("🆕 KuryeHome: New order added event received:", data);
+      
+      // Add new order to blocked orders list for cooldown period
+      setBlockedOrders(prevBlocked => {
+        const newBlocked = new Set(prevBlocked);
+        newBlocked.add(data.orderId);
+        console.log(`🔒 Order ${data.orderId} blocked for ${orderAcceptanceBlockTime} seconds (new order created)`);
+        return newBlocked;
+      });
+      
+      // Remove from blocked orders after cooldown period
+      setTimeout(() => {
+        setBlockedOrders(prevBlocked => {
+          const newBlocked = new Set(prevBlocked);
+          newBlocked.delete(data.orderId);
+          console.log(`🔓 Order ${data.orderId} unblocked after cooldown (new order created)`);
+          return newBlocked;
+        });
+      }, orderAcceptanceBlockTime * 1000);
+      
+      // Background refresh without loading screen (fetchOrders will skip setIsLoading)
+      const currentLoadingState = isLoading;
+      fetchOrders();
+      // Restore loading state to prevent UI flicker
+      setTimeout(() => setIsLoading(currentLoadingState), 50);
+      console.log("🔄 KuryeHome: Order list refreshed in background due to new order");
+    });
+
+    // Listen for deleted orders (background refresh)
+    socket.on("orderDeleted", (data: { orderId: string, courierName?: string, restaurantName?: string, message: string }) => {
+      console.log("🗑️ KuryeHome: Order deleted event received:", data);
+      
+      // Immediate state updates for instant UI response
+      setOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setAcceptedOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setPendingApprovalOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      
+      // Remove deleted order from selected orders if it was selected
+      setSelectedOrders(prevSelected => prevSelected.filter(id => id !== data.orderId.toString()));
+      
+      // Close modal if the deleted order is currently being viewed
+      if (selectedOrder && selectedOrder.id.toString() === data.orderId.toString()) {
+        setOrderDetailModalVisible(false);
+        setSelectedOrder(null);
+      }
+      
+      // Background refresh to ensure data consistency (without loading state change)
+      setTimeout(() => {
+        fetchOrders();
+        fetchAcceptedOrders();
+        fetchPendingApprovalOrders();
+      }, 100);
+      console.log("🔄 KuryeHome: Order lists updated immediately + background refresh scheduled");
     });
 
     socket.on("connect_error", (err: any) => {
@@ -541,6 +755,7 @@ const KuryeHome = () => {
 
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
+      setSocketConnected(false);
       if (reason === "io server disconnect") {
         setError("Sunucu bağlantısı kesildi");
         // Server forcefully disconnected, reconnect manually
@@ -550,20 +765,46 @@ const KuryeHome = () => {
       }
     });
 
-    socket.on("reconnect", (attemptNumber) => {
-      console.log("Socket reconnected after", attemptNumber, "attempts");
+    socket.on("reconnect", async (attemptNumber) => {
+      console.log("🔄 Socket reconnected after", attemptNumber, "attempts");
       setError(null);
+      setSocketConnected(true);
+      
+      // Get user token for session management
+      const token = await AsyncStorage.getItem('userToken');
+      
       // Rejoin courier room after reconnection
-      socket.emit("joinCourierRoom", { courierId: user.id });
+      console.log(`📡 Reconnect: Kurye odasına yeniden katılıyor: courier_${user.id}`);
+      socket.emit("joinCourierRoom", { 
+        courierId: user.id, 
+        token,
+        isReconnect: true,
+        deviceInfo: {
+          platform: 'mobile',
+          appVersion: '1.0.0',
+          timestamp: Date.now()
+        }
+      });
       
       // Eğer çevrimiçi durumdaysa backend'e yeniden bildir
       if (isOnline) {
-        socket.emit("courierOnline", { courierId: user.id });
-        console.log("🔄 Reconnect sonrası çevrimiçi durum backend'e bildirildi");
+        setTimeout(() => {
+          socket.emit("courierOnline", { 
+            courierId: user.id,
+            isReconnect: true,
+            timestamp: Date.now()
+          });
+          console.log("🔄 Reconnect sonrası çevrimiçi durum backend'e bildirildi");
+        }, 500);
       }
       
-      // Refresh orders after reconnection
-      fetchOrders();
+      // Refresh orders after reconnection with delay
+      setTimeout(() => {
+        fetchOrders();
+        fetchAcceptedOrders();
+        fetchPendingApprovalOrders();
+        console.log("🔄 Reconnect tamamlandı - tüm room'lar ve veriler yenilendi");
+      }, 1000);
     });
 
     socket.on("reconnect_error", (err) => {
@@ -571,86 +812,62 @@ const KuryeHome = () => {
       setError("Yeniden bağlanma başarısız");
     });
 
+    // Connection success confirmation
+    socket.on("connectionSuccess", (data: any) => {
+      console.log("✅ Connection success confirmation alındı:", data);
+      console.log(`✅ Socket ID: ${data.socketId}, Rooms: ${data.rooms?.join(', ')}`);
+      console.log(`✅ Online kurye sayısı: ${data.onlineCouriers}`);
+      setSocketConnected(true);
+    });
+
+    // Connection error handling
+    socket.on("connectionError", (data: any) => {
+      console.error("❌ Connection error:", data);
+      setError(`Bağlantı hatası: ${data.message}`);
+      if (data.shouldRetry && data.retryAfter) {
+        setTimeout(() => {
+          if (!socket.connected) {
+            console.log("🔄 Otomatik yeniden bağlanma denemesi...");
+            socket.connect();
+          }
+        }, data.retryAfter);
+      }
+    });
+
+    // Connection rejected handling
+    socket.on("connectionRejected", (data: any) => {
+      console.error("❌ Connection rejected:", data);
+      setError(`Bağlantı reddedildi: ${data.message}`);
+      if (data.reason === "ACCOUNT_BLOCKED") {
+        // Account blocked, navigate to login
+        Alert.alert(
+          "Hesap Engellendi",
+          "Hesabınız engellenmiştir. Lütfen yönetici ile iletişime geçin.",
+          [{ text: "Tamam", onPress: () => router.replace("/(auth)/sign-in") }]
+        );
+      }
+    });
+
     // Test connection response
     socket.on("testConnectionResponse", (data: any) => {
       console.log("🧪 Test connection response alındı:", data);
-      console.log(`✅ Socket bağlantısı çalışıyor - Ping: ${data.serverTimestamp - data.clientTimestamp}ms`);
+      console.log(`✅ Socket bağlantısı çalışıyor - Ping: ${data.ping}ms`);
+      console.log(`🏠 Rooms: ${data.rooms?.join(', ')}`);
+      console.log(`📍 Kurye room'unda: ${data.isInCourierRoom ? 'Evet' : 'Hayır'}`);
+      console.log(`👥 Genel kuryeler room'unda: ${data.isInCouriersRoom ? 'Evet' : 'Hayır'}`);
     });
 
-    // Listen for new orders
-    socket.on("newOrder", (order: Order) => {
-      console.log("📥 newOrder event alındı:", {
-        orderId: order.id,
-        status: order.status,
-        firma_adi: order.firma_adi,
-        mahalle: order.mahalle,
-        courier_price: order.courier_price
-      });
-      
-      // Add to orders list if it's waiting
-      if (order.status === "bekleniyor") {
-        console.log(`✅ Yeni sipariş listeye ekleniyor: #${order.id} - ${order.firma_adi}`);
-        
-        // İlk 10 saniye için siparişi blokla
-        setBlockedOrders(prev => {
-          const newSet = new Set(prev);
-          newSet.add(order.id.toString());
-          return newSet;
-        });
-        
-        // 10 saniye sonra bloğu kaldır
-        setTimeout(() => {
-          setBlockedOrders(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(order.id.toString());
-            return newSet;
-          });
-        }, 10000);
+    // handleNewOrderEvent fonksiyonu kaldırıldı - artık socket bildirim yok, sadece push notification
 
-        setOrders(prevOrders => {
-          // Check if order already exists
-          const exists = prevOrders.some(o => o.id === order.id);
-          if (!exists) {
-            console.log(`📋 Sipariş #${order.id} listeye eklendi`);
-            const orders = [order, ...prevOrders];
-            // Sort by creation date
-            return orders.sort(
-              (a: Order, b: Order) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            );
-          } else {
-            console.log(`⚠️ Sipariş #${order.id} zaten listede mevcut`);
-          }
-          return prevOrders;
-        });
-
-        // Show notification - BU ARTIK PUSH NOTIFICATION ILE YAPILIYOR
-        // showOrderNotification(order);
-      } else {
-        console.log(`❌ Sipariş #${order.id} bekleniyor durumunda değil: ${order.status}`);
-      }
-    });
+    // Socket sipariş bildirimleri TAMAMEN KALDIRILDI
+    // Sadece push notification kullanılıyor artık
+    console.log("🚫 Socket sipariş bildirimleri kaldırıldı - Sadece push notification kullanılıyor");
 
     // Listen for order reminders
     socket.on("orderReminder", (data: { order: Order, message: string, timeSinceCreated: number, isReminder: boolean }) => {
       console.log("🔔 Order reminder received:", data);
       
-      // Show enhanced notification for reminder
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🔔 Sipariş Hatırlatması!",
-          subtitle: `${data.order.firma_adi}`,
-          body: `${data.order.mahalle} - ${data.order.courier_price || data.order.kurye_tutari} ₺ (${data.timeSinceCreated} dk bekliyor)`,
-          data: { 
-            orderId: data.order.id.toString(),
-            type: 'order_reminder',
-            isReminder: true,
-            timeSinceCreated: data.timeSinceCreated
-          },
-          sound: 'default',
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
 
       // Update orders list to ensure it's up to date
       fetchOrders();
@@ -660,29 +877,9 @@ const KuryeHome = () => {
     socket.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 Admin notification received:", data);
       
-      // Özel bildirim sesi çal
-      if (data.withSound) {
-        playNotificationSound().catch(error => {
-          console.log('Bildirim sesi çalınamadı:', error);
-        });
-      }
+      // Bildirim sistemi kaldırıldı
       
-      // Show admin notification
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: `📢 ${data.title}`,
-          subtitle: "Yönetici Bildirimi",
-          body: data.message,
-          data: { 
-            type: 'admin_notification',
-            priority: data.priority,
-            sender: data.sender,
-            timestamp: data.timestamp
-          },
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
 
       // Show in-app alert for urgent messages
       if (data.priority === 'urgent') {
@@ -702,14 +899,14 @@ const KuryeHome = () => {
     });
 
     // Listen for order status updates
-    socket.on("orderStatusUpdate", (data: { orderId: string, status: string, courierId?: string }) => {
+    socket.on("orderStatusUpdate", (data: { orderId: string, status: string, courierId?: string, courierName?: string, message?: string }) => {
       console.log("📡 Order status update received:", data);
       
       if (data.status === "kuryede") {
         // Remove from available orders if accepted by any courier (including self)
         setOrders(prevOrders => {
           const filteredOrders = prevOrders.filter(o => o.id.toString() !== data.orderId);
-          console.log(`🗑️ Removed order ${data.orderId} from available orders list`);
+          console.log(`🗑️ Removed order ${data.orderId} from available orders list (accepted by courier ${data.courierId})`);
           return filteredOrders;
         });
         
@@ -725,6 +922,31 @@ const KuryeHome = () => {
         // Refresh orders if order becomes available again
         console.log("🔄 Order became available again, refreshing orders");
         fetchOrders();
+      } else if (data.status === "teslim edildi") {
+        // Remove from accepted orders when order is delivered/approved
+        setAcceptedOrders(prevOrders => {
+          const filteredOrders = prevOrders.filter(o => o.id.toString() !== data.orderId);
+          console.log(`🚚 Removed delivered order ${data.orderId} from accepted orders list`);
+          return filteredOrders;
+        });
+        
+        // Remove from pending approval orders if it was there
+        setPendingApprovalOrders(prevOrders => {
+          const filteredOrders = prevOrders.filter(o => o.id.toString() !== data.orderId);
+          if (filteredOrders.length !== prevOrders.length) {
+            console.log(`✅ Removed approved order ${data.orderId} from pending approval orders list`);
+          }
+          return filteredOrders;
+        });
+        
+        // Remove from selected orders if it was selected
+        setSelectedOrders(prevSelected => prevSelected.filter(id => id !== data.orderId));
+        
+        // Close modal if the delivered order is currently being viewed
+        if (selectedOrder && selectedOrder.id.toString() === data.orderId) {
+          setOrderDetailModalVisible(false);
+          setSelectedOrder(null);
+        }
       }
       
       // Always refresh accepted orders for any status change
@@ -764,30 +986,56 @@ const KuryeHome = () => {
 
     // Listen for order deletion events
     socket.on("orderDeleted", (data: { orderId: string | number, message: string, showAlert?: boolean }) => {
-      // Remove deleted order from the list
+      console.log("🗑️ KuryeHome: Order deleted event received (second handler):", data);
+      
+      // Immediate state updates for instant UI response
       setOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setAcceptedOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setPendingApprovalOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
       
       // Remove from selected orders if it was selected
       setSelectedOrders(prevSelected => prevSelected.filter(id => id !== data.orderId.toString()));
       
-      // Refresh orders to ensure consistency
-      fetchOrders();
-      fetchAcceptedOrders();
+      // Close modal if the deleted order is currently being viewed
+      if (selectedOrder && selectedOrder.id.toString() === data.orderId.toString()) {
+        setOrderDetailModalVisible(false);
+        setSelectedOrder(null);
+      }
+      
+      // Background refresh to ensure consistency (without loading state change)
+      setTimeout(() => {
+        fetchOrders();
+        fetchAcceptedOrders();
+        fetchPendingApprovalOrders();
+      }, 100);
       
       // Note: Alert gösterilmiyor, sadece KuryeOrders sayfasında gösterilecek
     });
 
     // Listen for order cancellation events
     socket.on("orderCancelled", (data: { orderId: string | number, message: string, cancelledBy?: string }) => {
-      // Remove cancelled order from the list
+      console.log("🗑️ KuryeHome: Order cancelled event received:", data);
+      
+      // Immediate state updates for instant UI response
       setOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setAcceptedOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
+      setPendingApprovalOrders(prevOrders => prevOrders.filter(o => o.id.toString() !== data.orderId.toString()));
       
       // Remove from selected orders if it was selected
       setSelectedOrders(prevSelected => prevSelected.filter(id => id !== data.orderId.toString()));
       
-      // Refresh orders to ensure consistency
-      fetchOrders();
-      fetchAcceptedOrders();
+      // Close modal if the cancelled order is currently being viewed
+      if (selectedOrder && selectedOrder.id.toString() === data.orderId.toString()) {
+        setOrderDetailModalVisible(false);
+        setSelectedOrder(null);
+      }
+      
+      // Background refresh to ensure consistency (without loading state change)
+      setTimeout(() => {
+        fetchOrders();
+        fetchAcceptedOrders();
+        fetchPendingApprovalOrders();
+      }, 100);
       
       // Note: Alert gösterilmiyor, sadece KuryeOrders sayfasında gösterilecek
     });
@@ -797,18 +1045,8 @@ const KuryeHome = () => {
       // Refresh orders to include the newly available order
       fetchOrders();
       
-      // Show subtle notification
-      showOrderNotification({
-        id: data.orderId,
-        title: "Sipariş Tekrar Müsait",
-        kurye_tutari: 0,
-        status: data.status,
-        mahalle: "",
-        odeme_yontemi: "",
-        firma_adi: "Tekrar Müsait",
-        firmaid: "",
-        created_at: new Date().toISOString()
-      } as Order);
+      // Frontend notification kaldırıldı - Backend push notification yeterli
+      console.log('📋 KURYE: orderAvailableAgain - sadece liste güncelleniyor, push notification backend tarafından gönderildi');
     });
 
     // Yeni timer event'leri
@@ -850,41 +1088,16 @@ const KuryeHome = () => {
     }) => {
       console.log("🗑️ Courier received order deletion by restaurant:", data);
       
-      // Send push notification
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🗑️ Sipariş İptal Edildi",
-          body: `${data.restaurantName} tarafından sipariş #${data.orderId} silindi. Ücret: ${data.courierTip} ₺`,
-          sound: 'default',
-          data: { 
-            orderId: data.orderId,
-            restaurantName: data.restaurantName,
-            courierTip: data.courierTip,
-            type: 'orderDeletedByRestaurant'
-          },
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
+      
+      // Bildirim sistemi kaldırıldı
       
       // Refresh orders and accepted orders to update the lists
       fetchOrders();
       fetchAcceptedOrders();
     });
 
-    // Listen for notification sound changes
-    socket.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
-      console.log("🔊 Bildirim sesi değişti:", data);
-      
-      // Cache'i güncelle
-      updateCachedSound({
-        id: data.soundId,
-        name: data.soundName,
-        file_path: data.soundPath
-      });
-      
-      // Kullanıcıya bilgi ver
-      console.log(`🎵 ${data.message}`);
-    });
+    // Bildirim sistemi kaldırıldı
 
     // Listen for order delivery confirmations
     socket.on("orderDelivered", (data: { orderId: string, courierId: string, message: string }) => {
@@ -899,20 +1112,9 @@ const KuryeHome = () => {
     socket.on("orderApproved", (data: { orderId: string, restaurantId: string, message: string, orderDetails: any }) => {
       console.log("✅ Order approved event received:", data);
       
-      // Push notification gönder
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "✅ Sipariş Onaylandı!",
-          body: `Sipariş #${data.orderId} restoran tarafından onaylandı. Ödeme tahsil edildi.`,
-          sound: 'custom-notification',
-          data: { 
-            orderId: data.orderId,
-            restaurantId: data.restaurantId,
-            type: 'orderApproved'
-          },
-        },
-        trigger: null, // Show immediately
-      });
+      // Socket event sadece state güncellemesi için kullanılır
+      // Push notification backend'den gönderilir
+      console.log('✅ KuryeHome: orderApproved - sadece state güncelleniyor, push notification backend tarafından gönderildi');
       
       // Refresh all lists to update counts including pending approvals
       fetchOrders();
@@ -962,7 +1164,7 @@ const KuryeHome = () => {
                 
                 // Navigate to login screen
                 router.replace("/(auth)/sign-in");
-              } catch (error) {
+              } catch {
                 console.error("Force logout cleanup error:", error);
                 router.replace("/(auth)/sign-in");
               }
@@ -985,7 +1187,7 @@ const KuryeHome = () => {
         socketRef.current = null;
       }
     };
-  }, [user, showOrderNotification]);
+  }, [user]); // showOrderNotification dependency'si kaldırıldı
 
   // Tüm async fonksiyonları burada tanımlıyorum (hook'lardan önce)
   const fetchAcceptedOrders = useCallback(async () => {
@@ -1005,23 +1207,9 @@ const KuryeHome = () => {
       } else {
         console.error(`❌ KuryeHome: Failed to fetch accepted orders, status: ${response.status}`);
         
-        // 401 hatası durumunda kullanıcıyı logout yap
+        // 401 hatası durumunda sadece logla, otomatik logout yapma
         if (response.status === 401) {
-          console.log('🔴 Token geçersiz, kullanıcı logout ediliyor...');
-          Alert.alert(
-            '🔑 Oturum Süresi Doldu',
-            'Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-            [
-              {
-                text: 'Tekrar Giriş Yap',
-                onPress: async () => {
-                  await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                  router.replace('/(auth)/sign-in');
-                }
-              }
-            ]
-          );
-          return;
+          console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
         }
         
         setAcceptedOrders([]);
@@ -1048,7 +1236,7 @@ const KuryeHome = () => {
         const data = await response.json();
         setPackageLimit(data.data?.package_limit || 5);
       }
-    } catch (error) {
+    } catch {
       // Sessizce hata yakala
     }
   }, [user]);
@@ -1078,23 +1266,9 @@ const KuryeHome = () => {
           return;
         }
         
-        // 401 hatası durumunda kullanıcıyı logout yap
+        // 401 hatası durumunda sadece logla, otomatik logout yapma
         if (response.status === 401) {
-          console.log('🔴 Token geçersiz, kullanıcı logout ediliyor...');
-          Alert.alert(
-            '🔑 Oturum Süresi Doldu',
-            'Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-            [
-              {
-                text: 'Tekrar Giriş Yap',
-                onPress: async () => {
-                  await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                  router.replace('/(auth)/sign-in');
-                }
-              }
-            ]
-          );
-          return;
+          console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
         }
         
         if (response.status >= 500) {
@@ -1117,7 +1291,7 @@ const KuryeHome = () => {
       
       // Orders fetched successfully
       setOrders(sortedOrders);
-    } catch (err) {
+    } catch {
       setError("Bilinmeyen bir hata oluştu.");
       setOrders([]);
     } finally {
@@ -1142,23 +1316,9 @@ const KuryeHome = () => {
         const errorText = await response.text();
         console.error("fetchPendingApprovalOrders: HTTP error response:", errorText);
         
-        // 401 hatası durumunda kullanıcıyı logout yap
+        // 401 hatası durumunda sadece logla, otomatik logout yapma
         if (response.status === 401) {
-          console.log('🔴 Token geçersiz, kullanıcı logout ediliyor...');
-          Alert.alert(
-            '🔑 Oturum Süresi Doldu',
-            'Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-            [
-              {
-                text: 'Tekrar Giriş Yap',
-                onPress: async () => {
-                  await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                  router.replace('/(auth)/sign-in');
-                }
-              }
-            ]
-          );
-          return;
+          console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
         }
         
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1204,7 +1364,7 @@ const KuryeHome = () => {
         fetchAcceptedOrders(),
         fetchCourierInfo(), // Kurye bilgilerini de yenile (paket limiti için)
       ]);
-    } catch (error) {
+    } catch {
       console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
@@ -1366,7 +1526,7 @@ const KuryeHome = () => {
                 fetchOrders();
                 fetchAcceptedOrders();
                 setSelectedOrders([]);
-              } catch (error) {
+              } catch {
                 Alert.alert("Sipariş kabul edilirken hata oluştu.");
               }
             }
@@ -1488,7 +1648,7 @@ const KuryeHome = () => {
       fetchOrders();
       fetchAcceptedOrders();
       setSelectedOrders([]);
-    } catch (error) {
+    } catch {
       Alert.alert("Sipariş kabul edilirken hata oluştu.");
     }
   }, [user, selectedOrders, fetchOrders, fetchAcceptedOrders, orders, isOnline, currentActiveOrders, packageLimit]);
@@ -1573,7 +1733,7 @@ const KuryeHome = () => {
         ]
       );
       
-    } catch (error) {
+    } catch {
       console.error('Navigasyon hatası:', error);
       Alert.alert(
         "🚫 Navigasyon Hatası",
@@ -1706,11 +1866,43 @@ const KuryeHome = () => {
       fetchOrders();
       fetchAcceptedOrders();
       setOrderDetailModalVisible(false);
-    } catch (error) {
+    } catch {
       console.error("Sipariş kabul hatası:", error);
       Alert.alert("Hata", "Sipariş kabul edilirken bir hata oluştu.");
     }
   }, [user, isOnline, currentActiveOrders, packageLimit, fetchOrders, fetchAcceptedOrders]);
+
+  // Push token registration for courier
+  const registerPushToken = useCallback(async (userData: any) => {
+    if (!userData) return;
+    
+    try {
+      const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+      if (!expoPushToken) {
+        console.log('📵 No push token available for registration');
+        return;
+      }
+      
+      const response = await authedFetch(getFullUrl('/api/push-notifications/register'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userData.id,
+          userType: 'courier',
+          expoPushToken: expoPushToken,
+          platform: 'ios' // Default platform
+        })
+      });
+      
+      if (response.ok) {
+        console.log(`📱 Push token registered for courier ${userData.id}`);
+      } else {
+        console.error('❌ Failed to register push token:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error registering push token:', error);
+    }
+  }, []);
 
   const handleLongPress = useCallback((order: Order) => {
     Alert.alert(
@@ -1818,7 +2010,7 @@ const KuryeHome = () => {
                         }
                         
                         fetchOrders();
-                      } catch (error) {
+                      } catch {
                         Alert.alert("Sipariş kabul edilirken hata oluştu.");
                       }
                     }
@@ -1924,7 +2116,7 @@ const KuryeHome = () => {
 
               fetchOrders();
               fetchAcceptedOrders();
-            } catch (error) {
+            } catch {
               Alert.alert("Hata", "Sipariş kabul edilirken hata oluştu.");
             }
           },
@@ -1966,12 +2158,17 @@ const KuryeHome = () => {
                   return;
                 }
               }
-            } catch (error) {
+            } catch {
               console.log("Kurye durumu kontrol edilemedi:", error);
             }
           }
           
           setUser(parsedUser);
+          
+          // Register push token when user is loaded
+          registerPushToken(parsedUser);
+          // Toplam çevrimiçi süresini yükle
+          await loadTotalOnlineTime(parsedUser.id);
           
           // Otomatik çevrimiçi olma özelliği - Geliştirilmiş
           try {
@@ -2030,7 +2227,7 @@ const KuryeHome = () => {
                   setIsOnline(false);
                 }
                 
-              } catch (error) {
+              } catch {
                 // Hata durumunda varsayılan olarak çevrimiçi ol
                 setIsOnline(true);
                 setOnlineStartTime(new Date());
@@ -2038,7 +2235,7 @@ const KuryeHome = () => {
               }
             }, 1500); // 1.5 saniye gecikme ile socket bağlantısının kurulması için
             
-          } catch (error) {
+          } catch {
             console.log("❌ Çevrimiçi durum kontrolü hatası:", error);
             // Ana hata durumunda da varsayılan çevrimiçi
             setTimeout(() => {
@@ -2049,7 +2246,7 @@ const KuryeHome = () => {
           }
         }
         setIsLoaded(true);
-      } catch (error) {
+      } catch {
         setIsLoaded(true);
       }
     };
@@ -2101,29 +2298,40 @@ const KuryeHome = () => {
           await AsyncStorage.setItem('courierOnlineStatus', 'true');
         }
         
-      } catch (error) {
+      } catch {
         // Hata durumunda çevrimiçi kal
         setIsOnline(true);
         setOnlineStartTime(new Date());
         await AsyncStorage.setItem('courierOnlineStatus', 'true');
       }
       
-    } catch (error) {
+    } catch {
       // Ana hata durumunda da çevrimiçi kal
       setIsOnline(true);
       setOnlineStartTime(new Date());
     }
   }, []);
 
+  // Banner notification'a tıklama listener'ı KALDIRILDI - çifte bildirim önlemi
+  // Artık sadece _layout.tsx'teki tek handler kullanılıyor
+
   useFocusEffect(
     useCallback(() => {
       if (user) {
-        fetchOrders();
-        fetchPendingApprovalOrders();
-        fetchAcceptedOrders();
-        fetchCourierInfo();
+        // Only refresh if socket is not connected (prevents duplicate refresh)
+        if (!socketConnected) {
+          fetchOrders();
+          fetchPendingApprovalOrders();
+          fetchAcceptedOrders();
+          fetchCourierInfo();
+          console.log("🔄 Screen focused: Data refreshed (socket disconnected)");
+        } else {
+          // Only fetch courier info when socket is connected (lightweight operation)
+          fetchCourierInfo();
+          console.log("🔄 Screen focused: Only courier info refreshed (socket connected)");
+        }
       }
-    }, [user, fetchOrders, fetchPendingApprovalOrders, fetchAcceptedOrders, fetchCourierInfo])
+    }, [user, socketConnected, fetchOrders, fetchPendingApprovalOrders, fetchAcceptedOrders, fetchCourierInfo])
   );
 
   useEffect(() => {
@@ -2157,7 +2365,7 @@ const KuryeHome = () => {
             });
           }
         });
-      } catch (error) {
+      } catch {
         // Konum güncelleme hatası
       }
     };
@@ -2192,7 +2400,12 @@ const KuryeHome = () => {
     }
     
     const isSelected = selectedOrders.includes(item.id.toString());
-    const isBlocked = blockedOrders.has(item.id.toString());
+          const isBlocked = blockedOrders.has(item.id.toString());
+      
+      // Debug log for blocking system
+      if (isBlocked) {
+        console.log(`🔒 Order ${item.id} is currently blocked (blocked orders: ${Array.from(blockedOrders)})`);
+      }
     
     return (
       <View style={[styles.orderItemWrapper, isBlocked && styles.blockedOrderWrapper]}>
@@ -2201,7 +2414,7 @@ const KuryeHome = () => {
             if (isBlocked) {
               Alert.alert(
                 "⏰ Henüz Kabul Edilemez",
-                "Yeni eklenen siparişler 10 saniye sonra kabul edilebilir. Lütfen bekleyin.",
+                `Yeni eklenen siparişler ${orderAcceptanceBlockTime} saniye sonra kabul edilebilir. Lütfen bekleyin.`,
                 [{ text: "Tamam", style: "default" }]
               );
               return;
@@ -2212,7 +2425,7 @@ const KuryeHome = () => {
             if (isBlocked) {
               Alert.alert(
                 "⏰ Henüz Kabul Edilemez",
-                "Yeni eklenen siparişler 10 saniye sonra kabul edilebilir. Lütfen bekleyin.",
+                `Yeni eklenen siparişler ${orderAcceptanceBlockTime} saniye sonra kabul edilebilir. Lütfen bekleyin.`,
                 [{ text: "Tamam", style: "default" }]
               );
               return;
@@ -2239,7 +2452,7 @@ const KuryeHome = () => {
             {isBlocked && (
               <View style={styles.blockedOverlay}>
                 <Ionicons name="lock-closed" size={20} color="#6B7280" />
-                <Text style={styles.blockedText}>10 saniye bekleyin...</Text>
+                <Text style={styles.blockedText}>{orderAcceptanceBlockTime} saniye bekleyin...</Text>
               </View>
             )}
             <View style={[styles.orderContent, isBlocked && styles.blockedOrderContent]}>
@@ -2347,7 +2560,7 @@ const KuryeHome = () => {
                 {item.status.toLowerCase() === "kuryede" ? (
                   <DeliveryCountdown order={item} />
                 ) : (
-                  <OrderCountdown order={item} />
+                  <OrderCountdown order={item} blockTime={orderAcceptanceBlockTime} />
                 )}
                 
                 <View style={styles.actionButtonsRow}>
@@ -2441,10 +2654,7 @@ const KuryeHome = () => {
           <View style={styles.headerRightModern}>
             {/* Üst Satır - Bildirim ve Durum */}
             <View style={styles.topActionRow}>
-              <NotificationButton 
-                userType="courier" 
-                userId={user?.id?.toString() || ''} 
-              />
+              {/* Bildirim sistemi kaldırıldı */}
               
               {/* Seçili Sipariş Göstergesi */}
               {selectedOrders.length > 0 && (
@@ -2478,7 +2688,7 @@ const KuryeHome = () => {
               <Text style={styles.modernStatusText}>
                 {isOnline ? "Çevrimiçi" : "Çevrimdışı"}
               </Text>
-            </View>
+              </View>
           </View>
         </View>
       </LinearGradient>
@@ -4039,6 +4249,22 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
+ 
+  socketIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  socketDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+  }
+ 
 
 });
 

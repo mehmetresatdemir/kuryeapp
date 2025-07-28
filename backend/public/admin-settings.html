@@ -556,6 +556,92 @@
         .empty-state p {
             font-size: 14px;
         }
+
+        /* Expo Bundle Sesleri Stili */
+        .bundle-sounds-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+
+        .bundle-sounds-section h4 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        .bundle-sounds-section small {
+            color: #666;
+        }
+
+        .bundle-sounds {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .bundle-sound-card {
+            background: linear-gradient(135deg, #e0f2fe 0%, #b3e5fc 100%);
+            border: 2px solid #29b6f6;
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .bundle-sound-card:hover {
+            border-color: #0277bd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(2, 119, 189, 0.2);
+        }
+
+        .bundle-sound-card .sound-name {
+            font-weight: 600;
+            color: #01579b;
+            margin-bottom: 5px;
+        }
+
+        .bundle-sound-card .sound-details {
+            font-size: 12px;
+            color: #0277bd;
+            font-family: monospace;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .bundle-sound-card .sound-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/main-layout.js"></script>
@@ -758,18 +844,8 @@
                 </div>
             </div>
 
-            <!-- Bildirim Sesleri Yönetimi -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">🔊 Bildirim Sesleri Yönetimi</h3>
-                    <button class="btn btn-primary" onclick="openSoundUploadModal()">📤 Yeni Ses Yükle</button>
-                </div>
-                <div class="sounds-container">
-                    <div class="sounds-grid" id="soundsGrid">
-                        <!-- Ses dosyaları dinamik olarak yüklenecek -->
-                    </div>
-                </div>
-            </div>
+            <!-- Bildirim Sesleri Yönetimi Bölümü Kaldırıldı -->
+            <!-- Admin panel artık sadece local assets klasöründeki sesleri kullanıyor -->
 
             <!-- Sistem Bilgileri -->
             <div class="card">
@@ -793,7 +869,7 @@
                         </div>
                         <div class="form-group">
                             <label>Son Güncelleme</label>
-                            <span id="lastUpdate">2024-01-15 14:30:00</span>
+                            <span id="lastUpdate">2025-01-15 14:30:00</span>
                         </div>
                     </div>
 
@@ -822,7 +898,7 @@
                     <button class="btn btn-primary" onclick="refreshLogs()">🔄 Yenile</button>
                 </div>
                 <div class="log-container" id="systemLogs">
-                    <div class="log-entry">[2024-01-15 14:30:00] INFO: Sistem başlatıldı</div>
+                    <div class="log-entry">[2025-01-15 14:30:00] INFO: Sistem başlatıldı</div>
                     <div class="log-entry log-success">[2024-01-15 14:30:15] SUCCESS: Veritabanı bağlantısı kuruldu</div>
                     <div class="log-entry">[2024-01-15 14:30:30] INFO: Admin paneli yüklendi</div>
                     <div class="log-entry log-warning">[2024-01-15 14:31:00] WARNING: Yüksek CPU kullanımı tespit edildi</div>
@@ -886,7 +962,7 @@
             loadMapSettings();
             loadCourierSettings();
             updateSpecificRecipients(); // Initial load for notification recipients
-            loadNotificationSounds(); // Load notification sounds
+            // loadNotificationSounds(); // Load notification sounds - REMOVED
             
             // Auto refresh time every 5 seconds
             setInterval(testTimeSettings, 5000);
@@ -1386,215 +1462,8 @@
 
         // ==================== BİLDİRİM SESLERİ YÖNETİMİ ====================
         
-        // Bildirim seslerini yükle
-        async function loadNotificationSounds() {
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/notification-sounds`, {
-                    headers: getAuthHeaders()
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    displayNotificationSounds(data.data);
-                } else {
-                    console.error('Bildirim sesleri yüklenirken hata:', data.message);
-                    showNotification('Bildirim sesleri yüklenemedi', 'error');
-                }
-            } catch (error) {
-                console.error('Bildirim sesleri yüklenirken ağ hatası:', error);
-                showNotification('Bildirim sesleri yüklenirken ağ hatası', 'error');
-            }
-        }
-
-        // Bildirim seslerini görüntüle
-        function displayNotificationSounds(sounds) {
-            const soundsGrid = document.getElementById('soundsGrid');
-            
-            if (sounds.length === 0) {
-                soundsGrid.innerHTML = `
-                    <div class="empty-state">
-                        <h3>🔇 Henüz ses dosyası yüklenmemiş</h3>
-                        <p>Yeni bir bildirim sesi yüklemek için "Yeni Ses Yükle" butonuna tıklayın.</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            soundsGrid.innerHTML = sounds.map(sound => `
-                <div class="sound-card ${sound.is_active ? 'active' : ''} ${sound.is_default ? 'default' : ''}">
-                    <div class="sound-info">
-                        <div class="sound-name">${sound.name}</div>
-                        <div class="sound-details">Boyut: ${formatFileSize(sound.file_size)}</div>
-                        <div class="sound-details">Yüklenme: ${formatDate(sound.upload_date)}</div>
-                    </div>
-                    <div class="sound-controls">
-                        <audio controls>
-                            <source src="${sound.file_path}" type="${sound.file_type}">
-                            Tarayıcınız ses dosyasını desteklemiyor.
-                        </audio>
-                    </div>
-                    <div class="sound-actions">
-                        <button class="sound-btn test" onclick="testSound(${sound.id}, '${sound.name}')">
-                            🎵 Test Et
-                        </button>
-                        ${!sound.is_active ? `
-                            <button class="sound-btn activate" onclick="setActiveSound(${sound.id})">
-                                🔊 Aktif Yap
-                            </button>
-                        ` : ''}
-                        ${!sound.is_default ? `
-                            <button class="sound-btn delete" onclick="deleteSound(${sound.id}, '${sound.name}')">
-                                🗑️ Sil
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Ses yükleme modalını aç
-        function openSoundUploadModal() {
-            document.getElementById('soundUploadModal').style.display = 'block';
-        }
-
-        // Ses yükleme modalını kapat
-        function closeSoundUploadModal() {
-            document.getElementById('soundUploadModal').style.display = 'none';
-            document.getElementById('soundUploadForm').reset();
-            document.getElementById('uploadProgress').style.display = 'none';
-        }
-
-        // Ses dosyası yükle
-        document.getElementById('soundUploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const uploadBtn = document.getElementById('uploadBtn');
-            const progressDiv = document.getElementById('uploadProgress');
-            const progressFill = document.getElementById('progressFill');
-            
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = '⏳ Yükleniyor...';
-            progressDiv.style.display = 'block';
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/notification-sounds/upload`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(false), // Don't include Content-Type for FormData
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Ses dosyası başarıyla yüklendi!', 'success');
-                    closeSoundUploadModal();
-                    loadNotificationSounds(); // Refresh the list
-                } else {
-                    showNotification('Ses yükleme hatası: ' + data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Ses yükleme hatası:', error);
-                showNotification('Ses yüklenirken ağ hatası oluştu', 'error');
-            } finally {
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = '📤 Yükle';
-                progressDiv.style.display = 'none';
-                progressFill.style.width = '0%';
-            }
-        });
-
-        // Aktif ses ayarla
-        async function setActiveSound(soundId) {
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/notification-sounds/set-active/${soundId}`, {
-                    method: 'POST',
-                    headers: getAuthHeaders()
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification(data.message, 'success');
-                    loadNotificationSounds(); // Refresh the list
-                } else {
-                    showNotification('Ses aktivasyonu hatası: ' + data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Ses aktivasyonu hatası:', error);
-                showNotification('Ses aktivasyonu sırasında ağ hatası', 'error');
-            }
-        }
-
-        // Ses dosyasını sil
-        async function deleteSound(soundId, soundName) {
-            if (!confirm(`"${soundName}" adlı ses dosyasını silmek istediğinizden emin misiniz?`)) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/notification-sounds/${soundId}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification(data.message, 'success');
-                    loadNotificationSounds(); // Refresh the list
-                } else {
-                    showNotification('Ses silme hatası: ' + data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Ses silme hatası:', error);
-                showNotification('Ses silinirken ağ hatası oluştu', 'error');
-            }
-        }
-
-        // Bildirim sesi test et
-        async function testSound(soundId, soundName) {
-            try {
-                showNotification(`"${soundName}" test ediliyor...`, 'info');
-                
-                const response = await fetch(`${API_BASE}/api/admin/notification-sounds/test/${soundId}`, {
-                    method: 'POST',
-                    headers: getAuthHeaders()
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Test bildirimi başarıyla gönderildi!', 'success');
-                } else {
-                    showNotification('Test bildirimi hatası: ' + data.message, 'error');
-                }
-            } catch (error) {
-                console.error('Test bildirimi hatası:', error);
-                showNotification('Test bildirimi gönderilirken ağ hatası oluştu', 'error');
-            }
-        }
-
-        // Dosya boyutunu formatla
-        function formatFileSize(bytes) {
-            if (!bytes || bytes === 0 || isNaN(bytes)) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        // Tarihi formatla
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('tr-TR', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
+        // Bildirim Sesleri Yönetimi Fonksiyonları Kaldırıldı
+        // Admin panel artık sadece local assets klasöründeki sesleri kullanıyor
 
         // Auth headers helper function (update to support form data)
         function getAuthHeaders(includeContentType = true) {
@@ -1611,43 +1480,11 @@
 
         // Modal'ı kapatmak için dış alana tıklama
         window.onclick = function(event) {
-            const modal = document.getElementById('soundUploadModal');
-            if (event.target === modal) {
-                closeSoundUploadModal();
-            }
+            // Removed sound upload modal logic
         };
     </script>
 
     <!-- Ses Yükleme Modal -->
-    <div id="soundUploadModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">🎵 Yeni Bildirim Sesi Yükle</h3>
-                <button class="modal-close" onclick="closeSoundUploadModal()">&times;</button>
-            </div>
-            <form id="soundUploadForm" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="soundName">Ses Adı:</label>
-                    <input type="text" id="soundName" name="name" required placeholder="Örn: Özel Bildirim Sesi">
-                </div>
-                <div class="form-group">
-                    <label for="soundFile">Ses Dosyası:</label>
-                    <input type="file" id="soundFile" name="soundFile" accept="audio/*" required>
-                    <div class="file-info">
-                        Kabul edilen formatlar: MP3, WAV, M4A, OGG (Maksimum 5MB)
-                    </div>
-                </div>
-                <div class="upload-progress" id="uploadProgress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="modal-btn secondary" onclick="closeSoundUploadModal()">İptal</button>
-                    <button type="submit" class="modal-btn primary" id="uploadBtn">📤 Yükle</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- Removed sound upload modal as it's no longer used -->
 </body>
 </html> 

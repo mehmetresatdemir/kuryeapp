@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { 
+  Storefront, 
   User, 
   Envelope, 
   Phone, 
@@ -15,12 +16,12 @@ import {
   UserPlus, 
   ArrowLeft, 
   Check, 
-  X, 
-  Bicycle
+  X 
 } from "phosphor-react-native";
 
-const CourierRegister = () => {
-  const [name, setName] = useState("");
+const RestaurantRegister = () => {
+  const [name, setName] = useState(""); // Restaurant name
+  const [yetkilName, setYetkilName] = useState(""); // Authorized person name
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
@@ -31,8 +32,6 @@ const CourierRegister = () => {
   const handleAutoLogin = async (userEmail: string, userPassword: string) => {
     try {
       console.log("Attempting auto login...");
-      console.log("Email:", userEmail);
-      console.log("Password:", userPassword);
       
       const response = await fetch(getFullUrl("/api/login"), {
         method: 'POST',
@@ -45,7 +44,6 @@ const CourierRegister = () => {
         }),
       });
 
-      console.log("Auto login response status:", response.status);
       const responseText = await response.text();
       console.log("Auto login response text:", responseText);
       
@@ -54,7 +52,6 @@ const CourierRegister = () => {
         data = JSON.parse(responseText);
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
-        console.error("Response text that failed to parse:", responseText);
         throw new Error("Sunucudan geçersiz yanıt alındı");
       }
       
@@ -89,7 +86,7 @@ const CourierRegister = () => {
             
             // Bildirim sistemi kaldırıldı
             
-            // Ana sayfaya yönlendir (sign-in ile aynı şekilde)
+            // Ana sayfaya yönlendir
             router.replace("/");
           } catch (storageError) {
             console.error("Auto login AsyncStorage hatası:", storageError);
@@ -131,13 +128,18 @@ const CourierRegister = () => {
   };
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !phone) {
+    if (!name || !yetkilName || !email || !password || !phone) {
       Alert.alert("Hata", "Lütfen tüm alanları doldurun");
       return;
     }
 
     if (name.length < 2) {
-      Alert.alert("Hata", "Ad soyad en az 2 karakter olmalıdır");
+      Alert.alert("Hata", "Restoran adı en az 2 karakter olmalıdır");
+      return;
+    }
+
+    if (yetkilName.length < 2) {
+      Alert.alert("Hata", "Yetkili adı en az 2 karakter olmalıdır");
       return;
     }
 
@@ -158,28 +160,30 @@ const CourierRegister = () => {
 
     setLoading(true);
     try {
-      console.log("Attempting courier registration...");
+      console.log("Attempting restaurant registration...");
       
-      const response = await fetch(getFullUrl("/api/admin/couriers"), {
+      const response = await fetch(getFullUrl("/api/admin/restaurants"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: name,
+          yetkili_name: yetkilName,
           email: email,
           password: password,
           phone: phone,
-          package_limit: 5,
+          latitude: 40.1826, // Default Bursa coordinates
+          longitude: 29.0665,
         }),
       });
 
       const data = await response.json();
-      console.log("Registration response:", data);
+      console.log("Restaurant registration response:", data);
 
       if (response.ok && data.success) {
         // Kayıt başarılı olduktan sonra otomatik giriş yap
-        console.log("Registration successful, attempting auto login...");
+        console.log("Restaurant registration successful, attempting auto login...");
         await handleAutoLogin(email, password);
       } else {
         // Backend'den gelen hata mesajlarını Türkçe olarak göster
@@ -203,7 +207,7 @@ const CourierRegister = () => {
         Alert.alert("Hata", errorMessage);
       }
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Restaurant registration error:", error);
       Alert.alert("Hata", "Sunucu bağlantı hatası. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
@@ -238,25 +242,25 @@ const CourierRegister = () => {
               
               <View style={styles.titleContainer}>
                 <View style={styles.iconContainer}>
-                  <Bicycle size={32} color="#F59E0B" weight="duotone" />
+                  <Storefront size={32} color="#10B981" weight="duotone" />
                 </View>
-                <Text style={styles.title}>Kurye Kayıt</Text>
-                <Text style={styles.subtitle}>Kurye olarak platform'a katılın</Text>
+                <Text style={styles.title}>Restoran Kayıt</Text>
+                <Text style={styles.subtitle}>İşletmenizi platform'a ekleyin</Text>
               </View>
             </View>
             
             {/* Form Section */}
             <View style={styles.formContainer}>
               <View style={styles.form}>
-                {/* Name Input */}
+                {/* Restaurant Name Input */}
                 <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Ad Soyad</Text>
+                  <Text style={styles.label}>Restoran Adı</Text>
                   <View style={[
                     styles.inputWrapper,
                     focusedInput === 'name' && styles.inputWrapperFocused,
                     name && name.length < 2 && styles.inputWrapperError
                   ]}>
-                    <User 
+                    <Storefront 
                       size={20} 
                       color={focusedInput === 'name' ? '#3B82F6' : '#6B7280'} 
                       weight="duotone"
@@ -265,7 +269,7 @@ const CourierRegister = () => {
                       style={styles.input}
                       value={name}
                       onChangeText={setName}
-                      placeholder="Adınız ve soyadınız"
+                      placeholder="Restoran adınız"
                       placeholderTextColor="#9CA3AF"
                       autoCorrect={false}
                       onFocus={() => setFocusedInput('name')}
@@ -279,7 +283,42 @@ const CourierRegister = () => {
                     )}
                   </View>
                   {name && name.length < 2 && (
-                    <Text style={styles.errorText}>Ad soyad en az 2 karakter olmalıdır</Text>
+                    <Text style={styles.errorText}>Restoran adı en az 2 karakter olmalıdır</Text>
+                  )}
+                </View>
+
+                {/* Authorized Person Name Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Yetkili Adı</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    focusedInput === 'yetkilName' && styles.inputWrapperFocused,
+                    yetkilName && yetkilName.length < 2 && styles.inputWrapperError
+                  ]}>
+                    <User 
+                      size={20} 
+                      color={focusedInput === 'yetkilName' ? '#3B82F6' : '#6B7280'} 
+                      weight="duotone"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={yetkilName}
+                      onChangeText={setYetkilName}
+                      placeholder="Yetkili kişinin adı"
+                      placeholderTextColor="#9CA3AF"
+                      autoCorrect={false}
+                      onFocus={() => setFocusedInput('yetkilName')}
+                      onBlur={() => setFocusedInput(null)}
+                    />
+                    {yetkilName && yetkilName.length >= 2 && (
+                      <Check size={20} color="#10B981" weight="bold" />
+                    )}
+                    {yetkilName && yetkilName.length < 2 && yetkilName.length > 0 && (
+                      <X size={20} color="#EF4444" weight="bold" />
+                    )}
+                  </View>
+                  {yetkilName && yetkilName.length < 2 && (
+                    <Text style={styles.errorText}>Yetkili adı en az 2 karakter olmalıdır</Text>
                   )}
                 </View>
 
@@ -415,7 +454,7 @@ const CourierRegister = () => {
                   disabled={loading}
                 >
                   <LinearGradient
-                    colors={loading ? ['#6B7280', '#4B5563'] : ['#F59E0B', '#D97706']}
+                    colors={loading ? ['#6B7280', '#4B5563'] : ['#10B981', '#059669']}
                     style={styles.buttonGradient}
                   >
                     {loading ? (
@@ -494,12 +533,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 20,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   title: {
     fontSize: 32,
@@ -588,7 +627,7 @@ const styles = StyleSheet.create({
   registerButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#F59E0B',
+    shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -629,4 +668,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CourierRegister; 
+export default RestaurantRegister; 

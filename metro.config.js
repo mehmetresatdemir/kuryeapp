@@ -9,6 +9,21 @@ const config = getDefaultConfig(__dirname, {
   isCSSEnabled: true,
 });
 
+// Backend klasörünü Metro bundler'dan hariç tut
+config.resolver.blockList = [
+  /backend\/.*/,
+  /node_modules\/.*\/backend\/.*/,
+];
+
+// Watchman'a backend klasörünü ignore et
+config.watchFolders = [
+  path.resolve(__dirname, './app'),
+  path.resolve(__dirname, './components'),
+  path.resolve(__dirname, './lib'),
+  path.resolve(__dirname, './constants'),
+  path.resolve(__dirname, './assets'),
+];
+
 // SVG dosyalarını bir React bileşeni olarak içe aktarabilmek için
 // Metro'nun varsayılan 'assetExts' yapılandırmasını genişletin.
 // Bu, 'react-native-svg-transformer'ın SVG'leri işlemesine olanak tanır.

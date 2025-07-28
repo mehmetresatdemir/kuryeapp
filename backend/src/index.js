@@ -1,6 +1,28 @@
 const path = require('path');
 const fs = require('fs');
 
+// Punycode deprecation warning'ini bastır (production ortamında)
+if (process.env.NODE_ENV === 'production') {
+  const originalEmit = process.emit;
+  process.emit = function (name, data, ...args) {
+    if (name === 'warning' && typeof data === 'object' && data.name === 'DeprecationWarning' && 
+        data.message && data.message.includes('punycode')) {
+      return false;
+    }
+    return originalEmit.apply(process, arguments);
+  };
+}
+
+// Türkiye saat dilimini sistem seviyesinde ayarla
+process.env.TZ = 'Europe/Istanbul';
+
+// Sunucu saatinin doğru ayarlandığını kontrol et - sadece development'ta göster
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🕐 Sunucu saati:', new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }));
+} else {
+  console.log('✅ KuryeX Backend başlatıldı (' + new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }) + ')');
+}
+
 // Backend root directory path
 const BACKEND_ROOT = __dirname.endsWith('/src') ? path.dirname(__dirname) : __dirname;
 
@@ -40,7 +62,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const { testConnection } = require("./config/db-config");
-const migrateUsersToRoles = require("./migrations/20240730_migrate_users_to_roles");
+
 const initializeSocket = require("./sockets");
 const apiRoutes = require("./routes");
 const orderRoutes = require('./routes/orderRoutes');
@@ -49,12 +71,8 @@ const restaurantRoutes = require('./routes/restaurantRoutes');
 const adminRoutes = require('./routes/admin');
 const userRoutes = require('./routes/userRoutes');
 const sessionCleanupService = require('./services/sessionCleanupService');
-const pushNotificationRoutes = require('./routes/pushNotificationRoutes');
-const updateForeignKeys = require("./migrations/20240730_update_foreign_keys");
-const addApprovalStatus = require("./migrations/add_approval_status");
-const createPasswordResetTable = require("./migrations/create_password_reset_table");
-const createAllOptionalTables = require("./migrations/create_all_optional_tables");
-const { preventDualRoleUsers } = require("./migrations/prevent_dual_role_users");
+
+
 
 const app = express();
 const server = http.createServer(app);
@@ -102,11 +120,20 @@ app.use((req, res, next) => {
     next();
 });
 
+// Custom logging middleware (production-friendly)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    const timestamp = new Date().toLocaleString('tr-TR');
+    console.log(`${timestamp} - ${req.method} ${req.url}`);
+    next();
+  });
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toLocaleString('tr-TR'),
     uptime: process.uptime()
   });
 });
@@ -121,7 +148,7 @@ app.get('/api/db-health', async (req, res) => {
     res.status(500).json({
       healthy: false,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toLocaleString('tr-TR')
     });
   }
 });
@@ -133,7 +160,7 @@ app.use('/api/couriers', courierRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes); // General API routes like /api/login
-app.use('/api/push-token', pushNotificationRoutes.router);
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -145,20 +172,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Test database connection and run migrations
+// Test database connection and start server
 testConnection().then(() => {
-  return migrateUsersToRoles();
-}).then(() => {
-  return updateForeignKeys();
-}).then(() => {
-  return addApprovalStatus();
-}).then(() => {
-  return createPasswordResetTable();
-}).then(() => {
-  return createAllOptionalTables();
-}).then(() => {
-  return preventDualRoleUsers();
-}).then(() => {
   const PORT = process.env.PORT || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
   
@@ -170,6 +185,10 @@ testConnection().then(() => {
     
     // Session cleanup service'i başlat
     sessionCleanupService.start();
+    
+    // Order timeout monitoring service'i başlat
+    const { startOrderTimeoutService } = require('./services/orderTimeoutService');
+    startOrderTimeoutService();
   });
 }).catch(err => {
   console.error('❌ Database initialization failed:', err);
@@ -190,29 +209,18 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Graceful shutdown function
 const shutdownGracefully = (signal) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`\n🔄 ${signal} received, shutting down gracefully...`);
-  }
-  
+  // Sessiz kapatma - console mesajları kaldırıldı
   const forceShutdown = setTimeout(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('⚠️ Force shutting down...');
-    }
     process.exit(1);
-  }, 5000);
+  }, 2000);
 
   server.close(() => {
     clearTimeout(forceShutdown);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Server closed successfully');
-    }
     process.exit(0);
   });
 
   io.close(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Socket connections closed');
-    }
+    // Sessiz socket kapatma
   });
 };
 

@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from "expo-router";
 import { getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
+import Constants from 'expo-constants';
 
 interface UserData {
   id: string;
@@ -291,17 +292,19 @@ const KuryeProfile = () => {
         {
           text: "Çıkış Yap",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('userData');
-              await AsyncStorage.removeItem('userId');
-              router.replace("/(auth)/sign-in");
-            } catch (error) {
-              console.error('Error during logout:', error);
-            }
+          onPress: () => {
+            AsyncStorage.removeItem('userData')
+              .then(() => AsyncStorage.removeItem('userId'))
+              .then(() => {
+                router.replace("/(auth)/sign-in");
+              })
+              .catch((error) => {
+                console.error('Error during logout:', error);
+              });
           },
         },
-      ]
+      ],
+      { cancelable: false }
     );
   };
 
@@ -809,6 +812,62 @@ const KuryeProfile = () => {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* Footer Links */}
+            <View style={styles.footerLinks}>
+              <Text style={styles.footerTitle}>KuryeX</Text>
+              <View style={styles.footerLinksContainer}>
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Gizlilik Politikası', 'Kişisel verilerinizin güvenliği bizim için çok önemlidir. Gizlilik politikamız yakında güncellenecektir.')}
+                >
+                  <Text style={styles.footerLinkText}>Gizlilik Politikası</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Kullanım Koşulları', 'Uygulamamızı kullanarak hizmet koşullarımızı kabul etmiş olursunuz. Detaylı bilgi için yakında güncelleme yapılacaktır.')}
+                >
+                  <Text style={styles.footerLinkText}>Kullanım Koşulları</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Destek', 'Herhangi bir sorunuz için bizimle iletişime geçebilirsiniz.\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05')}
+                >
+                  <Text style={styles.footerLinkText}>Destek</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.footerLinksContainer}>
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Hakkında', `KuryeX v${Constants.expoConfig?.version || '1.0.0'}\n\nRestoranlar ve kuryeler için geliştirilmiş modern teslimat platformu. Güvenli, hızlı ve kolay kullanım.`)}
+                >
+                  <Text style={styles.footerLinkText}>Hakkında</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('İletişim', 'Bizimle iletişime geçin:\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05\nAdres: Gaziantep, Türkiye')}
+                >
+                  <Text style={styles.footerLinkText}>İletişim</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('SSS', 'Sık Sorulan Sorular:\n\n• Hesabımı nasıl güncellerim?\n• Şifremi nasıl değiştiririm?\n• Hangi siparişleri alabilirim?\n\nDaha fazla bilgi için destek ile iletişime geçin.')}
+                >
+                  <Text style={styles.footerLinkText}>SSS</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={styles.footerCopyright}>
+                © 2025 KuryeX. Tüm hakları saklıdır.
+              </Text>
+            </View>
+
             {/* Footer spacing */}
             <View style={styles.footer} />
               </View>
@@ -1249,6 +1308,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
     fontStyle: 'italic',
+  },
+
+  // Footer Links
+  footerLinks: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  footerTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#059669',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  footerLinksContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  footerLinkText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  footerSeparator: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginHorizontal: 8,
+  },
+  footerCopyright: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 8,
   },
 
   // Footer

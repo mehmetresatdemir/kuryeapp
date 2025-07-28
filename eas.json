@@ -18,6 +18,24 @@
         "disabled": true
       }
     },
+    "adhoc": {
+      "ios": {
+        "distribution": "internal",
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "default"
+      },
+      "autoIncrement": true,
+      "env": {
+        "NODE_ENV": "production",
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+      },
+      "cache": {
+        "disabled": true
+      }
+    },
     "production": {
       "ios": {
         "distribution": "store",
@@ -30,11 +48,28 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
-        "EXPO_NO_CAPABILITY_SYNC": "1"
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
       },
       "cache": {
         "disabled": true
+      }
+    },
+    "production-standalone": {
+      "ios": {
+        "distribution": "internal",
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "default"
+      },
+      "autoIncrement": true,
+      "env": {
+        "NODE_ENV": "production",
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+      },
+      "cache": {
+        "disabled": false
       }
     }
   },

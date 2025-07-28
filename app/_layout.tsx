@@ -4,45 +4,22 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { LogBox } from "react-native";
-import * as Notifications from 'expo-notifications';
+
 import { Platform } from 'react-native';
-import PushNotificationService from '../lib/pushNotificationService';
-import { playNotificationSound } from '../lib/notificationSoundUtils';
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-// Background notification handler'ı global olarak ayarla
+// Configure notification behavior - Show banner and play custom sound
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    console.log('📱 Background notification received in _layout:', notification);
-    
-    // Background'da bile bildirim göster
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
-
-// Background notification response handler
-Notifications.addNotificationResponseReceivedListener(response => {
-  console.log('📱 Background notification clicked in _layout:', response);
-  
-  const data = response.notification.request.content.data;
-  
-  // Bildirime tıklandığında navigasyon yapılabilir
-  if (data?.orderId) {
-    console.log('🔄 Sipariş detayına yönlendiriliyor:', data.orderId);
-    // Burada router.push ile navigasyon yapılabilir
-  }
-  
-  if (data?.type === 'admin_notification') {
-    console.log('🔄 Admin bildirimi açıldı');
-  }
+  handleNotification: async () => ({
+    shouldShowBanner: true,   // Foreground'da banner göster
+    shouldShowList: true,     // Notification listesine ekle
+    shouldPlaySound: true,    // Custom ses çal
+    shouldSetBadge: false,
+  }),
 });
 
 // Ignore specific warnings
@@ -63,33 +40,94 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Push notification setup
+  // Setup notification channels for Android
   useEffect(() => {
-    const setupPushNotifications = async () => {
-      try {
-        // Notification channel'larını ayarla
-        await PushNotificationService.setupNotificationChannels();
-        console.log('✅ Notification channels setup completed');
-        
-        // Bildirim sesini test et (sadece development mode'da)
-        if (__DEV__) {
-          setTimeout(async () => {
-            try {
-              console.log('🔊 Bildirim sesi test ediliyor...');
-              await playNotificationSound();
-              console.log('✅ Bildirim sesi test tamamlandı');
-            } catch (soundError) {
-              console.error('❌ Bildirim sesi test hatası:', soundError);
-            }
-          }, 2000);
-        }
-        
-      } catch (error) {
-        console.error('❌ Push notification setup error:', error);
+    const setupNotificationChannels = async () => {
+      if (Platform.OS === 'android') {
+        // Ana notification channel
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'default',
+        });
+
+        // Ring Bell 2 için özel channel
+        await Notifications.setNotificationChannelAsync('ring_bell2', {
+          name: 'Ring Bell 2 Notifications',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'ring_bell2.wav',
+        });
+
+        // Ring Bell için özel channel
+        await Notifications.setNotificationChannelAsync('ring_bell', {
+          name: 'Ring Bell Notifications',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'ring_bell.wav',
+        });
       }
     };
 
+    setupNotificationChannels();
+  }, []);
+
+  // Push notification setup - Unified notification service
+  useEffect(() => {
+    const setupPushNotifications = async () => {
+      try {
+        // Register for push notifications
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        
+        if (finalStatus !== 'granted') {
+          console.log('❌ Push notification permission denied');
+          return;
+        }
+        
+        // Get push token
+        const token = await Notifications.getExpoPushTokenAsync({
+          projectId: '70e18522-9b6c-49fa-8fb5-04a6f3a0ee84' // Your Expo project ID
+        });
+        
+        console.log('📱 Push token obtained:', token.data);
+        
+        // Store token in AsyncStorage for later registration
+        await AsyncStorage.setItem('expoPushToken', token.data);
+        
+      } catch (error) {
+        console.error('❌ Error setting up push notifications:', error);
+      }
+    };
+    
     setupPushNotifications();
+  }, []);
+
+  // Listen for push notifications when app is running (foreground/background)
+  useEffect(() => {
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📱 Push notification received (app running):', notification);
+      // This will be handled by the specific restaurant pages already
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('📱 Push notification tapped:', response);
+      // Handle navigation based on notification type if needed
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener);
+      Notifications.removeNotificationSubscription(responseListener);
+    };
   }, []);
 
   if (!loaded) {
@@ -97,11 +135,11 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="restaurant" options={{ headerShown: false }} />
       <Stack.Screen name="kurye" options={{ headerShown: false }} />
+      <Stack.Screen name="restaurant" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

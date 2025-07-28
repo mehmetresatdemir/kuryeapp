@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from "expo-router";
 import { API_ENDPOINTS, getFullUrl, authedFetch } from "../../constants/api";
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 
 
 interface RestaurantData {
@@ -48,6 +50,7 @@ const RestaurantProfile = () => {
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [preferencesModalVisible, setPreferencesModalVisible] = useState(false);
+  const [reportIssueModalVisible, setReportIssueModalVisible] = useState(false);
   
   // Profile form states
   const [editName, setEditName] = useState("");
@@ -66,12 +69,24 @@ const RestaurantProfile = () => {
   const [selectedCouriers, setSelectedCouriers] = useState<number[]>([]);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
 
+  // Report issue states
+  const [reportTitle, setReportTitle] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reportPriority, setReportPriority] = useState<'low' | 'medium' | 'high'>('medium');
+
+  // Neighborhood request states
+  const [neighborhoodModalVisible, setNeighborhoodModalVisible] = useState(false);
+  const [neighborhoodName, setNeighborhoodName] = useState("");
+  const [neighborhoodPrice, setNeighborhoodPrice] = useState("");
+  const [neighborhoodRequests, setNeighborhoodRequests] = useState<any[]>([]);
+  const [neighborhoodRequestsLoading, setNeighborhoodRequestsLoading] = useState(false);
+
   // Kullanıcı bilgilerini yükle
   useEffect(() => {
     loadUserData();
   }, []);
 
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       const userData = await AsyncStorage.getItem('userData');
       if (userData) {
@@ -84,7 +99,7 @@ const RestaurantProfile = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Restoran profil bilgilerini API'den getir
   const fetchRestaurantProfile = async (restaurantId: number) => {
@@ -402,23 +417,170 @@ const RestaurantProfile = () => {
         {
           text: "Çıkış Yap",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('userData');
-              await AsyncStorage.removeItem('userToken');
-              router.replace("/(auth)/sign-in");
-            } catch (error) {
-              console.error('Error during logout:', error);
-            }
+          onPress: () => {
+            AsyncStorage.removeItem('userData')
+              .then(() => AsyncStorage.removeItem('userToken'))
+              .then(() => {
+                router.replace("/(auth)/sign-in");
+              })
+              .catch((error) => {
+                console.error('Error during logout:', error);
+              });
           },
         },
-      ]
+      ],
+      { cancelable: false }
     );
+  };
+
+  // Sorun bildir fonksiyonu
+  const handleReportIssue = () => {
+    setReportIssueModalVisible(true);
+  };
+
+  // Sorun bildir gönder
+  const handleSubmitReportIssue = async () => {
+    if (!reportTitle || !reportDescription) {
+      Alert.alert("Hata", "Lütfen başlık ve açıklama girin");
+      return;
+    }
+
+    try {
+      const response = await authedFetch(getFullUrl('/api/support-ticket'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: reportTitle,
+          description: reportDescription,
+          priority: reportPriority,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        Alert.alert("Başarılı", "Sorun bildiriminiz başarıyla gönderildi");
+        setReportIssueModalVisible(false);
+        setReportTitle("");
+        setReportDescription("");
+        setReportPriority('medium');
+      } else {
+        Alert.alert("Hata", data.message || "Sorun bildirimi gönderilemedi");
+      }
+    } catch (error) {
+      console.error("Report issue error:", error);
+      Alert.alert("Hata", "Sunucu bağlantı hatası");
+    }
+  };
+
+  // Mahalle talepleri getir
+  const fetchNeighborhoodRequests = async () => {
+    if (!user?.id) return;
+    
+    setNeighborhoodRequestsLoading(true);
+    try {
+      const response = await authedFetch(getFullUrl('/api/neighborhood-requests'));
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setNeighborhoodRequests(data.data || []);
+      } else {
+        console.error('Mahalle talepleri getirilemedi:', data.message);
+      }
+    } catch (error) {
+      console.error('Mahalle talepleri getirme hatası:', error);
+    } finally {
+      setNeighborhoodRequestsLoading(false);
+    }
+  };
+
+  // Mahalle ekleme talebi gönder
+  const handleCreateNeighborhoodRequest = async () => {
+    if (!neighborhoodName || !neighborhoodPrice) {
+      Alert.alert("Hata", "Lütfen mahalle adı ve fiyat girin");
+      return;
+    }
+
+    const price = parseFloat(neighborhoodPrice);
+    if (isNaN(price) || price <= 0) {
+      Alert.alert("Hata", "Lütfen geçerli bir fiyat girin");
+      return;
+    }
+
+    try {
+      const response = await authedFetch(getFullUrl('/api/neighborhood-request'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          neighborhood_name: neighborhoodName,
+          restaurant_price: price,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        Alert.alert("Başarılı", "Mahalle ekleme talebi başarıyla gönderildi");
+        setNeighborhoodModalVisible(false);
+        setNeighborhoodName("");
+        setNeighborhoodPrice("");
+        fetchNeighborhoodRequests(); // Listeyi güncelle
+      } else {
+        Alert.alert("Hata", data.message || "Mahalle ekleme talebi gönderilemedi");
+      }
+    } catch (error) {
+      console.error("Neighborhood request error:", error);
+      Alert.alert("Hata", "Sunucu bağlantı hatası");
+    }
+  };
+
+  // Mahalle ekleme modalını aç
+  const handleOpenNeighborhoodModal = () => {
+    setNeighborhoodModalVisible(true);
+    fetchNeighborhoodRequests(); // Mevcut talepleri getir
+  };
+
+  const loadNeighborhoodRequests = async () => {
+    setNeighborhoodRequestsLoading(true);
+    await fetchNeighborhoodRequests();
+    setNeighborhoodRequestsLoading(false);
   };
 
   // Durum badge rengi
   const getStatusBadgeColor = () => {
     return restaurantData?.is_active ? '#10B981' : '#EF4444';
+  };
+
+  // Mahalle talep durumu rengi
+  const getRequestStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return '#F59E0B';
+      case 'approved':
+        return '#10B981';
+      case 'rejected':
+        return '#EF4444';
+      default:
+        return '#9CA3AF';
+    }
+  };
+
+  // Mahalle talep durumu metni
+  const getRequestStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'Beklemede';
+      case 'approved':
+        return 'Onaylandı';
+      case 'rejected':
+        return 'Reddedildi';
+      default:
+        return 'Bilinmeyen';
+    }
   };
 
   // Durum metni
@@ -612,6 +774,189 @@ const RestaurantProfile = () => {
                 <Text style={styles.secondaryButtonText}>İptal</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sorun Bildir Modalı */}
+      <Modal
+        visible={reportIssueModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setReportIssueModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sorun Bildir</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setReportIssueModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Başlık</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Sorun başlığını girin"
+                  value={reportTitle}
+                  onChangeText={setReportTitle}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Açıklama</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Sorun açıklamasını detaylı olarak girin"
+                  value={reportDescription}
+                  onChangeText={setReportDescription}
+                  multiline
+                  numberOfLines={4}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Öncelik</Text>
+                <View style={styles.priorityContainer}>
+                  {[
+                    { value: 'low', label: 'Düşük', color: '#10B981' },
+                    { value: 'medium', label: 'Orta', color: '#F59E0B' },
+                    { value: 'high', label: 'Yüksek', color: '#EF4444' }
+                  ].map((priority) => (
+                    <TouchableOpacity
+                      key={priority.value}
+                      style={[
+                        styles.priorityOption,
+                        reportPriority === priority.value && styles.priorityOptionSelected
+                      ]}
+                      onPress={() => setReportPriority(priority.value as 'low' | 'medium' | 'high')}
+                    >
+                      <Text style={[
+                        styles.priorityText,
+                        reportPriority === priority.value && styles.priorityTextSelected
+                      ]}>
+                        {priority.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleSubmitReportIssue}
+              >
+                <Text style={styles.primaryButtonText}>Sorun Bildir</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setReportIssueModalVisible(false)}
+              >
+                <Text style={styles.secondaryButtonText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Mahalle Ekleme Modalı */}
+      <Modal
+        visible={neighborhoodModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setNeighborhoodModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Mahalle Ekleme Talebi</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setNeighborhoodModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mahalle Adı</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mahalle adını girin"
+                  value={neighborhoodName}
+                  onChangeText={setNeighborhoodName}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Teslimat Fiyatı (₺)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Teslimat fiyatını girin"
+                  value={neighborhoodPrice}
+                  onChangeText={setNeighborhoodPrice}
+                  keyboardType="numeric"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              
+              <Text style={styles.infoText}>
+                • Mahalle ekleme talebiniz admin onayına gönderilecek
+                • Admin kurye fiyatını da belirleyecek
+                • Onaylandıktan sonra bu mahalle teslimat seçeneklerinize eklenecek
+              </Text>
+              
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleCreateNeighborhoodRequest}
+              >
+                <Text style={styles.primaryButtonText}>Talep Gönder</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setNeighborhoodModalVisible(false)}
+              >
+                <Text style={styles.secondaryButtonText}>İptal</Text>
+              </TouchableOpacity>
+
+              {/* Mevcut Talepler */}
+              <View style={styles.existingRequestsSection}>
+                <Text style={styles.sectionTitle}>Mevcut Talepleriniz</Text>
+                
+                {neighborhoodRequestsLoading ? (
+                  <ActivityIndicator size="small" color="#059669" />
+                ) : (
+                  <>
+                    {neighborhoodRequests.length > 0 ? (
+                      neighborhoodRequests.map((request, index) => (
+                        <View key={index} style={styles.requestItem}>
+                          <View style={styles.requestInfo}>
+                            <Text style={styles.requestTitle}>{request.neighborhood_name}</Text>
+                            <Text style={styles.requestPrice}>₺{request.restaurant_price}</Text>
+                          </View>
+                          <View style={[styles.requestStatusBadge, { backgroundColor: getRequestStatusColor(request.status) }]}>
+                            <Text style={styles.statusText}>{getRequestStatusText(request.status)}</Text>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.emptyText}>Henüz mahalle ekleme talebiniz bulunmamaktadır.</Text>
+                    )}
+                  </>
+                )}
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -950,6 +1295,78 @@ const RestaurantProfile = () => {
               </TouchableOpacity>
             </View>
 
+            {/* Neighborhood Requests Section */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Mahalle Yönetimi</Text>
+              
+              <TouchableOpacity
+                style={[styles.infoItem, { borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}
+                onPress={handleOpenNeighborhoodModal}
+                activeOpacity={0.7}
+              >
+                <View style={styles.infoItemLeft}>
+                  <View style={[styles.infoIcon, { backgroundColor: '#FEF2F2' }]}>
+                    <Ionicons name="location-outline" size={20} color="#EF4444" />
+                  </View>
+                  <View>
+                    <Text style={styles.infoValue}>Mahalle Ekleme Talebi</Text>
+                    <Text style={styles.infoLabel}>Yeni mahalle ekleme talebinde bulunun</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.infoItem, { borderBottomWidth: 0 }]}
+                onPress={() => loadNeighborhoodRequests()}
+                activeOpacity={0.7}
+              >
+                <View style={styles.infoItemLeft}>
+                  <View style={[styles.infoIcon, { backgroundColor: '#FFF7ED' }]}>
+                    <Ionicons name="time-outline" size={20} color="#F59E0B" />
+                  </View>
+                  <View>
+                    <Text style={styles.infoValue}>Onay Bekleyen Mahalleler</Text>
+                    <Text style={styles.infoLabel}>Mahalle taleplerinin durumunu görün</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Neighborhood Requests List */}
+            {neighborhoodRequests.length > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Mahalle Talepleri</Text>
+                {neighborhoodRequests.map((request) => (
+                  <View key={request.id} style={styles.requestItem}>
+                    <View style={styles.requestInfo}>
+                      <Text style={styles.requestTitle}>{request.neighborhood_name}</Text>
+                      <Text style={styles.requestPrice}>{request.restaurant_price} ₺</Text>
+                    </View>
+                    <View style={[
+                      styles.requestStatusBadge,
+                      { backgroundColor: 
+                        request.status === 'pending' ? '#FEF3C7' :
+                        request.status === 'approved' ? '#D1FAE5' : '#FEE2E2'
+                      }
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        { color: 
+                          request.status === 'pending' ? '#92400E' :
+                          request.status === 'approved' ? '#065F46' : '#991B1B'
+                        }
+                      ]}>
+                        {request.status === 'pending' ? 'Bekliyor' :
+                         request.status === 'approved' ? 'Onaylandı' : 'Reddedildi'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Security Section */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Güvenlik Ayarları</Text>
@@ -990,6 +1407,70 @@ const RestaurantProfile = () => {
                 </View>
               </LinearGradient>
             </TouchableOpacity>
+
+            {/* Footer Links */}
+            <View style={styles.footerLinks}>
+              <Text style={styles.footerTitle}>KuryeX</Text>
+              <View style={styles.footerLinksContainer}>
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Gizlilik Politikası', 'Kişisel verilerinizin güvenliği bizim için çok önemlidir. Gizlilik politikamız yakında güncellenecektir.')}
+                >
+                  <Text style={styles.footerLinkText}>Gizlilik Politikası</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Kullanım Koşulları', 'Uygulamamızı kullanarak hizmet koşullarımızı kabul etmiş olursunuz. Detaylı bilgi için yakında güncelleme yapılacaktır.')}
+                >
+                  <Text style={styles.footerLinkText}>Kullanım Koşulları</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Destek', 'Herhangi bir sorunuz için bizimle iletişime geçebilirsiniz.\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05')}
+                >
+                  <Text style={styles.footerLinkText}>Destek</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => handleReportIssue()}
+                >
+                  <Text style={styles.footerLinkText}>Sorun Bildir</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.footerLinksContainer}>
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('Hakkında', `KuryeX v${Constants.expoConfig?.version || '1.0.0'}\n\nRestoranlar ve kuryeler için geliştirilmiş modern teslimat platformu. Güvenli, hızlı ve kolay kullanım.`)}
+                >
+                  <Text style={styles.footerLinkText}>Hakkında</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('İletişim', 'Bizimle iletişime geçin:\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05\nAdres: Gaziantep, Türkiye')}
+                >
+                  <Text style={styles.footerLinkText}>İletişim</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => Alert.alert('SSS', 'Sık Sorulan Sorular:\n\n• Hesabımı nasıl güncellerim?\n• Şifremi nasıl değiştiririm?\n• Kurye seçimlerimi nasıl ayarlarım?\n\nDaha fazla bilgi için destek ile iletişime geçin.')}
+                >
+                  <Text style={styles.footerLinkText}>SSS</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={styles.footerCopyright}>
+                © 2025 KuryeX. Tüm hakları saklıdır.
+              </Text>
+            </View>
 
             {/* Footer spacing */}
             <View style={styles.footer} />
@@ -1478,6 +1959,135 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
     fontStyle: 'italic',
+  },
+
+  // Footer Links
+  footerLinks: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  footerTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#059669',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  footerLinksContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+  },
+  footerLinkText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  footerSeparator: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginHorizontal: 8,
+  },
+  footerCopyright: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+
+  // Priority styles
+  priorityContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  priorityOption: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+  },
+  priorityOptionSelected: {
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  priorityText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  priorityTextSelected: {
+    color: '#059669',
+  },
+
+  // Info text styles
+  infoText: {
+    fontSize: 14,
+    color: '#6B7280',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+
+  // Existing requests styles
+  existingRequestsSection: {
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  requestItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  requestInfo: {
+    flex: 1,
+  },
+  requestTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  requestPrice: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  requestStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 
   // Footer

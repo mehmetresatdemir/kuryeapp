@@ -34,12 +34,12 @@ const getAllRestaurants = async (req, res) => {
     // Fetch delivery areas count for each restaurant
     for (let i = 0; i < parsedData.length; i++) {
         const deliveryAreasCountResult = await sql`
-            SELECT COUNT(*) FROM restaurant_delivery_prices WHERE restaurant_id = ${parsedData[i].id};
+            SELECT COUNT(*) FROM restaurant_delivery_prices WHERE restaurant_id = ${parsedData[i].id} AND is_delivery_available = true;
         `;
         parsedData[i].delivery_areas_count = deliveryAreasCountResult[0].count;
     }
 
-    console.log('getAllRestaurants query result:', parsedData);
+
 
     res.json({
       success: true,
@@ -182,21 +182,28 @@ const updateDeliveryArea = async (req, res) => {
     const { areaId } = req.params;
     const { neighborhood_name, restaurant_price, courier_price, is_delivery_available } = req.body;
 
+
+
     if (!areaId || !neighborhood_name || restaurant_price === undefined || courier_price === undefined) {
         return res.status(400).json({ success: false, message: 'Eksik bilgi: alan ID, mahalle adı, restoran ve kurye ücretleri gereklidir.' });
     }
 
     try {
+
+
         const updatedArea = await sql`
             UPDATE restaurant_delivery_prices
             SET 
                 neighborhood_name = ${neighborhood_name},
                 restaurant_price = ${restaurant_price},
                 courier_price = ${courier_price},
-                is_delivery_available = ${is_delivery_available || true}
+                is_delivery_available = ${is_delivery_available !== undefined ? is_delivery_available : true}
             WHERE id = ${areaId}
-            RETURNING id;
+            RETURNING id, neighborhood_name, is_delivery_available;
         `;
+        
+
+        
         if (updatedArea.length === 0) {
             return res.status(404).json({ success: false, message: 'Teslimat alanı bulunamadı.' });
         }
@@ -227,6 +234,46 @@ const deleteDeliveryArea = async (req, res) => {
     } catch (error) {
         console.error(`Teslimat alanı #${areaId} silinirken hata:`, error);
         res.status(500).json({ success: false, message: 'Teslimat alanı silinirken sunucu hatası oluştu.' });
+    }
+};
+
+const toggleDeliveryAvailability = async (req, res) => {
+    const { areaId } = req.params;
+
+    if (!areaId) {
+        return res.status(400).json({ success: false, message: 'Eksik bilgi: alan ID gereklidir.' });
+    }
+
+    try {
+        // Önce mevcut durumu al
+        const currentArea = await sql`
+            SELECT is_delivery_available
+            FROM restaurant_delivery_prices
+            WHERE id = ${areaId}
+        `;
+        
+        if (currentArea.length === 0) {
+            return res.status(404).json({ success: false, message: 'Teslimat alanı bulunamadı.' });
+        }
+
+        // Durumu toggle et
+        const newStatus = !currentArea[0].is_delivery_available;
+        
+        const updatedArea = await sql`
+            UPDATE restaurant_delivery_prices
+            SET is_delivery_available = ${newStatus}
+            WHERE id = ${areaId}
+            RETURNING id, neighborhood_name, is_delivery_available;
+        `;
+        
+        res.json({ 
+            success: true, 
+            message: `Teslimat durumu ${newStatus ? 'aktif' : 'pasif'} olarak güncellendi.`, 
+            data: updatedArea[0] 
+        });
+    } catch (error) {
+        console.error(`Teslimat alanı #${areaId} durumu güncellenirken hata:`, error);
+        res.status(500).json({ success: false, message: 'Teslimat durumu güncellenirken sunucu hatası oluştu.' });
     }
 };
 
@@ -276,6 +323,23 @@ const addRestaurant = async (req, res) => {
         res.status(201).json({ success: true, message: 'Restoran başarıyla eklendi.', restaurant: newRestaurant[0] });
     } catch (error) {
         console.error('Restoran eklenirken hata:', error);
+        
+        // Dual role hatası için özel mesaj
+        if (error.code === 'P0001' && error.message.includes('zaten kurye olarak kayıtlı')) {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'Bu e-posta adresi zaten sistem tarafından kullanılmaktadır. Lütfen farklı bir e-posta adresi deneyin.' 
+            });
+        }
+        
+        // Email unique constraint hatası
+        if (error.code === '23505' && error.constraint === 'restaurants_email_key') {
+            return res.status(409).json({ 
+                success: false, 
+                message: 'Bu e-posta adresi zaten kullanımda.' 
+            });
+        }
+        
         res.status(500).json({ success: false, message: 'Restoran eklenirken sunucu hatası oluştu.' });
     }
 };
@@ -309,7 +373,7 @@ const updateRestaurant = async (req, res) => {
         // Eğer şifre verilmişse şifreyi de güncelle
         if (password && password.trim() !== '') {
             // Şifreyi düz metin olarak sakla
-            console.log('📝 Updating with password');
+
             const result = await sql`
                 UPDATE restaurants
                 SET 
@@ -323,7 +387,7 @@ const updateRestaurant = async (req, res) => {
             `;
             updatedRestaurant = result[0];
         } else {
-            console.log('📝 Updating without password');
+
             const result = await sql`
                 UPDATE restaurants
                 SET 
@@ -337,7 +401,7 @@ const updateRestaurant = async (req, res) => {
             updatedRestaurant = result[0];
         }
 
-        console.log('✅ Update successful, result:', updatedRestaurant);
+
 
         res.json({ success: true, message: 'Restoran başarıyla güncellendi.', restaurant: updatedRestaurant });
     } catch (error) {
@@ -356,7 +420,7 @@ const deleteRestaurant = async (req, res) => {
     try {
         // İlişkili kayıtları silin (örneğin restaurant_delivery_prices)
         await sql`DELETE FROM restaurant_delivery_prices WHERE restaurant_id = ${restaurantId}`;
-        console.log(`Restoran #${restaurantId} ile ilişkili teslimat bölgeleri silindi.`);
+        
 
         const [deletedRestaurant] = await sql`
             DELETE FROM restaurants
@@ -417,9 +481,7 @@ const getRestaurant = async (req, res) => {
                 yetkili_name,
                 phone,
                 latitude::text AS latitude,
-                longitude::text AS longitude,
-                address,
-                is_active
+                longitude::text AS longitude
             FROM restaurants 
             WHERE id = ${restaurantId}
         `;
@@ -455,8 +517,8 @@ const getRestaurantProfile = async (req, res) => {
 
         const [restaurant] = await sql`
             SELECT 
-                id, name, email, phone, yetkili_name, address, 
-                logo, is_active, created_at, updated_at, role
+                id, name, email, phone, yetkili_name, address,
+                logo, created_at, role
             FROM restaurants 
             WHERE id = ${restaurantId}
         `;
@@ -503,10 +565,9 @@ const updateRestaurantProfile = async (req, res) => {
                 name = ${name || existingRestaurant.name},
                 phone = ${phone || existingRestaurant.phone},
                 yetkili_name = ${yetkili_name || existingRestaurant.yetkili_name},
-                address = ${address || existingRestaurant.address},
-                updated_at = NOW()
+                address = ${address || existingRestaurant.address}
             WHERE id = ${restaurantId}
-            RETURNING id, name, email, phone, yetkili_name, address, logo, is_active, created_at, updated_at, role
+            RETURNING id, name, email, phone, yetkili_name, address, logo, created_at, role
         `;
 
         res.status(200).json({ 
@@ -571,8 +632,7 @@ const changeRestaurantPassword = async (req, res) => {
         await sql`
             UPDATE restaurants 
             SET 
-                password = ${newPassword},
-                updated_at = NOW()
+                password = ${newPassword}
             WHERE id = ${restaurantId}
         `;
 
@@ -630,8 +690,7 @@ const uploadRestaurantLogo = async (req, res) => {
         const [updatedRestaurant] = await sql`
             UPDATE restaurants 
             SET 
-                logo = ${logoPath},
-                updated_at = NOW()
+                logo = ${logoPath}
             WHERE id = ${restaurantId}
             RETURNING id, name, logo
         `;
@@ -680,8 +739,7 @@ const deleteRestaurantLogo = async (req, res) => {
         await sql`
             UPDATE restaurants 
             SET 
-                logo = NULL,
-                updated_at = NOW()
+                logo = NULL
             WHERE id = ${restaurantId}
         `;
 
@@ -692,7 +750,7 @@ const deleteRestaurantLogo = async (req, res) => {
             const logoPath = path.join(__dirname, '../../', restaurant.logo);
             
             fs.unlink(logoPath, (err) => {
-                if (err) console.log('Logo dosyası silinemedi:', err);
+
             });
         }
 
@@ -715,6 +773,7 @@ module.exports = {
     addDeliveryArea,
     updateDeliveryArea,
     deleteDeliveryArea,
+    toggleDeliveryAvailability,
     addRestaurant,
     updateRestaurant,
     deleteRestaurant,

@@ -24,8 +24,6 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
         .card { background: white; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .filter-bar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1rem; }
-        .filter-bar input, .filter-bar select, .filter-bar button { padding: 0.5rem; border-radius: 6px; border: 1px solid #ddd; }
         .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
         .stat-item { background: #f7f7f7; padding: 1rem; border-radius: 8px; text-align: center; }
         .stat-value { font-size: 1.5rem; font-weight: bold; }
@@ -182,6 +180,11 @@
         .status-btn-courier.active { background: #3b82f6; }
         .status-btn-approval { border-color: #8b5cf6; }
         .status-btn-approval.active { background: #8b5cf6; }
+
+        .refresh-btn {
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            margin-bottom: 1rem;
+        }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/main-layout.js"></script>
@@ -192,10 +195,17 @@
             <!-- Bugünün Tarih Başlığı -->
             <div class="card" style="text-align: center; margin-bottom: 1rem;">
                 <h2 style="margin: 0; color: #667eea; font-size: 1.5rem;">
-                    <i class="fas fa-calendar-day"></i> Görüntülenen Siparişler
+                    <i class="fas fa-calendar-day"></i> Bugünün Siparişleri
                 </h2>
                 <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 1rem;" id="current-date"></p>
-                <p style="margin: 0.5rem 0 0 0; color: #c0392b; font-size: 0.9rem; font-weight: bold; border: 1px solid #c0392b; padding: 5px; border-radius: 5px; background: #fbeee6;" id="browser-date-diagnostic"></p>
+                <p style="margin: 0.5rem 0 0 0; color: #333; font-size: 0.9rem;">00:00 - 23:59 Arası Siparişler</p>
+            </div>
+            
+            <!-- Yenile Butonu -->
+            <div class="card" style="text-align: center;">
+                <button class="btn refresh-btn" onclick="fetchOrders()">
+                    <i class="fas fa-sync-alt"></i> Yenile
+                </button>
             </div>
             
             <!-- Status Filter Buttons -->
@@ -216,13 +226,6 @@
                 </div>
             </div>
             
-            <div class="card filter-bar">
-                <input type="text" id="searchInput" placeholder="Sipariş ID, Müşteri Adı...">
-                <select id="statusFilter"></select>
-                <select id="restaurantFilter"><option value="">Tüm Restoranlar</option></select>
-                <select id="courierFilter"><option value="">Tüm Kuryeler</option></select>
-                <button class="btn" onclick="fetchOrders()">Filtrele</button>
-            </div>
             <div class="card stats-bar" id="stats-container"></div>
             <div class="card">
                 <div class="table-container">
@@ -283,6 +286,7 @@
         let API_BASE; // Define API_BASE globally but without immediate assignment
         const socket = io();
         let allOrders = [];
+        let currentStatusFilter = ''; // Track current status filter
 
         // Function to fetch API_BASE from backend
         async function fetchApiBase() {
@@ -304,17 +308,7 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             await fetchApiBase(); // Fetch API_BASE first
-            
-            // Tarayıcının algıladığı tarihi gösteren teşhis satırı
-            const browserDate = new Date();
-            const diagnosticElem = document.getElementById('browser-date-diagnostic');
-            if(diagnosticElem) {
-                diagnosticElem.textContent = 
-                `UYARI: Tarayıcınızın algıladığı tarih: ${browserDate.toLocaleString('tr-TR', { dateStyle: 'full', timeStyle: 'long' })}`;
-            }
-
             updateCurrentDate(); // Bugünün tarihini göster
-            initializeFilters();
             fetchOrders();
             setupMidnightReset(); // Gece yarısı sıfırlama ayarla
         });
@@ -333,54 +327,7 @@
             fetchOrders(); // Re-fetch all orders
         });
 
-
-        async function initializeFilters() {
-            // Populate status filter
-            const statuses = {
-                '': 'Tüm Durumlar',
-                'bekleniyor': 'Bekleniyor',
-                'kuryede': 'Kuryede',
-                'teslim edildi': 'Teslim Edildi',
-                'iptal edildi': 'İptal Edildi',
-                'onay bekliyor': 'Onay Bekliyor'
-            };
-            const statusFilter = document.getElementById('statusFilter');
-            statusFilter.innerHTML = Object.entries(statuses)
-                .map(([value, text]) => `<option value="${value}">${text}</option>`).join('');
-
-            // Fetch and populate restaurants and couriers filters
-            try {
-                const [restoRes, courierRes] = await Promise.all([
-                    fetch(`${API_BASE}/api/admin/restaurants-for-admin`),
-                    fetch(`${API_BASE}/api/admin/couriers`)
-                ]);
-
-                if (restoRes.ok) {
-                    const { data } = await restoRes.json();
-                    const restoFilter = document.getElementById('restaurantFilter');
-                    restoFilter.innerHTML += data.map(r => `<option value="${r.id}">${r.firma_adi}</option>`).join('');
-                }
-
-                if (courierRes.ok) {
-                    const { data } = await courierRes.json();
-                    const courierFilter = document.getElementById('courierFilter');
-                    courierFilter.innerHTML += data.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-                }
-
-            } catch (error) {
-                console.error("Filtreler yüklenirken hata:", error);
-            }
-        }
-
         async function fetchOrders() {
-            const search = document.getElementById('searchInput').value;
-            const status = document.getElementById('statusFilter').value;
-            const restaurantId = document.getElementById('restaurantFilter').value;
-            const courierId = document.getElementById('courierFilter').value;
-            
-            // YANLIŞ: .toISOString() UTC'ye çevirir ve gece yarısından sonraki saatlerde önceki günü verir.
-            // const today = new Date().toISOString().split('T')[0];
-            
             // DOĞRU: Tarih, yerel saat dilimine göre doğru bir şekilde formatlanır.
             const localDate = new Date();
             const year = localDate.getFullYear();
@@ -388,12 +335,11 @@
             const day = String(localDate.getDate()).padStart(2, '0');
             const today = `${year}-${month}-${day}`;
 
-
             const queryParams = new URLSearchParams({
-                search,
-                status,
-                restaurantId,
-                courierId,
+                search: '',
+                status: currentStatusFilter,
+                restaurantId: '',
+                courierId: '',
                 startDate: today,
                 endDate: today
             });
@@ -451,7 +397,7 @@
             const dateString = today.toLocaleDateString('tr-TR', options);
             const titleElem = document.getElementById('current-date');
             if(titleElem) {
-                titleElem.textContent = `Filtrelenen Tarih: ${dateString}`;
+                titleElem.textContent = dateString;
             }
         }
 
@@ -818,8 +764,8 @@
 
         // Status filter button functionality
         function filterByStatus(status) {
-            // Update status filter dropdown
-            document.getElementById('statusFilter').value = status;
+            // Update current status filter
+            currentStatusFilter = status;
             
             // Update active button state
             document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));

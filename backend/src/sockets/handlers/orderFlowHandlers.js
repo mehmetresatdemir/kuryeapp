@@ -1,436 +1,190 @@
 const { sql } = require('../../config/db-config');
 
 
+
 const registerOrderFlowHandlers = (io, socket) => {
   // Teslimat Onayı İşlemleri (Kuryeden gelen)
   socket.on('deliveryConfirmation', async ({ orderId, courierId, restaurantId }) => {
-    if (!orderId || !courierId || !restaurantId) {
-      return;
-    }
+    if (!orderId || !courierId || !restaurantId) return;
 
     try {
       const [orderData] = await sql`
-        SELECT status, odeme_yontemi, firmaid FROM orders WHERE id = ${orderId} AND kuryeid = ${courierId}
+        SELECT status, odeme_yontemi, firmaid, courier_price FROM orders WHERE id = ${orderId} AND kuryeid = ${courierId}
       `;
 
       if (!orderData) {
         return socket.emit('error', { message: 'Sipariş bulunamadı veya bu sipariş size ait değil.' });
       }
 
+      const [courier] = await sql`SELECT name, phone FROM couriers WHERE id = ${courierId}`;
+      const courierName = courier ? courier.name : `Kurye #${courierId}`;
       const paymentMethod = orderData.odeme_yontemi.toLowerCase();
       
-      // Online ödeme veya hediye çeki ise direkt teslim edildi olarak işaretle
+      // Online ödeme veya hediye çeki ise direkt teslim edildi
       if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye')) {
+        const currentTimestamp = new Date();
+        await sql`UPDATE orders SET status = 'teslim edildi', 
+                   delivered_at = ${currentTimestamp},
+                   updated_at = ${currentTimestamp} 
+                   WHERE id = ${orderId}`;
         
-
-        await sql`
-          UPDATE orders 
-          SET status = 'teslim edildi', updated_at = NOW()
-          WHERE id = ${orderId}
-        `;
-        
-        const [courier] = await sql`
-          SELECT name, phone FROM couriers WHERE id = ${courierId}
-        `;
-
-        const courierName = courier ? courier.name : `Kurye #${courierId}`;
-        
-        // Send notifications for direct delivery
-        io.to(`restaurant_${orderData.firmaid}`).emit('delivery:completed', { 
-          orderId, 
-          courierId,
+        // Emit socket event for real-time restaurant UI update
+        io.to(`restaurant_${orderData.firmaid}`).emit('orderDelivered', {
+          orderId: orderId.toString(),
           courierName: courierName,
-          message: `${courierName} siparişi teslim etti.`
+          paymentMethod: paymentMethod,
+          message: `Sipariş #${orderId} kurye ${courierName} tarafından teslim edildi`,
+          timestamp: Date.now()
         });
-        io.to('restaurants').emit('delivery:completed', { 
-          orderId, 
-          courierId,
-          courierName: courierName,
-          message: `${courierName} siparişi teslim etti.`
-        });
-        
-        io.to('admins').emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-        io.to(`restaurant_${orderData.firmaid}`).emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-        io.to('restaurants').emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-        socket.emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-      } else if (paymentMethod === 'nakit' || paymentMethod.includes('kredi')) {
-        
+        console.log(`🔄 Socket: Order delivered event sent to restaurant ${orderData.firmaid} - Order ${orderId} delivered by courier`);
 
-        await sql`
-          UPDATE orders 
-          SET status = 'onay bekliyor', updated_at = NOW()
-          WHERE id = ${orderId}
-        `;
+      } else {
+        // Nakit veya kredi kartı ödemeleri - onay gerekiyor
+        await sql`UPDATE orders             SET status = 'onay bekliyor', 
+                delivered_at = ${new Date()},
+                updated_at = ${new Date()} 
+                   WHERE id = ${orderId}`;
         
-        const [courier] = await sql`
-          SELECT name, phone FROM couriers WHERE id = ${courierId}
-        `;
-
-        const courierName = courier ? courier.name : `Kurye #${courierId}`;
-        
-        // Send notifications for approval needed
-        io.to(`restaurant_${orderData.firmaid}`).emit('delivery:needs-approval', { 
-          orderId, 
-          courierId,
-          courierName: courierName,
-          message: `${courierName} siparişi teslim ettiğini bildirdi. Onayınız bekleniyor.`
-        });
-        io.to('restaurants').emit('delivery:needs-approval', { 
-          orderId, 
-          courierId,
-          courierName: courierName,
-          message: `${courierName} siparişi teslim ettiğini bildirdi. Onayınız bekleniyor.`
-        });
-        
-        io.to('admins').emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'onay bekliyor',
-          courierName: courierName 
-        });
-        io.to(`restaurant_${orderData.firmaid}`).emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'onay bekliyor',
-          courierName: courierName 
-        });
-        io.to('restaurants').emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'onay bekliyor',
-          courierName: courierName 
-        });
-        socket.emit('orderStatusUpdate', { 
-          orderId, 
-          status: 'onay bekliyor',
-          courierName: courierName 
-        });
+        // No socket event for "onay bekliyor" status - restaurant will get notified when they approve it
       }
     } catch (error) {
-      console.error(`Error processing delivery confirmation for order ${orderId}:`, error);
+      console.error(`Delivery confirmation error for order ${orderId}:`, error);
       socket.emit('error', { message: 'İşlem sırasında bir sunucu hatası oluştu.' });
     }
   });
 
   // Restoran tarafından teslimat onayı
   socket.on('approveDelivery', async ({ orderId, restaurantId }) => {
-    if (!orderId || !restaurantId) {
-      return;
-    }
+    if (!orderId || !restaurantId) return;
 
     try {
-      
-
       const result = await sql`
-        UPDATE orders 
-        SET status = 'teslim edildi', updated_at = NOW()
+        UPDATE orders SET status = 'teslim edildi', 
+                      approved_at = ${new Date()},
+                      updated_at = ${new Date()}
         WHERE id = ${orderId} AND firmaid = ${restaurantId} AND status = 'onay bekliyor'
-        RETURNING id, firmaid, kuryeid, courier_price; 
+        RETURNING 
+            id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
+            nakit_tutari, banka_tutari, hediye_tutari, firma_adi, 
+            resim, status, kuryeid, preparation_time,
+            created_at::text as created_at,
+            updated_at::text as updated_at,
+            accepted_at::text as accepted_at,
+            delivered_at::text as delivered_at,
+            approved_at::text as approved_at,
+            courier_price, restaurant_price
       `;
 
       if (result.length > 0) {
         const deliveredOrder = result[0];
-        
-        const [courier] = await sql`
-          SELECT name, phone FROM couriers WHERE id = ${deliveredOrder.kuryeid}
-        `;
-
+        const [courier] = await sql`SELECT name, phone FROM couriers WHERE id = ${deliveredOrder.kuryeid}`;
         const courierName = courier ? courier.name : `Kurye #${deliveredOrder.kuryeid}`;
 
-        io.to(`courier_${deliveredOrder.kuryeid}`).emit('orderDelivered', { 
-          orderId: deliveredOrder.id,
-          courierId: deliveredOrder.kuryeid,
+        // Emit socket event for real-time restaurant UI update
+        io.to(`restaurant_${deliveredOrder.firmaid}`).emit('orderDelivered', {
+          orderId: orderId.toString(),
           courierName: courierName,
-          message: 'Siparişiniz restoran tarafından onaylandı ve teslim edildi!',
-          orderDetails: deliveredOrder
+          paymentMethod: deliveredOrder.odeme_yontemi,
+          message: `Sipariş #${orderId} onaylandı ve teslim edildi`,
+          timestamp: Date.now()
         });
-
-        io.to('admins').emit('orderStatusUpdate', { 
-          orderId: deliveredOrder.id, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-        io.to(`restaurant_${deliveredOrder.firmaid}`).emit('orderStatusUpdate', { 
-          orderId: deliveredOrder.id, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
-        io.to('restaurants').emit('orderStatusUpdate', { 
-          orderId: deliveredOrder.id, 
-          status: 'teslim edildi',
-          courierName: courierName 
-        });
+        console.log(`🔄 Socket: Order delivery approval event sent to restaurant ${deliveredOrder.firmaid} - Order ${orderId} approved and delivered`);
 
       } else {
         socket.emit('error', { message: 'Sipariş bulunamadı veya onaylamak için uygun durumda değil.' });
       }
     } catch (error) {
-      console.error(`Error processing delivery approval for order ${orderId}:`, error);
+      console.error(`Delivery approval error for order ${orderId}:`, error);
       socket.emit('error', { message: 'İşlem sırasında bir sunucu hatası oluştu.' });
     }
   });
 
   // Kurye tarafından sipariş iptali
-  socket.on('cancelOrder', async ({ orderId, courierId }) => {
-    if (!orderId || !courierId) {
-      console.warn('Eksik bilgi: orderId ve courierId gereklidir.');
-      return;
-    }
+  socket.on('cancelOrder', async ({ orderId, courierId, reason }) => {
+    if (!orderId || !courierId) return;
 
     try {
       const [orderData] = await sql`SELECT status, odeme_yontemi, firmaid FROM orders WHERE id = ${orderId} AND kuryeid = ${courierId}`;
+      if (!orderData) return;
 
-      if (!orderData) {
-          console.warn(`Order ${orderId} not found or not assigned to courier ${courierId}. Cannot cancel.`);
-          return; // Order not found or not assigned to this courier
-      }
-
-      // Kurye bilgilerini al
-      const [courier] = await sql`
-        SELECT name, phone FROM couriers WHERE id = ${courierId}
-      `;
-
+      const [courier] = await sql`SELECT name, phone FROM couriers WHERE id = ${courierId}`;
       const courierName = courier ? courier.name : `Kurye #${courierId}`;
 
-      // Türkiye saati SQL ifadesini al
-      
-
-      // Update order status to 'iptal' and clear kuryeid, accepted_at
-      const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
+      // Siparişi iptal et ve tekrar havuza düşür (HTTP API ile tutarlı)
       await sql`
-          UPDATE orders
-          SET 
-              status = 'iptal',
-              kuryeid = NULL,
-              accepted_at = NULL,
-              updated_at = ${turkeyTime}
-          WHERE id = ${orderId}
+        UPDATE orders SET status = 'bekleniyor', kuryeid = NULL, accepted_at = NULL, updated_at = ${new Date()}
+        WHERE id = ${orderId}
       `;
 
-      // Notify relevant parties
-      socket.to(`restaurant_${orderData.firmaid}`).emit('orderCancelled', { 
-        orderId: orderId, 
-        message: `Sipariş ${courierName} tarafından iptal edildi.`, 
+      // Emit socket event for real-time restaurant UI update
+      io.to(`restaurant_${orderData.firmaid}`).emit('orderCancelled', {
+        orderId: orderId.toString(),
         courierName: courierName,
-        showAlert: true 
+        reason: reason || 'Belirtilmeyen sebep',
+        message: `Sipariş kurye ${courierName} tarafından iptal edildi`,
+        newStatus: 'bekleniyor',
+        timestamp: Date.now()
       });
-      io.to('restaurants').emit('orderCancelled', { 
-        orderId: orderId, 
-        message: `Sipariş ${courierName} tarafından iptal edildi.`, 
-        courierName: courierName,
-        showAlert: true 
-      });
-      io.to('admins').emit('orderStatusUpdate', { 
-        orderId: orderId, 
-        status: 'iptal',
-        courierName: courierName 
-      });
+      console.log(`🔄 Socket: Order cancellation event sent to restaurant ${orderData.firmaid} - Order ${orderId} cancelled by courier`);
 
-      // If payment method was cash or gift card, make it available again
-      if (orderData.odeme_yontemi === 'Nakit' || orderData.odeme_yontemi === 'Hediye Çeki') {
-          // Re-broadcast to all couriers as available
-          io.emit('orderAvailableAgain', { orderId: orderId, message: "Sipariş tekrar müsait oldu.", status: 'bekleniyor' });
+      // Send push notification to restaurant about order cancellation
+      const { sendOrderCancelledByCarrierNotification } = require('../../services/pushNotificationService');
+      try {
+        const notificationResult = await sendOrderCancelledByCarrierNotification({
+          restaurantId: orderData.firmaid,
+          orderId: orderId,
+          courierName: courierName,
+          reason: reason || 'Belirtilmeyen sebep'
+        });
+        console.log(`🔔 Order cancelled notification sent to restaurant ${orderData.firmaid}: ${notificationResult.success ? 'success' : 'failed'}`);
+      } catch (notificationError) {
+        console.error('❌ Error sending order cancelled notification:', notificationError);
+        // Don't fail the order cancellation if notification fails
       }
+      
+      // Emit to all couriers that order is back in pool
+      io.to('couriers').emit('orderStatusUpdate', {
+        orderId: orderId.toString(),
+        status: 'bekleniyor',
+        message: `Sipariş #${orderId} iptal edildi ve tekrar havuza düştü`,
+        timestamp: Date.now()
+      });
+      console.log(`🔄 Socket: Order back in pool notification sent to all couriers for order ${orderId}`);
 
     } catch (error) {
-      console.error(`Sipariş #${orderId} iptal işlemi işlenirken hata:`, error);
+      console.error(`Cancel order error for ${orderId}:`, error);
       socket.emit('error', { message: 'İşlem sırasında bir sunucu hatası oluştu.' });
     }
   });
 
-  // Kurye tarafından teslim edildi olarak işaretle
-  socket.on('deliverOrder', async ({ orderId, courierId }) => {
-    if (!orderId || !courierId) {
-      console.warn('Eksik bilgi: orderId ve courierId gereklidir.');
-      return;
-    }
-
-    try {
-      // Kurye bilgilerini al
-      const [courier] = await sql`
-        SELECT name, phone FROM couriers WHERE id = ${courierId}
-      `;
-
-      const courierName = courier ? courier.name : `Kurye #${courierId}`;
-
-      // Türkiye saati SQL ifadesini al
-      
-
-      // Update order status to 'teslim edildi'
-      const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
-      const [updatedOrder] = await sql`
-          UPDATE orders SET status = 'teslim edildi', updated_at = ${turkeyTime} WHERE id = ${orderId}
-          RETURNING id, firmaid, kuryeid, courier_price; 
-      `;
-
-      if (updatedOrder) {
-          // Sadece ilgili restorana emit
-          socket.to(`restaurant_${updatedOrder.firmaid}`).emit('orderDelivered', { 
-              orderId: updatedOrder.id,
-              courierId: updatedOrder.kuryeid,
-              courierName: courierName,
-              message: `Sipariş ${courierName} tarafından başarıyla teslim edildi!`,
-              orderDetails: updatedOrder // Kurye ücretini göndermek için
-          });
-          
-          console.log(`📦 Onay sonrası teslim bildirimi sadece restaurant_${updatedOrder.firmaid} odasına gönderildi`);
-          // Emit to admins
-          io.to('admins').emit('orderStatusUpdate', { 
-            orderId: updatedOrder.id, 
-            status: 'teslim edildi',
-            courierName: courierName 
-          });
-          
-          console.log(`Order ${orderId} delivered by courier ${courierName} (${courierId})`);
-      }
-    } catch (error) {
-      console.error(`Sipariş #${orderId} teslim işlemi işlenirken hata:`, error);
-      socket.emit('error', { message: 'İşlem sırasında bir sunucu hatası oluştu.' });
-    }
-  });
-
-  // Kurye tarafından orderDelivered event'i (frontend'den gelen)
-  socket.on('orderDelivered', async ({ orderId, courierId, firmaid, message, orderDetails }) => {
-    if (!orderId || !courierId || !firmaid) {
-      console.warn('📦 orderDelivered: Eksik bilgi - orderId, courierId ve firmaid gereklidir.');
-      return;
-    }
-
-    try {
-      console.log(`📦 orderDelivered event alındı - Sipariş: ${orderId}, Kurye: ${courierId}, Restoran: ${firmaid}`);
-      
-      // Kurye bilgilerini al
-      const [courier] = await sql`
-        SELECT name, phone FROM couriers WHERE id = ${courierId}
-      `;
-
-      const courierName = courier ? courier.name : `Kurye #${courierId}`;
-
-      // Siparişin durumunu kontrol et
-      const [order] = await sql`
-        SELECT id, status, odeme_yontemi, firmaid, kuryeid FROM orders 
-        WHERE id = ${orderId} AND kuryeid = ${courierId} AND firmaid = ${firmaid}
-      `;
-
-      if (!order) {
-        console.warn(`📦 orderDelivered: Sipariş bulunamadı - OrderID: ${orderId}, CourierID: ${courierId}, FirmaID: ${firmaid}`);
-        return;
-      }
-
-      const paymentMethod = order.odeme_yontemi.toLowerCase();
-      const turkeyTime = new Date(new Date().getTime() + (3 * 60 * 60 * 1000));
-      
-      // Ödeme yöntemine göre durum güncelle
-      if (paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye')) {
-        // Online ödeme - direkt teslim edildi
-        await sql`
-          UPDATE orders 
-          SET status = 'teslim edildi', delivered_at = ${turkeyTime}, updated_at = ${turkeyTime} 
-          WHERE id = ${orderId}
-        `;
-        
-        // Restorana bildirim gönder
-        io.to(`restaurant_${firmaid}`).emit('orderDelivered', { 
-          orderId: orderId,
-          courierId: courierId,
-          courierName: courierName,
-          message: `Sipariş ${courierName} tarafından başarıyla teslim edildi!`,
-          orderDetails: orderDetails,
-          paymentMethod: paymentMethod,
-          finalStatus: 'teslim edildi'
-        });
-        
-        console.log(`📦 ✅ Sipariş ${orderId} direkt teslim edildi - Restaurant ${firmaid} bildirildi`);
-      } else {
-        // Nakit/Kart ödeme - onay bekliyor
-        await sql`
-          UPDATE orders 
-          SET status = 'onay bekliyor', delivered_at = ${turkeyTime}, updated_at = ${turkeyTime} 
-          WHERE id = ${orderId}
-        `;
-        
-        // Restorana onay bekliyor bildirimi gönder
-        io.to(`restaurant_${firmaid}`).emit('delivery:needs-approval', { 
-          orderId: orderId,
-          courierId: courierId,
-          courierName: courierName,
-          message: `${courierName} siparişi teslim ettiğini bildirdi. Onayınız bekleniyor.`,
-          orderDetails: orderDetails,
-          paymentMethod: paymentMethod,
-          finalStatus: 'onay bekliyor'
-        });
-        
-        console.log(`📦 ⏳ Sipariş ${orderId} onay bekliyor - Restaurant ${firmaid} bildirildi`);
-      }
-
-      // Tüm restoranlara ve adminlere bildirim
-      io.to('restaurants').emit('orderStatusUpdate', { 
-        orderId: orderId, 
-        status: paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye') ? 'teslim edildi' : 'onay bekliyor',
-        courierName: courierName 
-      });
-      
-      io.to('admins').emit('orderStatusUpdate', { 
-        orderId: orderId, 
-        status: paymentMethod === 'online' || paymentMethod === 'hediye çeki' || paymentMethod === 'hediye ceki' || paymentMethod.includes('hediye') ? 'teslim edildi' : 'onay bekliyor',
-        courierName: courierName 
-      });
-      
-    } catch (error) {
-      console.error(`📦 orderDelivered event işlenirken hata:`, error);
-      socket.emit('error', { message: 'Teslim işlemi sırasında bir sunucu hatası oluştu.' });
-    }
-  });
-
-  // Otomatik sipariş silme (1 saatlik zaman aşımı)
+  // Otomatik sipariş silme
   socket.on('checkExpiredOrders', async () => {
     try {
-      // 'bekleniyor' durumundaki ve 1 saatten eski siparişleri bul
       const expiredOrders = await sql`
         SELECT id, firmaid, mahalle FROM orders
         WHERE status = 'bekleniyor' AND created_at < NOW() - INTERVAL '1 hour'
       `;
 
       for (const order of expiredOrders) {
-        // Siparişi sil
         await sql`DELETE FROM orders WHERE id = ${order.id}`;
 
-        // Restoranı bilgilendir
-        io.to(`restaurant_${order.firmaid}`).emit('yourOrderExpired', { 
-          orderId: order.id,
-          message: `Sipariş #${order.id}, ${order.mahalle} adresine olan siparişiniz 1 saat içinde kabul edilmediği için otomatik olarak silindi.`
-        });
-        io.to('restaurants').emit('yourOrderExpired', { 
-          orderId: order.id,
-          message: `Sipariş #${order.id}, ${order.mahalle} adresine olan siparişiniz 1 saat içinde kabul edilmediği için otomatik olarak silindi.`
-        });
-
-        // Adminleri bilgilendir
-        io.to('admins').emit('orderAutoDeleted', { 
-          orderId: order.id,
-          firmName: order.firma_adi, // firmaid yerine firma_adi kullan
-          neighborhood: order.mahalle,
-          message: `Sipariş #${order.id} (Restoran: ${order.firma_adi}, Mahalle: ${order.mahalle}) otomatik olarak silindi (1 saat zaman aşımı).`
-        });
-
-        console.log(`Sipariş #${order.id} otomatik olarak silindi.`);
+        // Bildirim sistemi kaldırıldı
       }
     } catch (error) {
-      console.error('Error checking expired orders:', error);
+      console.error('Expired orders check error:', error);
     }
+  });
+
+  // Frontend'ten gelen yeni sipariş broadcast'i (restorandan)
+  // ÇİFT BİLDİRİM ÖNLEMİ: Bu event TAMAMEN devre dışı bırakıldı
+  // API düzeyinde zaten push notification gönderildiği için socket broadcast'ine gerek yok
+  socket.on('broadcastNewOrder', async (data) => {
+    console.log('🚫 Socket: broadcastNewOrder event TAMAMEN DEVRE DIŞI (sonsuz döngü önlemi):', {
+      orderId: data?.order?.id,
+      firmaid: data?.order?.firmaid
+    });
+    
+    // Bildirim sistemi kaldırıldı
   });
 };
 

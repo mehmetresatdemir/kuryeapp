@@ -1,6 +1,6 @@
-# Kurye-X 🛵
+# KuryeX 🛵
 
-Bursa için kurye ve teslimat uygulaması. React Native (Expo) ile geliştirilmiş modern bir kurye hizmeti platformu.
+Kuryex için kurye ve teslimat uygulaması. React Native (Expo) ile geliştirilmiş modern bir kurye hizmeti platformu.
 
 ## Özellikler
 

@@ -1,79 +1,45 @@
 const { sql } = require('../../config/db-config');
 
 const registerAdminHandlers = (io, socket) => {
-  // Admin için connection tracking
+  // Admin connection tracking
   let adminConnectionId = null;
-  let adminHeartbeatInterval = null;
   
-  // Admin bağlantısı kurulduğunda
+  // Admin connection established
   socket.on('admin:connect', (data) => {
     adminConnectionId = data?.adminId || socket.id;
     socket.adminId = adminConnectionId;
     
-    console.log(`👑 Admin ${adminConnectionId} bağlandı - Socket: ${socket.id}`);
-    
-    // Admin için heartbeat
-    adminHeartbeatInterval = setInterval(() => {
-      socket.emit('admin:server-ping', { 
-        timestamp: Date.now(),
-        adminId: adminConnectionId
-      });
-    }, 20000); // 20 saniyede bir ping
-    
-    // İlk istatistikleri gönder
+    // Send initial stats
     sendMainStats();
-  });
-  
-  // Admin ping response
-  socket.on('admin:pong', () => {
-    // Admin active
   });
 
   const sendMainStats = async () => {
     try {
-      const maxRetries = 2; // Reduced from 3
-      let stats = null;
-      
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const activeOrdersResult = await sql`
-            SELECT COUNT(*) as count FROM orders WHERE status IN ('bekleniyor', 'kuryede')
-          `;
-          const activeCouriersResult = await sql`
-            SELECT COUNT(*) as count FROM couriers WHERE is_online = true
-          `;
-          const completedTodayResult = await sql`
-            SELECT COUNT(*) as count FROM orders 
-            WHERE status = 'teslim edildi' 
-            AND DATE(created_at) = CURRENT_DATE
-          `;
+      const activeOrdersResult = await sql`
+        SELECT COUNT(*) as count FROM orders WHERE status IN ('bekleniyor', 'kuryede')
+      `;
+      const activeCouriersResult = await sql`
+        SELECT COUNT(*) as count FROM couriers WHERE is_online = true
+      `;
+      const completedTodayResult = await sql`
+        SELECT COUNT(*) as count FROM orders 
+        WHERE status = 'teslim edildi' 
+        AND DATE(created_at) = CURRENT_DATE
+      `;
 
-          stats = {
-            apiOk: true,
-            dbOk: true,
-            activeOrders: activeOrdersResult[0].count,
-            activeCouriers: activeCouriersResult[0].count,
-            completedToday: completedTodayResult[0].count,
-            connectionId: adminConnectionId,
-            timestamp: new Date().toISOString()
-          };
-          
-          break; // Success, exit retry loop
-        } catch (retryError) {
-          if (attempt === maxRetries) {
-            throw retryError; // Final attempt failed
-          }
-          await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay
-        }
-      }
+      const stats = {
+        apiOk: true,
+        dbOk: true,
+        activeOrders: activeOrdersResult[0].count,
+        activeCouriers: activeCouriersResult[0].count,
+        completedToday: completedTodayResult[0].count,
+        connectionId: adminConnectionId,
+        timestamp: new Date().toLocaleString('tr-TR')
+      };
       
-      if (stats) {
-        socket.emit('admin:main-stats', stats);
-      }
+      socket.emit('admin:main-stats', stats);
       
     } catch (error) {
-      console.error('❌ Ana admin istatistikleri alınırken hata:', error.message);
-      
       socket.emit('admin:main-stats', {
         apiOk: true,
         dbOk: false,
@@ -82,28 +48,18 @@ const registerAdminHandlers = (io, socket) => {
         completedToday: 'N/A',
         error: error.message,
         connectionId: adminConnectionId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toLocaleString('tr-TR')
       });
     }
   };
 
   socket.on('admin:request-main-stats', sendMainStats);
 
-  // Admin sipariş güncellemesi event'i
+  // Admin order update event
   socket.on('admin:update-order', async (data) => {
     try {
-      console.log(`👑 Admin ${adminConnectionId} sipariş güncelleme talebi:`, data);
-      
-      // Bu event'i diğer admin panellerine de ilet
-      socket.broadcast.to('admins').emit('admin:order-updated', {
-        orderId: data.orderId,
-        changes: data.changes,
-        updatedBy: adminConnectionId,
-        timestamp: new Date().toISOString()
-      });
-      
+      // Bildirim sistemi kaldırıldı
     } catch (error) {
-      console.error('Admin sipariş güncelleme event hatası:', error);
       socket.emit('admin:error', { 
         message: 'Sipariş güncelleme event işlenemedi',
         error: error.message 
@@ -111,20 +67,11 @@ const registerAdminHandlers = (io, socket) => {
     }
   });
 
-  // Admin sipariş silme event'i
+  // Admin order delete event
   socket.on('admin:delete-order', async (data) => {
     try {
-      console.log(`👑 Admin ${adminConnectionId} sipariş silme talebi:`, data);
-      
-      // Bu event'i diğer admin panellerine de ilet
-      socket.broadcast.to('admins').emit('admin:order-deleted', {
-        orderId: data.orderId,
-        deletedBy: adminConnectionId,
-        timestamp: new Date().toISOString()
-      });
-      
+      // Bildirim sistemi kaldırıldı
     } catch (error) {
-      console.error('Admin sipariş silme event hatası:', error);
       socket.emit('admin:error', { 
         message: 'Sipariş silme event işlenemedi',
         error: error.message 
@@ -132,20 +79,15 @@ const registerAdminHandlers = (io, socket) => {
     }
   });
 
-  // Reduced frequency - send stats every 30 seconds instead of 15
+  // Send stats every 30 seconds
   const intervalId = setInterval(() => {
     if (socket.rooms.has('admins')) {
       sendMainStats();
     }
   }, 30000);
 
-  socket.on('disconnect', (reason) => {
-    console.log(`👑 Admin ${adminConnectionId || socket.id} bağlantısı kesildi. Sebep: ${reason}`);
-    
+  socket.on('disconnect', () => {
     clearInterval(intervalId);
-    if (adminHeartbeatInterval) {
-      clearInterval(adminHeartbeatInterval);
-    }
   });
 };
 

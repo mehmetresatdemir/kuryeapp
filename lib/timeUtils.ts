@@ -1,55 +1,220 @@
-// Veritabanı artık Europe/Istanbul timezone'unu kullanıyor
-// Timestamp operations use database timezone directly
-
-// formatTimeForTurkey function removed - using simple date formatting instead
+// Tarih utility fonksiyonları - Turkey timezone güvenilir hesaplama
 
 /**
- * Countdown hesaplaması için stateless fonksiyon - Turkey time kullanır
+ * Günün tarihini YYYY-MM-DD formatında döner (Turkey timezone)
+ * Yaz saati ve kış saati otomatik geçişini destekler
  */
-export const calculateCountdown = (targetTime: Date): { hours: number, minutes: number, seconds: number, isExpired: boolean } => {
-  // Backend Turkey time kullanıyor, frontend'te de Turkey time kullan
-  const now = new Date(new Date().getTime() + (3 * 60 * 60 * 1000)); // Turkey time
-  const diff = targetTime.getTime() - now.getTime();
+export const getCurrentDate = (): string => {
+  // Turkey timezone'da doğru tarihi al - yaz/kış saati otomatik
+  const now = new Date();
   
-  if (diff <= 0) {
-    return { hours: 0, minutes: 0, seconds: 0, isExpired: true };
-  }
+  // Intl.DateTimeFormat ile Turkey timezone'da tarihi hesapla
+  const turkeyDateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
   
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  const year = turkeyDateParts.find(part => part.type === 'year')?.value;
+  const month = turkeyDateParts.find(part => part.type === 'month')?.value;
+  const day = turkeyDateParts.find(part => part.type === 'day')?.value;
   
-  return { hours, minutes, seconds, isExpired: false };
+  return `${year}-${month}-${day}`;
 };
 
 /**
- * Kabul yasağı countdown'u (10 saniye)
+ * Turkey timezone'da DateTime objesi döner
+ * Yaz saati ve kış saati otomatik geçişini destekler
  */
-export const calculateAcceptanceCountdown = (orderCreatedAt: string): { seconds: number, isExpired: boolean } => {
-  const createdTime = new Date(orderCreatedAt);
-  const acceptanceTime = new Date(createdTime.getTime() + 10000); // 10 saniye ekle
-  const countdown = calculateCountdown(acceptanceTime);
+export const getCurrentDateTime = (): Date => {
+  const now = new Date();
+  
+  // Turkey timezone'da string formatında saat al
+  const turkeyTimeString = now.toLocaleString('sv-SE', { 
+    timeZone: 'Europe/Istanbul' 
+  }); // sv-SE formatı: 'YYYY-MM-DD HH:mm:ss'
+  
+  return new Date(turkeyTimeString);
+};
+
+/**
+ * Belirli bir tarihin haftanın başlangıcını (Pazartesi) döner
+ */
+export const getWeekStart = (dateString: string): string => {
+  const date = new Date(dateString + 'T12:00:00');
+  const day = date.getDay(); // 0 = Pazar, 1 = Pazartesi, ...
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Pazartesi'ye ayarla
+  
+  const weekStart = new Date(date.setDate(diff));
+  const year = weekStart.getFullYear();
+  const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+  const day_str = String(weekStart.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day_str}`;
+};
+
+/**
+ * Bu haftanın başlangıç tarihini döner (Turkey timezone)
+ */
+export const getCurrentWeek = (): string => {
+  const today = getCurrentDate();
+  return getWeekStart(today);
+};
+
+/**
+ * Bu ayın başlangıç tarihini döner (Turkey timezone)
+ */
+export const getCurrentMonth = (): string => {
+  const now = new Date();
+  
+  // Turkey timezone'da tarihi al
+  const turkeyDateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit'
+  }).formatToParts(now);
+  
+  const year = turkeyDateParts.find(part => part.type === 'year')?.value;
+  const month = turkeyDateParts.find(part => part.type === 'month')?.value;
+  
+  return `${year}-${month}-01`;
+};
+
+/**
+ * Tarih string'ini Turkey timezone'da doğru formatta gösterir
+ */
+export const formatDateTurkey = (dateString: string): string => {
+  const date = new Date(dateString + 'T12:00:00');
+  return date.toLocaleDateString('tr-TR', {
+    timeZone: 'Europe/Istanbul',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
+/**
+ * Belirli bir tarihin Turkey timezone'da bugün olup olmadığını kontrol eder
+ */
+export const isTurkeyToday = (dateString: string): boolean => {
+  return dateString === getCurrentDate();
+};
+
+/**
+ * Tarihi güzel formatta görüntüler
+ */
+export const formatDate = (date: string | Date): string => {
+  const d = new Date(date);
+  return d.toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+/**
+ * Tarih ve saati güzel formatta görüntüler
+ */
+export const formatDateTime = (date: string | Date): string => {
+  const d = new Date(date);
+  return d.toLocaleString('tr-TR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+/**
+ * Sadece saati görüntüler
+ */
+export const formatTime = (date: string | Date): string => {
+  const d = new Date(date);
+  return d.toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+/**
+ * İki tarih arasındaki farkı hesaplar
+ */
+export const getDaysDifference = (date1: string, date2: string): number => {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  const diffTime = Math.abs(d2.getTime() - d1.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+/**
+ * Sipariş kabul yasağının bitimine kadar olan süreyi hesaplar
+ */
+export const calculateAcceptanceCountdown = (createdAt: string, blockTime: number) => {
+  const createdTime = new Date(createdAt).getTime();
+  const now = new Date().getTime();
+  const blockEndTime = createdTime + (blockTime * 1000);
+  const remainingMs = blockEndTime - now;
+  
+  if (remainingMs <= 0) {
+    return { isExpired: true, seconds: 0 };
+  }
   
   return {
-    seconds: countdown.seconds + (countdown.minutes * 60) + (countdown.hours * 3600),
-    isExpired: countdown.isExpired
+    isExpired: false,
+    seconds: Math.ceil(remainingMs / 1000)
   };
 };
 
 /**
- * Otomatik silme countdown'u (1 saat)
+ * Siparişin otomatik silinme süresini hesaplar
  */
-export const calculateDeletionCountdown = (orderCreatedAt: string): { hours: number, minutes: number, seconds: number, isExpired: boolean } => {
-  const createdTime = new Date(orderCreatedAt);
-  const deletionTime = new Date(createdTime.getTime() + 3600000); // 1 saat ekle
-  return calculateCountdown(deletionTime);
+export const calculateDeletionCountdown = (createdAt: string) => {
+  const createdTime = new Date(createdAt).getTime();
+  const now = new Date().getTime();
+  const deletionTime = createdTime + (60 * 60 * 1000); // 1 saat
+  const remainingMs = deletionTime - now;
+  
+  if (remainingMs <= 0) {
+    return { isExpired: true, hours: 0, minutes: 0, seconds: 0 };
+  }
+  
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  return {
+    isExpired: false,
+    hours,
+    minutes,
+    seconds
+  };
 };
 
 /**
- * Teslimat countdown'u (kabul zamanından 1 saat)
+ * Teslimat süresini hesaplar
  */
-export const calculateDeliveryCountdown = (acceptedAt: string): { hours: number, minutes: number, seconds: number, isExpired: boolean } => {
-  const acceptedTime = new Date(acceptedAt);
-  const deliveryDeadline = new Date(acceptedTime.getTime() + 3600000); // 1 saat ekle
-  return calculateCountdown(deliveryDeadline);
+export const calculateDeliveryCountdown = (acceptedAt: string) => {
+  const acceptedTime = new Date(acceptedAt).getTime();
+  const now = new Date().getTime();
+  const deliveryTime = acceptedTime + (60 * 60 * 1000); // 1 saat
+  const remainingMs = deliveryTime - now;
+  
+  if (remainingMs <= 0) {
+    return { isExpired: true, hours: 0, minutes: 0, seconds: 0 };
+  }
+  
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  return {
+    isExpired: false,
+    hours,
+    minutes,
+    seconds
+  };
 }; 

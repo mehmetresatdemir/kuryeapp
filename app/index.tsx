@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 const Page = () => {
   const [loading, setLoading] = useState(true);
@@ -16,12 +17,30 @@ const Page = () => {
       
       if (!userData) {
         // Kullanıcı giriş yapmamış, giriş sayfasına yönlendir
+        console.log('📱 Kullanıcı data bulunamadı, giriş sayfasına yönlendiriliyor');
         router.replace("/(auth)/sign-in");
         return;
       }
 
-      const user = JSON.parse(userData);
+      let user;
+      try {
+        user = JSON.parse(userData);
+      } catch (parseError) {
+        console.error('❌ User data parsing error:', parseError);
+        // Bozuk data varsa temizle ve giriş yap uyarısı göster
+        await AsyncStorage.multiRemove(['userData', 'userToken']);
+        
+        Alert.alert(
+          '🔐 Oturum Hatası',
+          'Oturum bilgilerinizde bir sorun oluştu. Lütfen tekrar giriş yapın.',
+          [{ text: 'Giriş Yap', onPress: () => router.replace("/(auth)/sign-in") }]
+        );
+        return;
+      }
+      
       const userRole = user.role;
+
+      // Bildirim sistemi kaldırıldı
 
       // Kullanıcının rolüne göre uygun sayfaya yönlendir
       switch (userRole) {
@@ -39,8 +58,19 @@ const Page = () => {
           break;
       }
     } catch (error) {
-      console.error('Error checking user status:', error);
-      router.replace("/(auth)/sign-in");
+      console.error('❌ Error checking user status:', error);
+      
+      // Session expire veya auth error ise uyarı göster
+      const errorMessage = (error as Error)?.message || '';
+      if (errorMessage.includes('401') || errorMessage.includes('session') || errorMessage.includes('token')) {
+        Alert.alert(
+          '🔐 Oturum Süresi Doldu',
+          'Oturumunuz sona erdi. Lütfen tekrar giriş yapın.',
+          [{ text: 'Giriş Yap', onPress: () => router.replace("/(auth)/sign-in") }]
+        );
+      } else {
+        router.replace("/(auth)/sign-in");
+      }
     } finally {
       setLoading(false);
     }

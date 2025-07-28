@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import * as Location from "expo-location";
+import * as Notifications from 'expo-notifications';
 import io from "socket.io-client";
 import { useFocusEffect, router } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -75,6 +76,44 @@ const RestaurantLiveMap = () => {
   const [expandedBubble, setExpandedBubble] = useState<string | null>(null);
   const socketRef = useRef<any>(null);
   const lastUpdateRef = useRef<number>(0);
+  
+  // Notification deduplication - track recent notifications
+  const recentNotifications = useRef(new Set());
+  const NOTIFICATION_THROTTLE_MS = 3000; // 3 seconds
+
+  // Function to check if notification is duplicate
+  const isDuplicateNotification = (type: string, orderId: string) => {
+    const notificationKey = `${type}_${orderId}`;
+    if (recentNotifications.current.has(notificationKey)) {
+      console.log(`🚫 Duplicate notification blocked: ${notificationKey}`);
+      return true;
+    }
+    
+    recentNotifications.current.add(notificationKey);
+    setTimeout(() => {
+      recentNotifications.current.delete(notificationKey);
+    }, NOTIFICATION_THROTTLE_MS);
+    
+    return false;
+  };
+
+  // Ses çalma fonksiyonu
+  const playNotificationSound = useCallback(async () => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2.wav',
+          data: { local: true }
+        },
+        trigger: null, // Immediately
+      });
+      console.log("🔔 RestaurantLiveMap: Local notification with sound played");
+    } catch (error) {
+      console.error("❌ RestaurantLiveMap: Error playing notification sound:", error);
+    }
+  }, []);
   const mapRef = useRef<MapView>(null);
 
 
@@ -90,12 +129,51 @@ const RestaurantLiveMap = () => {
     }
   }, [userLocation]);
 
+  // Push token registration for restaurant
+  const registerPushToken = useCallback(async (userData: any) => {
+    if (!userData) return;
+    
+    try {
+      const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+      if (!expoPushToken) {
+        console.log('📵 No push token available for registration');
+        return;
+      }
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/push-notifications/register`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`
+        },
+        body: JSON.stringify({
+          userId: userData.id,
+          userType: 'restaurant',
+          expoPushToken: expoPushToken,
+          platform: 'ios' // Default platform
+        })
+      });
+      
+      if (response.ok) {
+        console.log(`📱 Push token registered for restaurant ${userData.id}`);
+      } else {
+        console.error('❌ Failed to register push token:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error registering push token:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const loadUser = async () => {
       try {
         const userData = await AsyncStorage.getItem('userData');
         if (userData) {
-          setUser(JSON.parse(userData));
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+          
+          // Register push token when user is loaded
+          registerPushToken(parsedUser);
         }
         setIsLoaded(true);
       } catch (error) {
@@ -104,7 +182,7 @@ const RestaurantLiveMap = () => {
       }
     };
     loadUser();
-  }, []);
+  }, [registerPushToken]);
 
   // Get the user's current location.
   useEffect(() => {
@@ -233,11 +311,81 @@ const RestaurantLiveMap = () => {
         socketRef.current.emit("requestActiveOrders", { firmId });
       });
 
-      socketRef.current.on("orderDelivered", (data: any) => {
-        console.log(`📦 Sipariş teslim edildi:`, data);
+      // Listen for order status changes (real-time updates)
+      socketRef.current.on("orderStatusChanged", (data: { 
+        orderId: string, 
+        newStatus: string, 
+        courierName?: string, 
+        message: string, 
+        timestamp: number 
+      }) => {
+        console.log("📡 RestaurantLiveMap received order status change:", data);
+        
+        if (data.newStatus === "kuryede") {
+          // Check for duplicate notification
+          if (isDuplicateNotification("order_accepted", data.orderId)) {
+            return; // Skip duplicate
+          }
+          
+          // Play notification sound
+          playNotificationSound();
+          
+          // Sipariş kabul edildiğinde aktif siparişleri güncelle
+          socketRef.current.emit("requestActiveOrders", { firmId });
+          console.log(`🔄 RestaurantLiveMap: Order ${data.orderId} accepted, requesting active orders`);
+        }
+      });
+
+      // Listen for order cancellations
+      socketRef.current.on("orderCancelled", (data: { 
+        orderId: string, 
+        courierName: string, 
+        reason: string, 
+        message: string, 
+        newStatus: string, 
+        timestamp: number 
+      }) => {
+        console.log("❌ RestaurantLiveMap received order cancellation:", data);
+        
+        if (data.newStatus === "bekleniyor") {
+          // Check for duplicate notification
+          if (isDuplicateNotification("order_cancelled", data.orderId)) {
+            return; // Skip duplicate
+          }
+          
+          // Play notification sound
+          playNotificationSound();
+          
+          // Sipariş iptal edilip tekrar havuza düştüğünde aktif siparişleri güncelle
+          socketRef.current.emit("requestActiveOrders", { firmId });
+          console.log(`🔄 RestaurantLiveMap: Order ${data.orderId} cancelled by courier, requesting active orders`);
+        }
+      });
+
+      // Listen for order delivery notifications
+      socketRef.current.on("orderDelivered", (data: { 
+        orderId: string, 
+        courierName: string, 
+        paymentMethod: string, 
+        message: string, 
+        timestamp: number 
+      }) => {
+        console.log("📦 RestaurantLiveMap received order delivery notification:", data);
+        
+        // Check for duplicate notification
+        if (isDuplicateNotification("order_delivered", data.orderId)) {
+          return; // Skip duplicate
+        }
+        
+        // Play notification sound
+        playNotificationSound();
+        
         // Sipariş teslim edildiğinde aktif siparişleri güncelle
         socketRef.current.emit("requestActiveOrders", { firmId });
+        console.log(`🔄 RestaurantLiveMap: Order ${data.orderId} delivered by courier ${data.courierName}, requesting active orders`);
       });
+
+
 
       // Listen for force logout events (concurrent session control)
       socketRef.current.on("forceLogout", async (data: { reason: string, message: string }) => {
@@ -250,17 +398,17 @@ const RestaurantLiveMap = () => {
           [
             {
               text: "Tamam",
-              onPress: async () => {
-                try {
-                  // Clear all user data
-                  await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                  
-                  // Navigate to login screen
-                  router.replace("/(auth)/sign-in");
-                } catch (error) {
-                  console.error("Force logout cleanup error:", error);
-                  router.replace("/(auth)/sign-in");
-                }
+              onPress: () => {
+                // Clear all user data
+                AsyncStorage.multiRemove(['userData', 'userId', 'userToken'])
+                  .then(() => {
+                    // Navigate to login screen
+                    router.replace("/(auth)/sign-in");
+                  })
+                  .catch((error) => {
+                    console.error("Force logout cleanup error:", error);
+                    router.replace("/(auth)/sign-in");
+                  });
               }
             }
           ],

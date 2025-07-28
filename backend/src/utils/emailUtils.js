@@ -68,7 +68,7 @@ const sendPasswordResetEmail = async (email, resetToken, userType) => {
                     
                     <div style="text-align: center; color: #999; font-size: 12px;">
                         <p>Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayın.</p>
-                        <p>© 2024 Kurye App. Tüm hakları saklıdır.</p>
+                        <p>© 2025 Kurye App. Tüm hakları saklıdır.</p>
                     </div>
                 </div>
             `

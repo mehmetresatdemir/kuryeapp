@@ -157,7 +157,7 @@ router.post('/upload-multiple', upload.array('images', 10), (req, res) => {
       originalName: file.originalname,
       size: file.size,
       url: `${baseUrl}/uploads/orders/${file.filename}`,
-      uploadDate: new Date().toISOString()
+      uploadDate: new Date().toLocaleString('tr-TR')
     }));
 
     res.json({

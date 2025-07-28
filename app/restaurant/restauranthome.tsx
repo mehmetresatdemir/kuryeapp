@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Text,
@@ -22,26 +23,19 @@ import { LinearGradient } from "expo-linear-gradient";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from 'expo-notifications';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import io from "socket.io-client";
 import { API_CONFIG, getFullUrl, API_ENDPOINTS, authedFetch } from "../../constants/api";
-import NotificationButton from "../../components/NotificationButton";
-import { playNotificationSound, updateCachedSound } from "../../lib/notificationSoundUtils";
-import PushNotificationService from "../../lib/pushNotificationService";
+
+
+
+
 // Timezone import'ları kaldırıldı - artık basit hesaplama kullanıyoruzir
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Notification handler global _layout.tsx'te ayarlandı
 
 // Mahalle verileri için tip tanımı
 interface Neighborhood {
@@ -107,8 +101,8 @@ const useCountdown = (targetTime: Date | null) => {
           if (!targetTime) return;
       
       const interval = setInterval(() => {
-        // Backend Turkey time kullanıyor, frontend'te de Turkey time kullan
-        const now = new Date(new Date().getTime() + (3 * 60 * 60 * 1000)); // Turkey time
+        // Backend text olarak timestamp döndürüyor, doğrudan karşılaştır
+        const now = new Date();
         const diff = targetTime.getTime() - now.getTime();
       
       if (diff <= 0) {
@@ -136,7 +130,7 @@ const useCountdown = (targetTime: Date | null) => {
 const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
   const status = order.status.toLowerCase();
   
-  // Backend zaten Türkiye saatinde timestamp kaydediyor, direkt kullan
+  // Backend text timestamp döndürüyor, direkt kullan
   const createdAt = new Date(order.created_at);
   const deletionTime = new Date(createdAt.getTime() + 3600000); // 1 saat sonra silinecek
   
@@ -157,7 +151,7 @@ const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
   if (status === "bekleniyor") {
     if (autoDeleteCountdown.isExpired) {
       return (
-        <View style={styles.countdownContainer}>
+        <View style={styles.modalCountdownContainer}>
           <View style={[styles.countdownBadge, { backgroundColor: '#EF4444' }]}>
             <Icon name="warning" size={14} color="#FFFFFF" />
             <Text style={styles.countdownText}>
@@ -172,10 +166,10 @@ const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
       ? `${autoDeleteCountdown.hours}s ${autoDeleteCountdown.minutes}dk`
       : `${autoDeleteCountdown.minutes}dk ${autoDeleteCountdown.seconds}s`;
     
-    return (
-      <View style={styles.countdownContainer}>
-        <View style={[styles.countdownBadge, { backgroundColor: '#F59E0B' }]}>
-          <Icon name="schedule" size={14} color="#FFFFFF" />
+          return (
+        <View style={styles.modalCountdownContainer}>
+          <View style={[styles.countdownBadge, { backgroundColor: '#F59E0B' }]}>
+            <Icon name="schedule" size={14} color="#FFFFFF" />
           <Text style={styles.countdownText}>
             {timeLeft} sonra silinecek
           </Text>
@@ -187,7 +181,7 @@ const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
   if (status === "kuryede") {
     if (deliveryCountdown.isExpired) {
       return (
-        <View style={styles.countdownContainer}>
+        <View style={styles.modalCountdownContainer}>
           <View style={[styles.countdownBadge, { backgroundColor: '#EF4444' }]}>
             <Icon name="warning" size={14} color="#FFFFFF" />
             <Text style={styles.countdownText}>
@@ -209,7 +203,7 @@ const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
     const statusText = isUrgent ? 'ACİL TESLİMAT!' : isModerate ? 'HIZLI TESLİMAT' : 'TESLİMAT SÜRESİ';
     
     return (
-      <View style={styles.countdownContainer}>
+      <View style={styles.modalCountdownContainer}>
         <View style={[styles.countdownBadge, { backgroundColor }]}>
           <Icon name="delivery-dining" size={14} color="#FFFFFF" />
           <Text style={styles.countdownText}>
@@ -230,7 +224,9 @@ const TabBadge: React.FC<{ count: number, color: string }> = ({ count, color }) 
   
   return (
     <View style={[styles.tabBadge, { backgroundColor: color }]}>
-      <Text style={styles.tabBadgeText}>{count}</Text>
+      <Text style={styles.tabBadgeText}>
+        {count > 99 ? '99+' : count}
+      </Text>
     </View>
   );
 };
@@ -243,6 +239,8 @@ const RestaurantHome = () => {
   
   // Tab sistemi için state - 3 sekme: bekleniyor, kuryede, onay bekleyen
   const [activeTab, setActiveTab] = useState<'waiting' | 'indelivery' | 'pending'>('waiting');
+  
+
 
   // Güvenli parseFloat fonksiyonu - NaN hatalarını önler
   const safeParseFloat = (value: any): number => {
@@ -300,104 +298,93 @@ const RestaurantHome = () => {
   
   // Socket connection for real-time notifications
   const socketRef = useRef<any>(null);
+
+  // Notification deduplication - track recent notifications
+  const recentNotifications = useRef(new Set());
+  const NOTIFICATION_THROTTLE_MS = 3000; // 3 seconds
+
+  // Function to check if notification is duplicate
+  const isDuplicateNotification = (type: string, orderId: string) => {
+    const notificationKey = `${type}_${orderId}`;
+    if (recentNotifications.current.has(notificationKey)) {
+      console.log(`🚫 Duplicate notification blocked: ${notificationKey}`);
+      return true;
+    }
+    
+    recentNotifications.current.add(notificationKey);
+    setTimeout(() => {
+      recentNotifications.current.delete(notificationKey);
+    }, NOTIFICATION_THROTTLE_MS);
+    
+    return false;
+  };
+
+  // Ses çalma fonksiyonu
+  const playNotificationSound = useCallback(async () => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2.wav',
+          data: { local: true }
+        },
+        trigger: null, // Immediately
+      });
+      console.log("🔔 Restaurant: Local notification with sound played");
+    } catch (error) {
+      console.error("❌ Restaurant: Error playing notification sound:", error);
+    }
+  }, []);
   const notificationTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   // Modal scroll ref
   const modalScrollRef = useRef<ScrollView>(null);
 
-  // Debounced notification function to prevent duplicates
-  const sendNotificationDebounced = useCallback((notificationId: string, notificationConfig: any) => {
-    // Clear existing timeout for this notification type
-    if (notificationTimeouts.current.has(notificationId)) {
-      clearTimeout(notificationTimeouts.current.get(notificationId)!);
-    }
+  // Bildirim sistemi kaldırıldı
+
+  // Bildirim sistemi kaldırıldı
+
+
+
+  // Push token registration for restaurant
+  const registerPushToken = useCallback(async () => {
+    if (!user) return;
     
-    // Set new timeout
-    const timeout = setTimeout(() => {
-      Notifications.scheduleNotificationAsync(notificationConfig);
-      notificationTimeouts.current.delete(notificationId);
-    }, 100); // 100ms debounce
-    
-    notificationTimeouts.current.set(notificationId, timeout);
-  }, []);
-
-  // Setup notifications and push tokens
-  useEffect(() => {
-    const setupNotifications = async () => {
-      try {
-        console.log('🔔 RESTORAN: setupNotifications başlatılıyor...');
-        
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        console.log('🔔 RESTORAN: Mevcut izin durumu:', existingStatus);
-        let finalStatus = existingStatus;
-        
-        if (existingStatus !== 'granted') {
-          console.log('🔔 RESTORAN: İzin isteniyor...');
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
-          console.log('🔔 RESTORAN: İzin sonucu:', status);
-        }
-        
-        if (finalStatus !== 'granted') {
-          console.log('❌ RESTORAN: Push notification izni reddedildi');
-          return;
-        }
-
-        console.log('✅ RESTORAN: Push notification izni alındı');
-
-        // Push notification token'ını kaydet - HER ZAMAN ÇALIŞ
-        console.log('🔔 RESTORAN: Push token kaydı ZORLANARAK başlatılıyor...');
-        
-        // Doğrudan user objesi kullan (zaten yüklü)
-        if (user && user.id) {
-          console.log('🔔 RESTORAN: User mevcut - ID:', user.id);
-          console.log('🔔 RESTORAN: PushNotificationService.registerForPushNotifications çağrılıyor...');
-          
-          const token = await PushNotificationService.registerForPushNotifications(
-            user.id.toString(), 
-            'restaurant'
-          );
-          
-          console.log('✅ RESTORAN: Push token sonucu:', token ? 'BAŞARILI' : 'BAŞARISIZ');
-          console.log('✅ RESTORAN: Token değeri:', token);
-          
-          // Token kaydedildiyse bildir
-          if (token) {
-            console.log('🎉 RESTORAN: Gerçek push token başarıyla kaydedildi!');
-          }
-        } else {
-          console.log('❌ RESTORAN: User bulunamadı!');
-          
-          // AsyncStorage'dan da dene
-          const storedUser = await AsyncStorage.getItem('user');
-          console.log('🔔 RESTORAN: Stored user:', storedUser ? 'MEVCUT' : 'YOK');
-          
-          if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
-            console.log('🔔 RESTORAN: Parsed User ID:', parsedUser.id);
-            
-            if (parsedUser.id) {
-              const token = await PushNotificationService.registerForPushNotifications(
-                parsedUser.id.toString(), 
-                'restaurant'
-              );
-              console.log('✅ RESTORAN: AsyncStorage token sonucu:', token ? 'BAŞARILI' : 'BAŞARISIZ');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('❌ RESTORAN: setupNotifications hatası:', error);
+    try {
+      const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+      if (!expoPushToken) {
+        console.log('📵 No push token available for registration');
+        return;
       }
-    };
-    
-    setupNotifications();
-  }, []);
-
-
+      
+      const response = await authedFetch(getFullUrl('/api/push-notifications/register'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+           userId: user.id,
+           userType: 'restaurant',
+           expoPushToken: expoPushToken,
+           platform: 'ios' // Default platform
+         })
+      });
+      
+      if (response.ok) {
+        console.log(`📱 Push token registered for restaurant ${user.id}`);
+      } else {
+        console.error('❌ Failed to register push token:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error registering push token:', error);
+    }
+  }, [user]);
 
   // Initialize socket connection after user is loaded
   useEffect(() => {
     if (!user) return;
+
+    // Register push token when user is loaded
+    registerPushToken();
 
     const socket = io(API_CONFIG.SOCKET_URL, { 
       transports: ["websocket", "polling"],
@@ -461,17 +448,17 @@ const RestaurantHome = () => {
         [
           {
             text: "Tamam",
-            onPress: async () => {
-              try {
-                // Clear all user data
-                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
-                
-                // Navigate to login screen
-                router.replace("/(auth)/sign-in");
-              } catch (error) {
-                console.error("Force logout cleanup error:", error);
-                router.replace("/(auth)/sign-in");
-              }
+            onPress: () => {
+              // Clear all user data
+              AsyncStorage.multiRemove(['userData', 'userId', 'userToken'])
+                .then(() => {
+                  // Navigate to login screen
+                  router.replace("/(auth)/sign-in");
+                })
+                .catch((error) => {
+                  console.error("Force logout cleanup error:", error);
+                  router.replace("/(auth)/sign-in");
+                });
             }
           }
         ],
@@ -497,31 +484,53 @@ const RestaurantHome = () => {
     });
 
     // Listen for order cancellations specifically
-    socket.on("orderCancelled", (data: { orderId: string, message: string }) => {
+    socket.on("orderCancelled", (data: { 
+      orderId: string, 
+      courierName: string, 
+      reason: string, 
+      message: string, 
+      newStatus: string, 
+      timestamp: number 
+    }) => {
       console.log("❌ Restaurant received order cancellation:", data);
       
-      // Özel bildirim sesi çal
-      playNotificationSound().catch(error => {
-        console.log('Bildirim sesi çalınamadı:', error);
-      });
-      
-      // Send debounced push notification
-      sendNotificationDebounced(`orderCancelled_${data.orderId}`, {
-        content: {
-          title: "🔄 Sipariş İptal Edildi",
-          body: `Sipariş #${data.orderId} kurye tarafından iptal edildi ve tekrar bekleme listesine alındı.`,
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-          data: { 
-            orderId: data.orderId,
-            type: 'orderCancelled'
-          },
-        },
-        trigger: null,
-      });
-      
-      // Refresh order list when any order is cancelled
-      fetchOrders();
-      fetchPendingApprovalOrders();
+      if (data.newStatus === "bekleniyor") {
+        // Check for duplicate notification
+        if (isDuplicateNotification("order_cancelled", data.orderId)) {
+          return; // Skip duplicate
+        }
+        
+        // Play notification sound
+        playNotificationSound();
+        
+        // Show in-app alert
+        Alert.alert(
+          "❌ Sipariş İptal Edildi!",
+          `Kurye ${data.courierName} sipariş #${data.orderId} iptal etti. Sebep: ${data.reason}`,
+          [{ text: "Tamam", style: "default" }]
+        );
+        
+        // Immediate state update for instant UI response
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id.toString() === data.orderId.toString() 
+              ? { ...order, status: "bekleniyor" }
+              : order
+          )
+        );
+        
+        // Background refresh to ensure data consistency
+        setTimeout(() => {
+          fetchOrders();
+          fetchPendingApprovalOrders();
+        }, 100);
+        
+        console.log(`🔄 Restaurant: Order ${data.orderId} cancelled by courier, status updated to 'bekleniyor' instantly`);
+      } else {
+        // For other status changes, just refresh
+        fetchOrders();
+        fetchPendingApprovalOrders();
+      }
     });
 
     // Listen for order acceptance notifications
@@ -535,29 +544,56 @@ const RestaurantHome = () => {
     }) => {
       console.log("✅ Restaurant received order acceptance:", data);
       
-      // Özel bildirim sesi çal
-      playNotificationSound().catch(error => {
-        console.log('Bildirim sesi çalınamadı:', error);
-      });
+      // Bildirim sistemi kaldırıldı
       
-      // Send debounced push notification
-      sendNotificationDebounced(`orderAccepted_${data.orderId}`, {
-        content: {
-          title: "✅ Sipariş Kabul Edildi!",
-          body: `Sipariş #${data.orderId} ${data.courierName} tarafından kabul edildi.`,
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-          data: { 
-            orderId: data.orderId,
-            courierName: data.courierName,
-            courierPhone: data.courierPhone,
-            type: 'orderAccepted'
-          },
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
       
       // Refresh order list to show updated status
       fetchOrders();
+    });
+
+    // Listen for order status changes (real-time updates)
+    socket.on("orderStatusChanged", (data: { 
+      orderId: string, 
+      newStatus: string, 
+      courierName?: string, 
+      message: string, 
+      timestamp: number 
+    }) => {
+      console.log("📡 Restaurant received order status change:", data);
+      
+      if (data.newStatus === "kuryede") {
+        // Check for duplicate notification
+        if (isDuplicateNotification("order_accepted", data.orderId)) {
+          return; // Skip duplicate
+        }
+        
+        // Play notification sound
+        playNotificationSound();
+        
+        // Show in-app alert
+        Alert.alert(
+          "✅ Sipariş Kabul Edildi!",
+          `Sipariş #${data.orderId} kurye ${data.courierName} tarafından kabul edildi.`,
+          [{ text: "Tamam", style: "default" }]
+        );
+        
+        // Immediate state update for instant UI response
+        setOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id.toString() === data.orderId.toString() 
+              ? { ...order, status: "kuryede", kuryeid: data.courierName || order.kuryeid }
+              : order
+          )
+        );
+        
+        // Background refresh to ensure data consistency
+        setTimeout(() => {
+          fetchOrders();
+        }, 100);
+        
+        console.log(`🔄 Restaurant: Order ${data.orderId} status updated to 'kuryede' instantly`);
+      }
     });
 
     // Listen for pending approval orders
@@ -567,59 +603,49 @@ const RestaurantHome = () => {
       // Sipariş artık aktif listeden çıkıp onay bekleyen listeye geçiyor, anlık olarak kaldır
       setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
       
-      // Özel bildirim sesi çal
-      playNotificationSound().catch(error => {
-        console.log('Bildirim sesi çalınamadı:', error);
-      });
+      // Bildirim sistemi kaldırıldı
       
-      // Send debounced push notification
-      sendNotificationDebounced(`orderPendingApproval_${data.orderId}`, {
-        content: {
-          title: "⏳ Sipariş Onay Bekliyor",
-          body: `Sipariş #${data.orderId} teslim edildi ve onayınızı bekliyor.`,
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-          data: { 
-            orderId: data.orderId,
-            courierId: data.courierId,
-            type: 'orderPendingApproval'
-          },
-        },
-        trigger: null,
-      });
+      // Bildirim sistemi kaldırıldı
       
       // Refresh pending approval orders list
       fetchPendingApprovalOrders();
     });
 
     // Listen for order delivery notifications
-    socket.on("orderDelivered", (data: { orderId: string, courierId: string, message: string, orderDetails: any }) => {
+    socket.on("orderDelivered", (data: { 
+      orderId: string, 
+      courierName: string, 
+      paymentMethod: string, 
+      message: string, 
+      timestamp: number 
+    }) => {
       console.log("📦 Restaurant received order delivery notification:", data);
       
-      // Anlık olarak siparişi listeden kaldır
+      // Check for duplicate notification
+      if (isDuplicateNotification("order_delivered", data.orderId)) {
+        return; // Skip duplicate
+      }
+      
+      // Play notification sound
+      playNotificationSound();
+      
+      // Show in-app alert
+      Alert.alert(
+        "📦 Sipariş Teslim Edildi!",
+        `Sipariş #${data.orderId} kurye ${data.courierName} tarafından teslim edildi.`,
+        [{ text: "Tamam", style: "default" }]
+      );
+      
+      // Remove delivered order from active orders
       setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
       
-      // Özel bildirim sesi çal
-      playNotificationSound().catch(error => {
-        console.log('Bildirim sesi çalınamadı:', error);
-      });
-      
-      // Send debounced push notification
-      sendNotificationDebounced(`orderDelivered_${data.orderId}`, {
-        content: {
-          title: "✅ Sipariş Teslim Edildi",
-          body: `Sipariş #${data.orderId} başarıyla teslim edildi! Kurye Ücreti: ${data.orderDetails?.courier_price} ₺`,
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-          data: { 
-            orderId: data.orderId,
-            courierTip: data.orderDetails?.courier_price,
-            type: 'orderDelivered'
-          },
-        },
-        trigger: null,
-      });
+      // Refresh pending approval orders list in case this needs approval
+      fetchPendingApprovalOrders();
       
       // Refresh order list to update status (backup)
       fetchOrders();
+      
+      console.log(`🔄 Restaurant: Order ${data.orderId} delivered by courier ${data.courierName}`);
     });
 
     // Listen for delivery needs approval notifications
@@ -629,26 +655,9 @@ const RestaurantHome = () => {
       // Anlık olarak siparişi aktif listeden kaldır
       setOrders(prevOrders => prevOrders.filter(order => order.id.toString() !== data.orderId.toString()));
       
-      // Özel bildirim sesi çal
-      playNotificationSound().catch(error => {
-        console.log('Bildirim sesi çalınamadı:', error);
-      });
+      // Bildirim sistemi kaldırıldı
       
-      // Send debounced push notification
-      sendNotificationDebounced(`deliveryNeedsApproval_${data.orderId}`, {
-        content: {
-          title: "⏳ Sipariş Onay Bekliyor",
-          body: `${data.courierName} sipariş #${data.orderId} teslim ettiğini bildirdi. Onayınız bekleniyor.`,
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-          data: { 
-            orderId: data.orderId,
-            courierId: data.courierId,
-            courierName: data.courierName,
-            type: 'deliveryNeedsApproval'
-          },
-        },
-        trigger: null,
-      });
+      // Bildirim sistemi kaldırıldı
       
       // Refresh pending approval orders list
       fetchPendingApprovalOrders();
@@ -724,29 +733,9 @@ const RestaurantHome = () => {
     socket.on("adminNotification", (data: { title: string, message: string, priority: string, withSound: boolean, timestamp: string, type: string, sender: string }) => {
       console.log("📢 Restaurant: Admin notification received:", data);
       
-      // Özel bildirim sesi çal
-      if (data.withSound) {
-        playNotificationSound().catch(error => {
-          console.log('Bildirim sesi çalınamadı:', error);
-        });
-      }
+      // Bildirim sistemi kaldırıldı
       
-      // Show admin notification
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: `📢 ${data.title}`,
-          subtitle: "Yönetici Bildirimi",
-          body: data.message,
-          data: { 
-            type: 'admin_notification',
-            priority: data.priority,
-            sender: data.sender,
-            timestamp: data.timestamp
-          },
-          sound: false, // Kendi ses sistemimizi kullanıyoruz
-        },
-        trigger: null, // Show immediately
-      });
+      // Bildirim sistemi kaldırıldı
 
       // Show in-app alert for urgent messages
       if (data.priority === 'urgent') {
@@ -765,19 +754,19 @@ const RestaurantHome = () => {
       }
     });
 
-    // Listen for notification sound changes
-    socket.on("notificationSoundChanged", (data: { soundId: string, soundName: string, soundPath: string, message: string, timestamp: string }) => {
-      console.log("🔊 Bildirim sesi değişti:", data);
-      
-      // Cache'i güncelle
-      updateCachedSound({
-        id: data.soundId,
-        name: data.soundName,
-        file_path: data.soundPath
-      });
-      
-      // Kullanıcıya bilgi ver
-      console.log(`🎵 ${data.message}`);
+
+
+    // Listen for broadcast success confirmations
+    socket.on("broadcastNewOrderSuccess", (data: { orderId: string, message: string }) => {
+      console.log("✅ Restaurant: Sipariş bildirim başarısı:", data);
+    });
+
+    // Listen for socket errors
+    socket.on("error", (data: { message: string, error?: string, orderId?: string }) => {
+      console.error("❌ Restaurant: Socket hatası:", data);
+      if (data.orderId) {
+        console.error(`❌ Sipariş #${data.orderId} için hata: ${data.message}`);
+      }
     });
 
     socketRef.current = socket;
@@ -796,7 +785,7 @@ const RestaurantHome = () => {
       // Clear socket ref
       socketRef.current = null;
     };
-  }, [user, sendNotificationDebounced]);
+  }, [user]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -843,6 +832,12 @@ const RestaurantHome = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (err) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if ((err as any).isTokenExpired && (err as any).shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return;
+      }
+      
       if ((err as Error).message.includes('404')) {
         console.log("⚠️ Caught 404 error, silently managing empty orders.");
         setOrders([]);
@@ -878,6 +873,12 @@ const RestaurantHome = () => {
         setPendingApprovalOrders([]);
       }
     } catch (err) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if ((err as any).isTokenExpired && (err as any).shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return;
+      }
+      
       console.error("❌ Error fetching pending approval orders:", err);
       setPendingApprovalOrders([]);
     }
@@ -909,6 +910,12 @@ const RestaurantHome = () => {
       
       
     } catch (error) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if ((error as any).isTokenExpired && (error as any).shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return;
+      }
+      
       console.error("Sipariş onaylama hatası:", error);
       Alert.alert("Hata", "Sipariş onaylanırken bir hata oluştu.");
     }
@@ -987,6 +994,12 @@ const RestaurantHome = () => {
         throw new Error(data.message || 'Mahalle bilgileri alınamadı');
       }
     } catch (error) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if ((error as any).isTokenExpired && (error as any).shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return;
+      }
+      
       console.error('Error fetching restaurant neighborhoods:', error);
       Alert.alert('Hata', 'Mahalle bilgileri yüklenirken bir hata oluştu');
     }
@@ -1166,6 +1179,12 @@ const RestaurantHome = () => {
         return null;
       }
     } catch (error) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if ((error as any).isTokenExpired && (error as any).shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return null;
+      }
+      
       console.error("❌ Upload servis hatası:", error);
       return null;
     } finally {
@@ -1337,33 +1356,11 @@ const RestaurantHome = () => {
       const responseData = await response.json();
       console.log("Sipariş başarıyla kaydedildi:", responseData);
 
-      // Send real-time notification to couriers via socket (only for new orders, not updates)
-      if (!editingOrder && socketRef.current && responseData.data) {
-        const newOrder = Array.isArray(responseData.data) ? responseData.data[0] : responseData.data;
-        console.log("📡 Broadcasting new order to couriers:", newOrder);
-        
-        // Broadcast to all connected couriers
-        socketRef.current.emit("broadcastNewOrder", {
-          order: {
-            id: newOrder.id,
-            firmaid: user.id,
-            mahalle: selectedNeighborhood.name,
-            odeme_yontemi: getPaymentMethodSummary(),
-            kurye_tutari: getCourierFee(),
-            nakit_tutari: nakitTutari,
-            banka_tutari: bankaTutari,
-            hediye_tutari: hediyeTutari,
-            firma_adi: user.name || 'Restaurant',
-            resim: uploadedImageUrl, // Upload servisinden dönen resim URL'si
-            status: "bekleniyor",
-            created_at: newOrder.created_at, // Database'den gelen gerçek created_at kullan
-            title: `${user.name || 'Restaurant'} - ${selectedNeighborhood.name}`,
-            preparation_time: selectedPreparationTime // Hazırlık süresini ekle
-          }
-        });
-        
-        // Sipariş oluşturuldu - sessizce devam et
-      } else if (editingOrder) {
+      // Socket broadcast kaldırıldı - Backend API zaten push notification gönderiyor
+      // Çift bildirim önlemek için socket broadcast devre dışı bırakıldı
+      console.log("📡 Socket broadcast atlandı - Backend API zaten push notification gönderdi");
+      
+      if (editingOrder) {
         Alert.alert("Başarılı", "Sipariş başarıyla güncellendi");
       }
 
@@ -1379,6 +1376,12 @@ const RestaurantHome = () => {
 
       fetchOrders();
     } catch (err: any) {
+      // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+      if (err.isTokenExpired && err.shouldLogout) {
+        console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+        return;
+      }
+      
       console.error("Sipariş kaydedilirken hata:", err);
       Alert.alert("Hata", "Sipariş kaydedilemedi. Lütfen tekrar deneyin.");
     } finally {
@@ -1409,6 +1412,12 @@ const RestaurantHome = () => {
             fetchOrders();
             Alert.alert("Başarılı", "Sipariş silindi.");
           } catch (error) {
+            // Token geçersizse ve logout ediliyorsa, kullanıcıyı login sayfasına yönlendir
+            if ((error as any).isTokenExpired && (error as any).shouldLogout) {
+              console.warn('⚠️ Restoran: Token geçersiz - otomatik logout devre dışı');
+              return;
+            }
+            
             console.error("Sipariş silinirken hata:", error);
             alert("Sipariş silinemedi. Lütfen tekrar deneyin.");
           }
@@ -1512,6 +1521,8 @@ const RestaurantHome = () => {
     ]);
   };
 
+
+
   // Tam ekran resim modalını açan fonksiyon; detay modalı kapansın
   const openFullScreenImage = (uri: string) => {
     console.log("Image pressed, URI:", uri);
@@ -1564,82 +1575,147 @@ const RestaurantHome = () => {
 
   return (
     <View style={styles.mainContainer}>
-              <StatusBar backgroundColor="#8B5CF6" barStyle="light-content" />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <View style={styles.headerContent}>
-            <View>
-              {user?.name && (
-                <Text style={styles.restaurantName}>{user.name}</Text>
-              )}
-            </View>
-            <View style={styles.headerActions}>
-              <NotificationButton 
-                userType="restaurant" 
-                userId={user?.id?.toString() || ''} 
-              />
-              <TouchableOpacity
-                style={styles.newOrderButton}
-                onPress={() => {
-                  setEditingOrder(null);
-                  openOrderModal();
-                }}
-              >
-                <Text style={styles.newOrderButtonText}>+ Yeni Sipariş</Text>
-              </TouchableOpacity>
+      <StatusBar backgroundColor="#8B5CF6" barStyle="light-content" />
+      <LinearGradient
+        colors={['#8B5CF6', '#7C3AED', '#6D28D9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.headerContainer}>
+            <View style={styles.headerContent}>
+              <View>
+                {user?.name && (
+                  <Text style={styles.restaurantName}>{user.name}</Text>
+                )}
+              </View>
+              <View style={styles.headerActions}>
+                {/* Bildirim sistemi kaldırıldı */}
+                
+                <TouchableOpacity
+                  style={styles.newOrderButton}
+                  onPress={() => {
+                    setEditingOrder(null);
+                    openOrderModal();
+                  }}
+                >
+                  <Text style={styles.newOrderButtonText}>+ Yeni Sipariş</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
 
       {/* Tab Buttons - 3 sekme: Bekleniyor, Kuryede, Onay Bekleyen */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[
             styles.tabButton, 
-            activeTab === 'waiting' ? { backgroundColor: '#3B82F6' } : null
+            activeTab === 'waiting' ? styles.tabButtonActive : styles.tabButtonInactive
           ]}
           onPress={() => setActiveTab('waiting')}
+          activeOpacity={0.8}
         >
-          <Text style={[
-            styles.tabButtonText, 
-            activeTab === 'waiting' ? { color: '#FFFFFF', fontWeight: 'bold' } : null
-          ]}>
-            Bekleyen
-          </Text>
-          {activeTab !== 'waiting' && <TabBadge count={getWaitingOrdersCount()} color="#3B82F6" />}
+          <LinearGradient
+            colors={activeTab === 'waiting' ? ['#8B5CF6', '#7C3AED'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabGradient}
+          >
+            <View style={styles.tabContent}>
+              <View style={[
+                styles.tabIconContainer,
+                { backgroundColor: activeTab === 'waiting' ? 'rgba(255,255,255,0.2)' : '#8B5CF620' }
+              ]}>
+                <Icon 
+                  name="schedule" 
+                  size={18} 
+                  color={activeTab === 'waiting' ? '#FFFFFF' : '#8B5CF6'} 
+                />
+              </View>
+              <Text style={[
+                styles.tabButtonText, 
+                activeTab === 'waiting' ? styles.tabButtonTextActive : styles.tabButtonTextInactive
+              ]}>
+                Bekleyen
+              </Text>
+              {activeTab !== 'waiting' && <TabBadge count={getWaitingOrdersCount()} color="#8B5CF6" />}
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={[
             styles.tabButton, 
-            activeTab === 'indelivery' ? { backgroundColor: '#10B981' } : null
+            activeTab === 'indelivery' ? styles.tabButtonActive : styles.tabButtonInactive
           ]}
           onPress={() => setActiveTab('indelivery')}
+          activeOpacity={0.8}
         >
-          <Text style={[
-            styles.tabButtonText, 
-            activeTab === 'indelivery' ? { color: '#FFFFFF', fontWeight: 'bold' } : null
-          ]}>
-            Kuryede
-          </Text>
-          {activeTab !== 'indelivery' && <TabBadge count={getInDeliveryOrdersCount()} color="#10B981" />}
+          <LinearGradient
+            colors={activeTab === 'indelivery' ? ['#10B981', '#059669'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabGradient}
+          >
+            <View style={styles.tabContent}>
+              <View style={[
+                styles.tabIconContainer,
+                { backgroundColor: activeTab === 'indelivery' ? 'rgba(255,255,255,0.2)' : '#10B98120' }
+              ]}>
+                <Icon 
+                  name="delivery-dining" 
+                  size={18} 
+                  color={activeTab === 'indelivery' ? '#FFFFFF' : '#10B981'} 
+                />
+              </View>
+              <Text style={[
+                styles.tabButtonText, 
+                activeTab === 'indelivery' ? styles.tabButtonTextActive : styles.tabButtonTextInactive
+              ]}>
+                Kuryede
+              </Text>
+              {activeTab !== 'indelivery' && <TabBadge count={getInDeliveryOrdersCount()} color="#10B981" />}
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={[
             styles.tabButton, 
-            activeTab === 'pending' ? { backgroundColor: '#F59E0B' } : null
+            activeTab === 'pending' ? styles.tabButtonActive : styles.tabButtonInactive
           ]}
           onPress={() => setActiveTab('pending')}
+          activeOpacity={0.8}
         >
-          <Text style={[
-            styles.tabButtonText, 
-            activeTab === 'pending' ? { color: '#FFFFFF', fontWeight: 'bold' } : null
-          ]}>
-            Onay Bekleyen
-          </Text>
-          {activeTab !== 'pending' && <TabBadge count={getPendingApprovalOrdersCount()} color="#F59E0B" />}
+          <LinearGradient
+            colors={activeTab === 'pending' ? ['#F59E0B', '#D97706'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tabGradient}
+          >
+            <View style={styles.tabContent}>
+              <View style={[
+                styles.tabIconContainer,
+                { backgroundColor: activeTab === 'pending' ? 'rgba(255,255,255,0.2)' : '#F59E0B20' }
+              ]}>
+                <Icon 
+                  name="pending" 
+                  size={18} 
+                  color={activeTab === 'pending' ? '#FFFFFF' : '#F59E0B'} 
+                />
+              </View>
+              <Text style={[
+                styles.tabButtonText, 
+                activeTab === 'pending' ? styles.tabButtonTextActive : styles.tabButtonTextInactive
+              ]}>
+                Onay Bekleyen
+              </Text>
+              {activeTab !== 'pending' && <TabBadge count={getPendingApprovalOrdersCount()} color="#F59E0B" />}
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -1702,8 +1778,8 @@ const RestaurantHome = () => {
                   activeTab === 'pending'
                     ? ["#F59E0B", "#D97706"]
                     : order.status.toLowerCase() === "kuryede"
-                    ? ["#059669", "#10B981"]
-                    : ["#4F46E5", "#6366F1"]
+                    ? ["#10B981", "#059669"]
+                    : ["#8B5CF6", "#7C3AED"]
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -1713,17 +1789,6 @@ const RestaurantHome = () => {
                   {/* Başlık ve Durum */}
                   <View style={styles.cardHeaderRow}>
                     <View style={styles.cardHeaderLeft}>
-                      <View style={styles.cardIconBox}>
-                        <Icon 
-                          name={
-                            activeTab === 'pending' ? "schedule" :
-                            activeTab === 'indelivery' ? "delivery-dining" :
-                            "local-shipping"
-                          } 
-                          size={18} 
-                          color="#FFFFFF" 
-                        />
-                      </View>
                       <View>
                         <Text style={styles.orderLabel}>Sipariş No</Text>
                         <Text style={styles.orderNumber}>
@@ -1731,12 +1796,20 @@ const RestaurantHome = () => {
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.statusBadge}>
-                      <Text style={styles.statusText}>
-                        {activeTab === 'pending' ? "⏳ Onay Bekliyor" :
-                         activeTab === 'indelivery' ? "🛵 Kuryede" :
-                         "⌛ Bekleniyor"}
-                      </Text>
+                    <View style={styles.statusContainer}>
+                      <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>
+                          {activeTab === 'pending' ? "⏳ Onay Bekliyor" :
+                           activeTab === 'indelivery' ? "🛵 Kuryede" :
+                           "⌛ Bekleniyor"}
+                        </Text>
+                      </View>
+                      {/* Teslimat Countdown - Status altında */}
+                      {(activeTab === 'waiting' || activeTab === 'indelivery') && (
+                        <View style={styles.countdownContainer}>
+                          <RestaurantCountdown order={order} />
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -1757,87 +1830,42 @@ const RestaurantHome = () => {
                     </View>
                   </View>
 
-                  {/* Alt Bilgiler */}
-                  <View style={styles.infoGrid}>
+                  {/* Alt Bilgiler - Kurye home tasarımı */}
+                  <View style={styles.gridContainer}>
                     {/* Mahalle */}
                     <View style={styles.gridItem}>
-                      <View style={styles.gridItemContent}>
-                        <View style={styles.gridIconBox}>
-                          <Icon name="place" size={16} color="#FFFFFF" />
-                        </View>
-                        <Text style={styles.gridLabel}>Mahalle</Text>
-                        <Text style={styles.gridValue} numberOfLines={1}>
-                          {order.mahalle}
-                        </Text>
+                      <View style={styles.gridIconBox}>
+                        <Icon name="place" size={16} color="#FFFFFF" />
                       </View>
+                      <Text style={styles.gridValue} numberOfLines={1}>
+                        {order.mahalle}
+                      </Text>
                     </View>
 
                     {/* Kurye Ücreti */}
                     <View style={styles.gridItem}>
-                      <View style={styles.gridItemContent}>
-                        <View style={styles.gridIconBox}>
-                          <Icon name="delivery-dining" size={16} color="#FFFFFF" />
-                        </View>
-                        <Text style={styles.gridLabel}>Kurye</Text>
-                        <Text style={styles.gridValuePrice}>
-                          {order.restaurant_price || '0.00'} ₺
-                        </Text>
+                      <View style={styles.gridIconBox}>
+                        <Icon name="delivery-dining" size={16} color="#FFFFFF" />
                       </View>
+                      <Text style={styles.gridValue}>
+                        {order.restaurant_price || '0.00'} ₺
+                      </Text>
                     </View>
 
                     {/* Ödeme */}
                     <View style={styles.gridItem}>
-                      <View style={styles.gridItemContent}>
-                        <View style={styles.gridIconBox}>
-                          <Icon name="payment" size={16} color="#FFFFFF" />
-                        </View>
-                        <Text style={styles.gridLabel}>Ödeme</Text>
-                        <Text style={styles.gridValue} numberOfLines={1}>
-                          {order.odeme_yontemi}
-                        </Text>
+                      <View style={styles.gridIconBox}>
+                        <Icon name="payment" size={16} color="#FFFFFF" />
                       </View>
+                      <Text style={styles.gridValue} numberOfLines={1}>
+                        {order.odeme_yontemi}
+                      </Text>
                     </View>
                   </View>
 
-                  {/* Teslimat Countdown - sadece bekleniyor ve kuryede sekmelerinde */}
-                  {(activeTab === 'waiting' || activeTab === 'indelivery') && (
-                    <RestaurantCountdown order={order} />
-                  )}
 
-                  {/* Aksiyon Butonu */}
-                  <TouchableOpacity 
-                    style={[
-                      styles.detailButton,
-                      activeTab === 'pending' && { backgroundColor: '#059669' }
-                    ]}
-                    onPress={() => {
-                      if (activeTab === 'pending') {
-                        Alert.alert(
-                          "Sipariş Onayı",
-                          `Sipariş #${order.id} onaylansın mı?\n\nToplam: ${calculateTotalAmount(order).toFixed(2)} ₺\nMahalle: ${order.mahalle}\n\nBu işlem geri alınamaz!`,
-                          [
-                            { text: "Hayır", style: "cancel" },
-                            { 
-                              text: "Evet, Onayla", 
-                              style: "default",
-                              onPress: () => approveOrder(order.id)
-                            }
-                          ]
-                        );
-                      } else {
-                        openOrderDetail(order);
-                      }
-                    }}
-                  >
-                    <Text style={styles.detailButtonText}>
-                      {activeTab === 'pending' ? 'Siparişi Onayla' : 'Detayları Gör'}
-                    </Text>
-                    <Icon 
-                      name={activeTab === 'pending' ? "check-circle" : "arrow-forward"} 
-                      size={16} 
-                      color="#FFFFFF" 
-                    />
-                  </TouchableOpacity>
+
+                  
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -1886,86 +1914,116 @@ const RestaurantHome = () => {
           setNeighborhoodModalVisible(false);
         }}
       >
-        <TouchableWithoutFeedback onPress={() => {
-          setModalVisible(false);
-          setEditingOrder(null);
-          setSelectedNeighborhood(null);
-          setSelectedPaymentMethod(null);
-          setNeighborhoodModalVisible(false);
-        }}>
-          <View style={styles.modalContainer}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.modalContent}
-              >
-                  <ScrollView
-                    ref={modalScrollRef}
-                    style={styles.modalScrollView}
-                    contentContainerStyle={styles.modalInnerContent}
-                    showsVerticalScrollIndicator={true}
-                    keyboardShouldPersistTaps="handled"
-                    scrollEnabled={true}
-                    bounces={true}
-                    alwaysBounceVertical={false}
-                    scrollEventThrottle={16}
-                    nestedScrollEnabled={false}
-                    onScrollBeginDrag={() => Keyboard.dismiss()}
-                    contentInset={{top: 0, bottom: 20, left: 0, right: 0}}
-                    scrollIndicatorInsets={{top: 0, bottom: 20, left: 0, right: 0}}
-                    automaticallyAdjustContentInsets={false}
-                    directionalLockEnabled={true}
-                  >
-                    {/* Modal Başlık */}
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>
-                        {editingOrder ? "Siparişi Düzenle" : "Yeni Sipariş"}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => {
-                          setModalVisible(false);
-                          setEditingOrder(null);
-                          setSelectedNeighborhood(null);
-                          setSelectedPaymentMethod(null);
-                          setNeighborhoodModalVisible(false);
-                        }}
-                        style={styles.modalCloseButton}
+        <View style={styles.modalContainer}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalContent}
+          >
+            <ScrollView
+              ref={modalScrollRef}
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalInnerContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              scrollEnabled={true}
+              bounces={true}
+              alwaysBounceVertical={false}
+              scrollEventThrottle={16}
+              nestedScrollEnabled={false}
+              contentInset={{top: 0, bottom: 20, left: 0, right: 0}}
+              scrollIndicatorInsets={{top: 0, bottom: 20, left: 0, right: 0}}
+              automaticallyAdjustContentInsets={false}
+              directionalLockEnabled={true}
+            >
+              {/* Modal Başlık */}
+              <View style={styles.modalHeaderContainer}>
+                <LinearGradient
+                  colors={["#8B5CF6", "#7C3AED"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalHeaderGradient}
+                >
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeaderLeft}>
+                      <View style={styles.modalHeaderIcon}>
+                        <Icon name={editingOrder ? "edit" : "add"} size={20} color="#FFFFFF" />
+                      </View>
+                      <View>
+                        <Text style={styles.modalTitle}>
+                          {editingOrder ? "Siparişi Düzenle" : "Yeni Sipariş"}
+                        </Text>
+                        <Text style={styles.modalSubtitle}>
+                          {editingOrder ? "Sipariş bilgilerini güncelleyin" : "Sipariş bilgilerini girin"}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setModalVisible(false);
+                        setEditingOrder(null);
+                        setSelectedNeighborhood(null);
+                        setSelectedPaymentMethod(null);
+                        setNeighborhoodModalVisible(false);
+                      }}
+                      style={styles.modalCloseButton}
+                    >
+                      <Icon name="close" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              </View>
+
+              {/* Content Container */}
+              <View style={styles.modalContentContainer}>
+                {/* Resim Seçimi */}
+                <View style={styles.imageSection}>
+                  <Text style={styles.sectionTitle}>📸 Sipariş Fotoğrafı</Text>
+                  <View style={styles.imageButtonsContainer}>
+                    <TouchableOpacity
+                      onPress={takePhoto}
+                      style={[styles.imagePickerButton, styles.cameraButton]}
+                    >
+                      <LinearGradient
+                        colors={["#6366F1", "#4F46E5"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.imageButtonGradient}
                       >
-                        <Icon name="close" size={24} color="#374151" />
+                        <Icon name="photo-camera" size={20} color="#FFFFFF" />
+                        <Text style={styles.cameraButtonText}>
+                          Fotoğraf Çek
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={pickImage}
+                      style={[styles.imagePickerButton, styles.galleryButton]}
+                    >
+                      <View style={styles.imageButtonContent}>
+                        <Icon name="photo-library" size={20} color="#6366F1" />
+                        <Text style={styles.galleryButtonText}>
+                          Galeriden Seç
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                  {image && (
+                    <View style={styles.selectedImageContainer}>
+                      <Image
+                        source={{ uri: image.uri }}
+                        style={styles.selectedImage}
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setImage(null)}
+                        style={styles.removeImageButton}
+                      >
+                        <Icon name="close" size={16} color="#FFFFFF" />
                       </TouchableOpacity>
                     </View>
-
-                    {/* Resim Seçimi */}
-                    <View style={styles.imageSection}>
-                      <View style={styles.imageButtonsContainer}>
-                        <TouchableOpacity
-                          onPress={takePhoto}
-                          style={[styles.imagePickerButton, styles.cameraButton]}
-                        >
-                          <Icon name="photo-camera" size={28} color="#FFFFFF" />
-                          <Text style={styles.cameraButtonText}>
-                            Fotoğraf Çek
-                          </Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          onPress={pickImage}
-                          style={[styles.imagePickerButton, styles.galleryButton]}
-                        >
-                          <Icon name="photo-library" size={28} color="#6366F1" />
-                          <Text style={styles.galleryButtonText}>
-                            Galeriden Seç
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                      {image && (
-                        <Image
-                          source={{ uri: image.uri }}
-                          style={styles.selectedImage}
-                          resizeMode="cover"
-                        />
-                      )}
-                    </View>
+                  )}
+                </View>
 
                 {/* Mahalle Seçimi */}
                 <View style={styles.neighborhoodSection}>
@@ -2031,7 +2089,31 @@ const RestaurantHome = () => {
                           bounces={false}
                           keyboardShouldPersistTaps="handled"
                         >
-                          {neighborhoods.map((item) => (
+                          {neighborhoods.length === 0 ? (
+                            <View style={styles.neighborhoodEmptyContainer}>
+                              <Icon name="location-off" size={48} color="#9CA3AF" />
+                              <Text style={styles.neighborhoodEmptyTitle}>
+                                Henüz Mahalle Eklenmemiş
+                              </Text>
+                              <Text style={styles.neighborhoodEmptyText}>
+                                Sipariş verebilmek için önce teslimat bölgesi eklemeniz gerekiyor. 
+                                Profil sayfanızdan yeni mahalle talebinde bulunabilirsiniz.
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setModalVisible(false);
+                                  router.push('/restaurant/restaurantprofile');
+                                }}
+                                style={styles.profileRedirectButton}
+                              >
+                                <Icon name="person" size={18} color="#FFFFFF" />
+                                <Text style={styles.profileRedirectText}>
+                                  Profil Sayfasına Git
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            neighborhoods.map((item) => (
                             <TouchableOpacity
                               key={item.id}
                               onPress={() => {
@@ -2078,7 +2160,7 @@ const RestaurantHome = () => {
                                 </Text>
                               </View>
                             </TouchableOpacity>
-                          ))}
+                          )))}
                         </ScrollView>
                       )}
                     </View>
@@ -2100,6 +2182,16 @@ const RestaurantHome = () => {
                           selectedPaymentMethod === method && styles.selectedPaymentOption
                         ]}
                       >
+                        <Icon 
+                          name={
+                            method === "nakit" ? "payments" : 
+                            method === "kredi_karti" ? "credit-card" : 
+                            method === "hediye" ? "card-giftcard" : 
+                            "online-prediction"
+                          }
+                          size={20} 
+                          color={selectedPaymentMethod === method ? "#FFFFFF" : "#6366F1"} 
+                        />
                         <Text
                           style={[
                             styles.paymentOptionText,
@@ -2146,7 +2238,10 @@ const RestaurantHome = () => {
                 {/* Hazırlık Süresi Seçimi */}
                 <View style={styles.preparationSection}>
                   <Text style={styles.sectionTitle}>
-                    Hazırlık Süresi
+                    ⏱️ Hazırlık Süresi
+                  </Text>
+                  <Text style={styles.sectionDescription}>
+                    Siparişinizin hazır olma süresini seçin
                   </Text>
                   <View style={styles.preparationOptionsContainer}>
                     {PREPARATION_TIME_OPTIONS.map((option) => (
@@ -2178,6 +2273,7 @@ const RestaurantHome = () => {
 
                 {/* Özet */}
                 <View style={styles.summarySection}>
+                  <Text style={styles.summaryTitle}>📋 Sipariş Özeti</Text>
                   <Text style={styles.summaryText}>
                     Kurye Tutarı: {selectedNeighborhood ? selectedNeighborhood.restaurantPrice : 0} ₺
                   </Text>
@@ -2214,11 +2310,10 @@ const RestaurantHome = () => {
                     </Text>
                   )}
                 </TouchableOpacity>
-                  </ScrollView>
-              </KeyboardAvoidingView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Sipariş Detay Modalı */}
@@ -2255,7 +2350,7 @@ const RestaurantHome = () => {
                       </View>
 
                     {/* Durum Rozeti */}
-                    <View style={styles.statusContainer}>
+                    <View style={styles.modalStatusContainer}>
                       <View style={styles.statusRow}>
                         <View style={styles.statusLeft}>
                           <View style={styles.statusIconBox}>
@@ -2469,6 +2564,8 @@ const RestaurantHome = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
+
+
       {/* Tam Ekran Resim Modalı */}
       <Modal
         visible={fullScreenModalVisible}
@@ -2514,7 +2611,10 @@ const styles = StyleSheet.create({
   
   // Header styles
   safeArea: { 
-    backgroundColor: "#8B5CF6" 
+    backgroundColor: "transparent" 
+  },
+  headerGradient: {
+    paddingTop: Platform.OS === 'ios' ? 0 : 15,
   },
   headerContainer: { 
     paddingHorizontal: 16, 
@@ -2575,58 +2675,63 @@ const styles = StyleSheet.create({
     fontWeight: "500" 
   },
   
-  // Order card styles
+  // Order card styles - Kurye home tasarımı ile aynı
   orderCardWrapper: { 
     marginBottom: 8 
   },
   orderCard: { 
-    borderRadius: 12, 
+    borderRadius: 10, 
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4
+    marginHorizontal: 0,
   },
   orderCardContent: { 
-    padding: 12 
+    padding: 8,
+    gap: 6,
   },
+  
+  // Header row styles
   cardHeaderRow: { 
     flexDirection: "row", 
     justifyContent: "space-between", 
     alignItems: "center",
-    marginBottom: 8
   },
   cardHeaderLeft: { 
-    flexDirection: "row", 
-    alignItems: "center",
-    gap: 8
+    gap: 4,
   },
   cardIconBox: { 
     backgroundColor: "rgba(255, 255, 255, 0.2)", 
     padding: 6, 
-    borderRadius: 6 
+    borderRadius: 8,
+    minWidth: 80,
+    justifyContent: "center",
+    alignItems: "center",
   },
   orderLabel: { 
-    fontSize: 11, 
+    fontSize: 12, 
     color: "rgba(255, 255, 255, 0.8)",
-    marginBottom: 2
   },
   orderNumber: { 
-    fontSize: 14, 
+    fontSize: 16, 
     fontWeight: "700", 
     color: "#FFFFFF" 
   },
+  statusContainer: {
+    alignItems: "flex-end",
+    gap: 4,
+  },
   statusBadge: { 
     backgroundColor: "rgba(255, 255, 255, 0.2)", 
-    paddingHorizontal: 12, 
-    paddingVertical: 6, 
-    borderRadius: 16 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 12 
   },
   statusText: { 
-    fontSize: 12, 
+    fontSize: 11, 
     fontWeight: "600", 
     color: "#FFFFFF" 
+  },
+  countdownContainer: {
+    alignItems: "flex-end",
   },
   
   // Firm info styles
@@ -2634,7 +2739,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 8,
     borderRadius: 8,
-    marginBottom: 8
   },
   firmInfoRow: { 
     flexDirection: "row", 
@@ -2652,22 +2756,25 @@ const styles = StyleSheet.create({
     marginBottom: 2
   },
   firmName: { 
-    fontSize: 13, 
+    fontSize: 14, 
     fontWeight: "600", 
     color: "#FFFFFF" 
   },
   
-  // Info grid styles
-  infoGrid: { 
-    flexDirection: "row", 
+  // Grid container styles - Kurye home ile aynı
+  gridContainer: {
+    flexDirection: "row",
     justifyContent: "space-between",
-    gap: 6
+    gap: 6,
   },
   gridItem: { 
     flex: 1,
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 8,
-    borderRadius: 8
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   gridItemContent: { 
     alignItems: "center" 
@@ -2675,8 +2782,7 @@ const styles = StyleSheet.create({
   gridIconBox: { 
     backgroundColor: "rgba(255, 255, 255, 0.2)", 
     padding: 4, 
-    borderRadius: 4,
-    marginBottom: 4
+    borderRadius: 6,
   },
   gridLabel: { 
     fontSize: 10, 
@@ -2685,10 +2791,10 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   gridValue: { 
-    fontSize: 11, 
-    fontWeight: "600", 
+    fontSize: 12, 
+    fontWeight: "500", 
     color: "#FFFFFF",
-    textAlign: "center"
+    flex: 1,
   },
   gridValuePrice: { 
     fontSize: 12, 
@@ -2700,18 +2806,24 @@ const styles = StyleSheet.create({
   // Detail button styles
   detailButton: { 
     backgroundColor: "rgba(255, 255, 255, 0.1)", 
-    marginTop: 8, 
-    padding: 8, 
-    borderRadius: 8, 
-    flexDirection: "row", 
-    justifyContent: "center", 
-    alignItems: "center" 
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
   detailButtonText: { 
     fontSize: 12, 
     fontWeight: "500", 
-    color: "#FFFFFF", 
-    marginRight: 6 
+    color: "#FFFFFF" 
+  },
+  
+  // Bottom row styles
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   
   // Empty state styles
@@ -2757,77 +2869,159 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '95%',
-    minHeight: '70%',
+    maxHeight: '98%',
+    minHeight: '80%',
   },
   modalScrollView: {
     flex: 1,
   },
   modalInnerContent: {
-    padding: 20,
     paddingBottom: 40,
     flexGrow: 1,
     minHeight: '100%',
     justifyContent: 'flex-start',
   },
+  modalHeaderContainer: {
+    marginBottom: 12,
+  },
+  modalHeaderGradient: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    padding: 20,
+    paddingBottom: 24,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalHeaderIcon: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    padding: 8,
+    borderRadius: 10,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: "#FFFFFF",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 2,
   },
   modalCloseButton: {
     padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  modalContentContainer: {
+    padding: 20,
+    paddingTop: 8,
   },
   
   // Image section styles
   imageSection: {
-    marginBottom: 24,
+    marginBottom: 14,
+  },
+  imageButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
   },
   imagePickerButton: {
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#6366F1",
-    borderRadius: 12,
-    alignItems: "center",
-    backgroundColor: "#EEF2FF",
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  imagePickerText: {
-    marginTop: 8,
-    fontSize: 16,
+  cameraButton: {
+    borderWidth: 0,
+  },
+  galleryButton: {
+    borderWidth: 2,
+    borderColor: "#6366F1",
+    backgroundColor: "#FFFFFF",
+  },
+  imageButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  imageButtonContent: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  cameraButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  galleryButtonText: {
+    fontSize: 14,
     fontWeight: "600",
     color: "#6366F1",
+  },
+  selectedImageContainer: {
+    position: "relative",
+    marginTop: 16,
   },
   selectedImage: {
     width: "100%",
     height: 192,
     borderRadius: 12,
-    marginTop: 16,
+  },
+  removeImageButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#EF4444",
+    borderRadius: 12,
+    padding: 6,
   },
   
   // Section styles
   neighborhoodSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#374151",
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 12,
   },
   neighborhoodSelectButton: {
-    padding: 16,
-    borderWidth: 1,
+    padding: 18,
+    borderWidth: 2,
     borderColor: "#E5E7EB",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF", // Beyaz background daha iyi kontrast için
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   neighborhoodButtonContent: {
     flexDirection: "row",
@@ -2851,7 +3045,7 @@ const styles = StyleSheet.create({
   
   // Payment styles
   paymentSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   paymentOptionsContainer: {
     flexDirection: "row",
@@ -2860,28 +3054,40 @@ const styles = StyleSheet.create({
   paymentOption: {
     flex: 1,
     marginHorizontal: 4,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 6,
   },
   selectedPaymentOption: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#C7D2FE",
+    backgroundColor: "#6366F1",
+    borderColor: "#4F46E5",
+    shadowColor: "#6366F1",
+    shadowOpacity: 0.3,
+    elevation: 6,
   },
   paymentOptionText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#374151",
   },
   selectedPaymentOptionText: {
-    color: "#6366F1",
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   
   // Preparation time styles
   preparationSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   preparationOptionsContainer: {
     flexDirection: "row",
@@ -2895,16 +3101,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 2,
     borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   selectedPreparationOption: {
-    backgroundColor: "#6366F1",
-    borderColor: "#4F46E5",
+    backgroundColor: "#10B981",
+    borderColor: "#059669",
+    shadowColor: "#10B981",
+    shadowOpacity: 0.3,
+    elevation: 6,
   },
   preparationOptionText: {
     fontSize: 13,
@@ -2917,7 +3131,7 @@ const styles = StyleSheet.create({
   
   // Amount styles
   amountSection: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   amountInput: {
     backgroundColor: "#F9FAFB",
@@ -2930,27 +3144,49 @@ const styles = StyleSheet.create({
   
   // Summary styles
   summarySection: {
-    backgroundColor: "#F9FAFB",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
+    backgroundColor: "#EEF2FF",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#C7D2FE",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#4338CA",
+    marginBottom: 16,
+    textAlign: "center",
   },
   summaryText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 10,
+    lineHeight: 22,
   },
   
   // Save button styles
   saveButton: {
     backgroundColor: "#6366F1",
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   saveButtonDisabled: {
     backgroundColor: "#9CA3AF",
-    opacity: 0.7,
+    shadowOpacity: 0.1,
+    elevation: 2,
   },
   saveButtonLoading: {
     flexDirection: "row",
@@ -2961,8 +3197,9 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#FFFFFF",
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 18,
+    letterSpacing: 0.5,
   },
   
   // Detail modal styles
@@ -3003,7 +3240,7 @@ const styles = StyleSheet.create({
   },
   
   // Status styles
-  statusContainer: {
+  modalStatusContainer: {
     backgroundColor: "#EEF2FF",
     padding: 16,
     borderRadius: 16,
@@ -3295,6 +3532,21 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
   },
+  profileRedirectButton: {
+    backgroundColor: "#6366F1",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  profileRedirectText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
   neighborhoodRetryButton: {
     padding: 16,
     borderWidth: 1,
@@ -3374,7 +3626,7 @@ const styles = StyleSheet.create({
   selectedNeighborhoodItemPrice: {
     color: "#059669",
   },
-  countdownContainer: {
+  modalCountdownContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -3525,10 +3777,38 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  tabButtonActive: {
+    elevation: 4,
+    shadowOpacity: 0.2,
+  },
+  tabButtonInactive: {
+    backgroundColor: '#FFFFFF',
+  },
+  tabGradient: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingHorizontal: 8,
     alignItems: 'center',
+    minHeight: 60,
+  },
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  tabIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activeTabButton: {
     backgroundColor: 'transparent', // Change from whatever was set to transparent
@@ -3536,9 +3816,17 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF'
   },
   tabButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  tabButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  tabButtonTextInactive: {
     color: '#6B7280',
+    fontWeight: '600',
   },
   activeTabButtonText: {
     color: '#374151',
@@ -3547,51 +3835,110 @@ const styles = StyleSheet.create({
     // Tek tab olduğunda tam genişlik kullan
     flex: 1,
   },
-  // Resim seçimi için yeni style'lar
-  imageButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
-  },
-  cameraButton: {
-    backgroundColor: '#6366F1',
-    flex: 2,
-  },
-  galleryButton: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#6366F1',
-    borderWidth: 2,
-    flex: 1,
-  },
-  cameraButtonText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  galleryButtonText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
+
   // Add these new styles for the badges
   tabBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: -8,
+    right: -8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   tabBadgeText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  // Test button styles
+  testButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  
+  // Custom Notification Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customNotificationModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    alignSelf: 'center',
+    marginTop: 'auto',
+    marginBottom: 'auto',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#F9FAFB',
+  },
+  soundOption: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  soundOptionSelected: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  soundOptionText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  soundOptionTextSelected: {
+    color: '#FFFFFF',
+  },
+  testButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#6B7280',
   },
 });
 

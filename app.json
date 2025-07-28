@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kurye-X",
-    "slug": "bursa-go",
+    "name": "KuryeX",
+    "slug": "kuryex",
     "platforms": [
       "ios",
       "android"
@@ -10,10 +10,10 @@
       "enabled": false,
       "favicon": "./assets/favicon.png"
     },
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "kurye-x",
+    "scheme": "kuryex",
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
@@ -21,24 +21,19 @@
     },
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
-      "**/*"
+      "**/*",
+      "assets/sounds/**/*"
     ],
     "notification": {
       "icon": "./assets/icon.png",
       "color": "#3B82F6",
-      "iosDisplayInForeground": true,
+      "iosDisplayInForeground": false,
       "androidMode": "default",
-      "androidCollapsedTitle": "Kurye-X Bildirimi",
-      "sounds": [
-        "./assets/sounds/default-notification.wav",
-        "./assets/sounds/default_notification.wav",
-        "./assets/sounds/custom-notification.wav",
-        "./assets/sounds/new-custom-sound.wav"
-      ]
+      "androidCollapsedTitle": "KuryeX Bildirimi"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bursago.app",
+      "bundleIdentifier": "com.kuryex.app",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -66,8 +61,15 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Uygulama kapalıyken bile siparişinizin durumunu ve kuryenin konumunu size bildirebilmek için konumunuza her zaman erişmemiz gerekiyor.",
         "UIBackgroundModes": [
           "remote-notification",
-          "background-processing",
-          "background-fetch"
+          "processing",
+          "fetch",
+          "audio"
+        ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.expo.modules.backgroundtask.processing"
+        ],
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
         ]
       }
     },
@@ -86,22 +88,16 @@
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
         "VIBRATE",
-        "USE_FULL_SCREEN_INTENT"
+        "USE_FULL_SCREEN_INTENT",
+        "MODIFY_AUDIO_SETTINGS",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE"
       ],
       "package": "com.kuryex.app",
-      "allowBackup": false,
-              "notification": {
-          "icon": "./assets/icon.png",
-          "color": "#3B82F6",
-          "defaultChannel": "default",
-          "sounds": [
-            "./assets/sounds/default-notification.wav",
-            "./assets/sounds/default_notification.wav",
-            "./assets/sounds/custom-notification.wav"
-          ]
-        }
+      "allowBackup": false
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       "expo-splash-screen",
       "expo-secure-store",
@@ -111,12 +107,10 @@
         {
           "icon": "./assets/icon.png",
           "color": "#3B82F6",
-          "defaultChannel": "default",
           "sounds": [
-            "./assets/sounds/default-notification.wav",
-            "./assets/sounds/default_notification.wav",
-            "./assets/sounds/custom-notification.wav"
-          ]
+            "./assets/sounds/ring_bell2.wav"
+          ],
+          "iosDisplayInForeground": false
         }
       ],
       "expo-dev-client",
@@ -134,12 +128,13 @@
             "useModularHeaders": true
           },
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "buildToolsVersion": "34.0.0"
           }
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true
@@ -153,9 +148,9 @@
       "REMOTE_API_HOST": "kurye-backend-production.up.railway.app",
       "USE_REMOTE": false,
       "eas": {
-        "projectId": "1a3e02ac-240c-48a3-b9e8-05dfc29cfe96"
+        "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
       }
     },
-    "owner": "mehmetresatdemir1"
+    "jsEngine": "jsc"
   }
 }

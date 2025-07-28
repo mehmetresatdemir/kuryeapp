@@ -1,56 +1,56 @@
 require("dotenv").config();
 const { Pool } = require("pg");
 
-// DNS önbellek sıfırlama için
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
-
-// Add timezone parameter to connection string if not present
+// PostgreSQL bağlantı konfigürasyonu
 let connectionString = process.env.DATABASE_URL;
-if (connectionString && !connectionString.includes('timezone=')) {
-  const separator = connectionString.includes('?') ? '&' : '?';
-  connectionString = `${connectionString}${separator}timezone=Europe/Istanbul`;
+
+// Normal bağlantı string'i kullan
+if (!connectionString) {
+  connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`;
 }
 
-// PostgreSQL connection pool yapılandırması
+// Pool oluştur
 const pool = new Pool({
-  connectionString: connectionString,
+  connectionString,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  connectionTimeoutMillis: 30000, // 30 saniye timeout
+  max: 20,
   idleTimeoutMillis: 30000,
-  max: 20, // Maximum pool size
-  min: 2,  // Minimum pool size
-  acquireTimeoutMillis: 60000,
+  connectionTimeoutMillis: 2000,
+  // App schema ayarı
+  application_name: 'kurye-backend',
+  options: '--search_path=app'
 });
 
-// Set timezone to Turkey (UTC+3) on every connection
+// Pool event handlers - sadece production'da hata loglarını göster
+let connectionCount = 0;
 pool.on('connect', async (client) => {
   try {
-    await client.query("SET timezone = 'Europe/Istanbul'");
-    await client.query("SET TIME ZONE 'Europe/Istanbul'");
-    console.log('✅ Database timezone set to Europe/Istanbul');
-  } catch (err) {
-    console.log('⚠️ Timezone setting error:', err.message);
+    // Her bağlantıda app schema'yı ayarla
+    await client.query("SET search_path = app");
+    connectionCount++;
+    
+    // Sadece ilk bağlantıda veya development modunda mesaj göster
+    if (connectionCount === 1 || process.env.NODE_ENV !== 'production') {
+      console.log('✅ Veritabanı bağlantı havuzu hazır (app schema ayarlandı)');
+    }
+  } catch (error) {
+    console.error('❌ Veritabanı bağlantı hatası:', error);
   }
 });
 
-// SQL template function to mimic Neon's API
+pool.on('error', (err) => {
+  console.error('❌ Beklenmeyen veritabanı hatası:', err);
+  process.exit(-1);
+});
+
+// Artık timestamp dönüşümü yapmıyoruz - veritabanından ne gelirse o
+
+// SQL template literal function - Neon style
 function sql(strings, ...values) {
-  return pool.query(strings.join('?').replace(/\?/g, (match, index) => `$${index + 1}`), values).then(result => result.rows);
-}
-
-// For template literal usage
-sql.templateLiteral = function(strings, ...values) {
-  const query = strings.reduce((acc, str, i) => acc + str + (values[i] ? `$${i + 1}` : ''), '');
-  return pool.query(query, values).then(result => result.rows);
-};
-
-// Override the function call to handle template literals
-const originalSql = sql;
-sql = function(strings, ...values) {
-  if (Array.isArray(strings)) {
+  if (Array.isArray(strings) && strings.raw) {
+    // Template literal usage
     let query = '';
-    let paramCount = 0;
+    let paramIndex = 1;
     const params = [];
     
     for (let i = 0; i < strings.length; i++) {
@@ -63,109 +63,64 @@ sql = function(strings, ...values) {
         if (value && typeof value === 'object' && value.__unsafe) {
           query += value.__unsafe;
         } else {
-          paramCount++;
-          query += `$${paramCount}`;
+          query += `$${paramIndex}`;
           params.push(value);
+          paramIndex++;
         }
       }
     }
     
-    return pool.query(query, params).then(result => result.rows);
+    return pool.query(query, params).then(result => {
+      // Veritabanından gelen veriyi olduğu gibi döndür
+      return result.rows;
+    });
   }
-  return originalSql.apply(this, arguments);
-};
+  
+  // Direct query string usage
+  return pool.query(strings, values).then(result => {
+    // Veritabanından gelen veriyi olduğu gibi döndür
+    return result.rows;
+  });
+}
 
 // Add sql.unsafe function for raw SQL strings
 sql.unsafe = function(rawString) {
   return { __unsafe: rawString };
 };
 
-// Bağlantı testi fonksiyonu
-async function testConnection(retries = 5) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const result = await pool.query('SELECT NOW() as current_time, version() as db_version');
-      console.log("✅ Database connection successful");
-      return true;
-    } catch (error) {
-      if (i === retries - 1) {
-        throw new Error(`Database connection failed after ${retries} attempts: ${error.message}`);
-      }
-      
-      // Exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, i), 10000);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
-
-// Güvenli sorgu çalıştırma fonksiyonu
-async function safeQuery(queryFunction, operation = "veritabanı işlemi", retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await queryFunction();
-    } catch (error) {
-      // Only log critical errors on final retry
-      if (i === retries - 1) {
-        console.error(`❌ ${operation} hatası (son deneme):`, error.message);
-      }
-      
-      const retryableErrors = [
-        'fetch failed',
-        'ENOTFOUND', 
-        'ECONNRESET',
-        'ECONNREFUSED',
-        'ETIMEDOUT',
-        'socket hang up',
-        'network timeout',
-        'UND_ERR_CONNECT_TIMEOUT',
-        'connect timeout',
-        'timeout'
-      ];
-      
-      const shouldRetry = retryableErrors.some(errType => 
-        error.message.toLowerCase().includes(errType.toLowerCase())
-      );
-      
-      if (shouldRetry && i < retries - 1) {
-        const delay = 1000 * (i + 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
-    }
-  }
-}
-
-// Veritabanı durumu kontrol fonksiyonu
-async function healthCheck() {
+// Test connection function
+const testConnection = async () => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        COUNT(*) as total_connections,
-        current_database() as database_name,
-        current_user as user_name,
-        inet_server_addr() as server_ip
-    `);
-    
-    return {
-      healthy: true,
-      info: result.rows[0],
-      timestamp: new Date().toISOString()
-    };
+    const client = await pool.connect();
+    await client.query('SELECT NOW()');
+    client.release();
+    console.log('✅ Database connection successful');
+    return true;
   } catch (error) {
-    return {
-      healthy: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    };
+    console.error('❌ Database connection failed:', error);
+    return false;
   }
-}
+};
 
-module.exports = {
-  sql,
-  pool,
-  testConnection,
-  safeQuery,
-  healthCheck
-}; 
+// Safe query wrapper
+const safeQuery = async (text, params = []) => {
+  try {
+    const result = await pool.query(text, params);
+    return { success: true, data: result.rows };
+  } catch (error) {
+    console.error('Database query error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Health check function
+const healthCheck = async () => {
+  try {
+    const result = await pool.query('SELECT 1 as health_check');
+    return { status: 'healthy', timestamp: new Date().toLocaleString('tr-TR'), result: result.rows };
+  } catch (error) {
+    return { status: 'unhealthy', error: error.message, timestamp: new Date().toLocaleString('tr-TR') };
+  }
+};
+
+module.exports = { pool, sql, testConnection, safeQuery, healthCheck }; 

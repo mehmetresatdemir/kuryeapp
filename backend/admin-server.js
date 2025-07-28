@@ -45,7 +45,7 @@ const { Server } = require("socket.io");
 
 // Import all backend functionality
 const { testConnection } = require("./src/config/db-config");
-const migrateUsersToRoles = require("./src/migrations/20240730_migrate_users_to_roles");
+
 const initializeSocket = require("./src/sockets");
 const apiRoutes = require("./src/routes");
 const orderRoutes = require('./src/routes/orderRoutes');
@@ -53,13 +53,7 @@ const courierRoutes = require('./src/routes/courierRoutes');
 const restaurantRoutes = require('./src/routes/restaurantRoutes');
 const adminRoutes = require('./src/routes/admin');
 const userRoutes = require('./src/routes/userRoutes');
-const updateForeignKeys = require("./src/migrations/20240730_update_foreign_keys");
-const addApprovalStatus = require("./src/migrations/add_approval_status");
-const createAdminSettingsTable = require("./src/migrations/create_admin_settings_table");
-const createAdminNotificationsTable = require("./src/migrations/create_admin_notifications_table");
-const { addPreparationTime } = require("./src/migrations/add_preparation_time");
-const { addCourierColumns } = require("./src/migrations/add_courier_columns");
-const { renameVehicleTypeToTotalOnlineMinutes } = require("./src/migrations/rename_vehicle_type_to_total_online_minutes");
+
 
 const app = express();
 const server = http.createServer(app);
@@ -117,11 +111,20 @@ app.use((req, res, next) => {
     next();
 });
 
+// Custom logging middleware (development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    const timestamp = new Date().toLocaleString('tr-TR');
+    console.log(`${timestamp} - ${req.method} ${req.url}`);
+    next();
+  });
+}
+
 // Health check endpoints
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toLocaleString('tr-TR'),
     uptime: process.uptime(),
     backend_root: BACKEND_ROOT,
     env: process.env.NODE_ENV || 'development'
@@ -136,7 +139,7 @@ app.get('/api/connection-status', (req, res) => {
   
   res.json({
     status: 'OK',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toLocaleString('tr-TR'),
     uptime: uptimeFormatted,
     uptimeSeconds: Math.floor(uptime),
     backend_root: BACKEND_ROOT,
@@ -218,7 +221,7 @@ app.get('/api/db-health', async (req, res) => {
     res.status(500).json({
       healthy: false,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toLocaleString('tr-TR')
     });
   }
 });
@@ -257,25 +260,6 @@ testConnection().then(() => {
   if (process.env.NODE_ENV !== 'production') {
     console.log('✅ Database connection successful');
   }
-  return migrateUsersToRoles();
-}).then(() => {
-  return updateForeignKeys();
-}).then(() => {
-  return addApprovalStatus();
-}).then(() => {
-  return createAdminSettingsTable();
-}).then(() => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('✅ All database migrations completed successfully');
-  }
-}).then(() => {
-  return createAdminNotificationsTable();
-}).then(() => {
-  return addPreparationTime();
-}).then(() => {
-  return addCourierColumns();
-}).then(() => {
-  return renameVehicleTypeToTotalOnlineMinutes();
 }).catch(err => {
   console.error('❌ Database initialization failed:', err);
   process.exit(1);
@@ -302,30 +286,27 @@ server.listen(PORT, HOST, () => {
   }
 });
 
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('👋 SIGTERM received, shutting down gracefully');
-  }
+// Graceful shutdown handlers with timeout
+const shutdownGracefully = (signal) => {
+  // Sessiz kapatma - console mesajları kaldırıldı
+  const forceShutdown = setTimeout(() => {
+    process.exit(1);
+  }, 2000);
+  
   server.close(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Server closed');
-    }
+    clearTimeout(forceShutdown);
     process.exit(0);
   });
-});
+  
+  if (io) {
+    io.close(() => {
+      // Sessiz socket kapatma
+    });
+  }
+};
 
-process.on('SIGINT', () => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('👋 SIGINT received, shutting down gracefully');
-  }
-  server.close(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('✅ Server closed');
-    }
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => shutdownGracefully('SIGTERM'));
+process.on('SIGINT', () => shutdownGracefully('SIGINT'));
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
