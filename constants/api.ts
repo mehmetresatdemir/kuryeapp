@@ -6,14 +6,14 @@ import { router } from 'expo-router';
 // Get environment variables - FORCE LOCAL IP FOR MOBILE TESTING
 const API_HOST = 'localhost'; // Use localhost for testing
 const API_PORT = '4000';
-const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || '16.171.131.126:4000';
-const USE_REMOTE = true; // Force local for testing
+const REMOTE_API_HOST = '16.171.131.126:4000';
+const USE_REMOTE = true; // Use remote server
 
 // API Configuration
 export const API_CONFIG = {
   // Development URLs
   LOCALHOST: `http://${API_HOST}:${API_PORT}`,
-  REMOTE_URL: `https://${REMOTE_API_HOST}`, // HTTPS kullan - Railway otomatik yönlendiriyor
+  REMOTE_URL: `http://${REMOTE_API_HOST}`, // HTTP kullan - kendi sunucu
   
   // Expo Push Notification Project ID
   EXPO_PROJECT_ID: '2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91',
