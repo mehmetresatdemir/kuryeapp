@@ -9,6 +9,63 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
+const { protect } = require('../middleware/authMiddleware');
+const rateLimit = require('express-rate-limit');
+
+// Admin-specific auth middleware (doesn't require database session)
+const adminProtect = async (req, res, next) => {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            // Get token from header
+            token = req.headers.authorization.split(' ')[1];
+            
+            if (!token) {
+                return res.status(401).json({ success: false, message: 'Yetkisiz erişim, token bulunamadı.' });
+            }
+
+            // Verify admin JWT token
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'defaultSecret');
+            
+            // Check if this is an admin token
+            if (decoded.role !== 'admin' || decoded.id !== 'admin') {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Bu işlem için admin yetkisi gereklidir.' 
+                });
+            }
+
+            // Attach admin user to the request
+            req.user = decoded;
+            
+            return next();
+        } catch (error) {
+            if (error.name === 'TokenExpiredError') {
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Admin session süresi dolmuş, lütfen tekrar giriş yapın.',
+                    shouldLogout: true 
+                });
+            } else if (error.name === 'JsonWebTokenError') {
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Geçersiz admin token.' 
+                });
+            } else {
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Yetkisiz erişim, admin token geçersiz.' 
+                });
+            }
+        }
+    }
+
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Yetkisiz erişim, admin token bulunamadı.' });
+    }
+};
 
 // Multer configuration for sound files
 const soundStorage = multer.diskStorage({
@@ -41,6 +98,113 @@ const soundUpload = multer({
     }
   }
 });
+
+// ===== RATE LIMITING =====
+
+// Admin login rate limiter - sadece 5 deneme 15 dakikada
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 5, // Her IP için 5 deneme
+  message: {
+    success: false,
+    message: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Genel admin endpoint rate limiter
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 dakika
+  max: 100, // Dakika başına 100 istek
+  message: {
+    success: false,
+    message: 'Çok fazla istek. Lütfen bir dakika bekleyin.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// ===== ADMIN AUTHENTICATION =====
+
+// Admin Login Endpoint (Korumasız - login için)
+router.post('/login', loginLimiter, async (req, res) => {
+    try {
+        const { password } = req.body;
+        
+        // Input validation
+        if (!password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Şifre gereklidir' 
+            });
+        }
+        
+        if (typeof password !== 'string' || password.length > 100) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Geçersiz şifre formatı' 
+            });
+        }
+
+        // Environment'tan admin şifresini al, yoksa varsayılan kullan
+        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        
+        if (password === adminPassword) {
+            // JWT token oluştur
+            const token = jwt.sign(
+                { 
+                    id: 'admin', 
+                    role: 'admin',
+                    name: 'Administrator'
+                }, 
+                process.env.JWT_SECRET || 'defaultSecret',
+                { 
+                    expiresIn: '24h',
+                    audience: 'admin',
+                    issuer: 'kurye-app'
+                }
+            );
+            
+            res.json({ 
+                success: true, 
+                token,
+                message: 'Giriş başarılı' 
+            });
+        } else {
+            // Brute force saldırılarını zorlaştırmak için aynı mesaj
+            res.status(401).json({ 
+                success: false, 
+                message: 'Giriş başarısız' 
+            });
+        }
+    } catch (error) {
+        // Hassas bilgileri loglara kaydet ama kullanıcıya verme
+        console.error('Admin login hatası:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Bir hata oluştu. Lütfen tekrar deneyin.' 
+        });
+    }
+});
+
+// API Base URL endpoint (korumasız - frontend config için gerekli)
+router.get('/config/api-base-url', (req, res) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
+    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kurye-backend-production.up.railway.app';
+
+    const apiBaseUrl = isProduction ? remoteApiBase : localApiBase;
+
+    res.json({
+        success: true,
+        apiBaseUrl: apiBaseUrl
+    });
+});
+
+// ===== TÜM DİĞER ADMIN ENDPOINT'LERİ KORUMA ALTINA AL =====
+router.use(adminLimiter); // Rate limiting
+router.use(adminProtect); // Admin Authentication
 
 // Online istatistikleri getiren endpoint
 router.get('/online-stats', async (req, res) => {
@@ -1597,34 +1761,7 @@ router.get('/analytics/top-restaurants', async (req, res) => {
     }
 });
 
-// En Aktif Kuryeler
-router.get('/analytics/top-couriers', async (req, res) => {
-    const { startDate, endDate } = req.query;
-    const start = startDate ? new Date(startDate) : new Date(0); // Unix Epoch
-    const end = endDate ? new Date(endDate) : new Date();
 
-    try {
-        const topCouriers = await sql`
-            SELECT 
-                c.id,
-                c.name,
-                c.email,
-                COUNT(o.id) as total_orders,
-                COALESCE(SUM(o.courier_price), 0) as total_earnings
-            FROM couriers c
-            JOIN orders o ON c.id = o.kuryeid
-            WHERE o.status = 'teslim edildi'
-            AND o.created_at >= ${start} AND o.created_at <= ${end}
-            GROUP BY c.id, c.name, c.email
-            ORDER BY total_orders DESC
-            LIMIT 5;
-        `;
-        res.json({ success: true, data: topCouriers });
-    } catch (error) {
-        console.error('❌ Top kuryeler alınırken hata:', error);
-        res.status(500).json({ success: false, message: 'Sunucu hatası' });
-    }
-});
 
 // Top Earning Restaurants (Platform Profit)
 router.get('/analytics/top-earning-restaurants', async (req, res) => {
@@ -1654,21 +1791,6 @@ router.get('/analytics/top-earning-restaurants', async (req, res) => {
     }
 });
 
-// API Base URL endpoint for frontend to consume
-router.get('/config/api-base-url', (req, res) => {
-    const useLocal = process.env.USE_LOCAL_API === 'true';
-    const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:3000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kurye-backend-production.up.railway.app';
-
-    const apiBaseUrl = useLocal ? localApiBase : remoteApiBase;
-
-    
-
-    res.json({
-        success: true,
-        apiBaseUrl: apiBaseUrl
-    });
-});
 
 // Get Order Status Counts for Dashboard
 router.get('/analytics/order-status-counts', async (req, res) => {
@@ -1773,7 +1895,7 @@ router.get('/db-test', async (req, res) => {
 
 // --- Analiz Endpoints ---
 
-// Admin - En çok sipariş yapan kuryeler
+// Admin - Kurye performans analizi (sipariş sayısı ve ortalama teslimat süresi)
 router.get('/analytics/top-couriers', async (req, res) => {
     const { startDate, endDate } = req.query;
     const start = startDate ? new Date(startDate) : new Date(0); // Unix Epoch
@@ -1786,14 +1908,19 @@ router.get('/analytics/top-couriers', async (req, res) => {
                 c.name,
                 c.email,
                 COUNT(o.id) as total_orders,
-                COALESCE(SUM(o.courier_price), 0) as total_earnings
+                COALESCE(SUM(o.courier_price), 0) as total_earnings,
+                COALESCE(
+                    AVG(EXTRACT(EPOCH FROM (o.delivered_at - o.created_at)) / 60),
+                    0
+                ) as avg_delivery_time_minutes
             FROM couriers c
             JOIN orders o ON c.id = o.kuryeid
-            WHERE o.status = 'teslim edildi'
+            WHERE o.status = 'teslim edildi' 
+            AND o.delivered_at IS NOT NULL
             AND o.created_at >= ${start} AND o.created_at <= ${end}
             GROUP BY c.id, c.name, c.email
             ORDER BY total_orders DESC
-            LIMIT 5;
+            LIMIT 10;
         `;
         res.json({ success: true, data: topCouriers });
     } catch (error) {
@@ -1858,7 +1985,12 @@ router.get('/orders', async (req, res) => {
                 o.approved_at::text as approved_at,
                 o.courier_price, o.restaurant_price,
                 r.name as firma_name,
-                c.name as kurye_name
+                c.name as kurye_name,
+                CASE 
+                    WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                        EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                    ELSE NULL
+                END as delivery_time_minutes
             FROM orders o
             LEFT JOIN restaurants r ON o.firmaid = r.id
             LEFT JOIN couriers c ON o.kuryeid = c.id
@@ -2280,6 +2412,211 @@ router.get('/push-tokens', async (req, res) => {
     }
 });
 
+// Admin - Tüm mahalle isteklerini getir
+router.get('/neighborhood-requests', async (req, res) => {
+    try {
+        console.log('🏘️ Admin mahalle istekleri endpoint called');
+        
+        const requests = await sql`
+            SELECT 
+                nr.id,
+                nr.restaurant_id,
+                r.name as restaurant_name,
+                nr.neighborhood_name,
+                nr.restaurant_price,
+                nr.courier_price,
+                nr.status,
+                nr.admin_notes,
+                nr.created_at::text as created_at,
+                nr.updated_at::text as updated_at
+            FROM neighborhood_requests nr
+            LEFT JOIN restaurants r ON nr.restaurant_id = r.id
+            ORDER BY nr.created_at DESC
+        `;
+
+        console.log(`✅ ${requests.length} mahalle isteği bulundu`);
+        
+        res.json({ 
+            success: true, 
+            data: requests 
+        });
+        
+    } catch (error) {
+        console.error('❌ Mahalle istekleri alınırken hata:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Mahalle istekleri yüklenirken bir sunucu hatası oluştu.',
+            error: error.message 
+        });
+    }
+});
+
+// Admin - Mahalle isteğini güncelle (onayla/reddet)
+router.put('/neighborhood-requests/:id/status', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, admin_notes, courier_price } = req.body;
+        
+        console.log(`🏘️ Mahalle isteği #${id} güncelleniyor:`, { status, admin_notes, courier_price });
+        
+        // Önce isteği getir
+        const [request] = await sql`
+            SELECT * FROM neighborhood_requests WHERE id = ${id}
+        `;
+        
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: 'Mahalle isteği bulunamadı'
+            });
+        }
+        
+        // İsteği güncelle
+        const [updatedRequest] = await sql`
+            UPDATE neighborhood_requests 
+            SET 
+                status = ${status},
+                admin_notes = ${admin_notes || null},
+                courier_price = ${courier_price || request.courier_price},
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
+        `;
+        
+        // Eğer onaylandıysa, restaurant_delivery_prices tablosuna ekle
+        if (status === 'approved') {
+            await sql`
+                INSERT INTO restaurant_delivery_prices (
+                    restaurant_id, 
+                    neighborhood_name, 
+                    restaurant_price, 
+                    courier_price, 
+                    is_delivery_available
+                ) VALUES (
+                    ${request.restaurant_id},
+                    ${request.neighborhood_name},
+                    ${request.restaurant_price},
+                    ${courier_price || request.courier_price},
+                    true
+                )
+                ON CONFLICT (restaurant_id, neighborhood_name) 
+                DO UPDATE SET
+                    restaurant_price = EXCLUDED.restaurant_price,
+                    courier_price = EXCLUDED.courier_price,
+                    is_delivery_available = EXCLUDED.is_delivery_available,
+                    updated_at = NOW()
+            `;
+            
+            console.log(`✅ Mahalle isteği onaylandı ve teslimat fiyatları güncellendi`);
+        }
+        
+        res.json({
+            success: true,
+            message: `Mahalle isteği ${status === 'approved' ? 'onaylandı' : 'reddedildi'}`,
+            data: updatedRequest
+        });
+        
+    } catch (error) {
+        console.error('❌ Mahalle isteği güncellenirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Mahalle isteği güncellenirken bir sunucu hatası oluştu.',
+            error: error.message
+        });
+    }
+});
+
+// Admin - Tüm destek taleplerini getir
+router.get('/support-tickets', async (req, res) => {
+    try {
+        console.log('🎫 Admin destek talepleri endpoint called');
+        
+        const tickets = await sql`
+            SELECT 
+                st.id,
+                st.user_id,
+                st.user_role,
+                st.title,
+                st.description,
+                st.status,
+                st.priority,
+                st.admin_response,
+                st.created_at::text as created_at,
+                st.updated_at::text as updated_at,
+                CASE 
+                    WHEN st.user_role = 'restaurant' THEN r.name
+                    WHEN st.user_role = 'courier' THEN c.name
+                    ELSE 'Bilinmeyen Kullanıcı'
+                END as user_name
+            FROM support_tickets st
+            LEFT JOIN restaurants r ON st.user_id = r.id AND st.user_role = 'restaurant'
+            LEFT JOIN couriers c ON st.user_id = c.id AND st.user_role = 'courier'
+            ORDER BY st.created_at DESC
+        `;
+
+        console.log(`✅ ${tickets.length} destek talebi bulundu`);
+        
+        res.json({ 
+            success: true, 
+            data: tickets 
+        });
+        
+    } catch (error) {
+        console.error('❌ Destek talepleri alınırken hata:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Destek talepleri yüklenirken bir sunucu hatası oluştu.',
+            error: error.message 
+        });
+    }
+});
+
+// Admin - Destek talebini güncelle (yanıtla/kapat)
+router.put('/support-tickets/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, admin_response } = req.body;
+        
+        console.log(`🎫 Destek talebi #${id} güncelleniyor:`, { status, admin_response });
+        
+        // Önce talebi getir
+        const [ticket] = await sql`
+            SELECT * FROM support_tickets WHERE id = ${id}
+        `;
+        
+        if (!ticket) {
+            return res.status(404).json({
+                success: false,
+                message: 'Destek talebi bulunamadı'
+            });
+        }
+        
+        // Talebi güncelle
+        const [updatedTicket] = await sql`
+            UPDATE support_tickets 
+            SET 
+                status = ${status || ticket.status},
+                admin_response = ${admin_response || ticket.admin_response},
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
+        `;
+        
+        res.json({
+            success: true,
+            message: 'Destek talebi başarıyla güncellendi',
+            data: updatedTicket
+        });
+        
+    } catch (error) {
+        console.error('❌ Destek talebi güncellenirken hata:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Destek talebi güncellenirken bir sunucu hatası oluştu.',
+            error: error.message
+        });
+    }
+});
 
 
 module.exports = router; 

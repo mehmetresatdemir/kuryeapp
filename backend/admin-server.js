@@ -63,12 +63,44 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('🌐 CORS Origin: *');
 }
 
-// CORS middleware
+// CORS middleware - Basitleştirilmiş yapılandırma  
+function getAllowedOrigins() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction) {
+    return ['https://kurye-backend-production.up.railway.app'];
+  } else {
+    return [
+      'http://localhost:4000',
+      'http://localhost:8080', 
+      'http://localhost:8081'
+    ];
+  }
+}
+
+const allowedOrigins = getAllowedOrigins();
+
 app.use(cors({
-  origin: "*",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn('🚫 CORS blocked origin:', origin);
+      callback(new Error('CORS policy violation'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
+
+// Debug: CORS allowed origins'i logla
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🌐 CORS Allowed Origins:', allowedOrigins);
+}
 
 // Request logging middleware - only in development
 if (process.env.NODE_ENV !== 'production') {

@@ -84,12 +84,62 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
 }
 
-// CORS middleware
+// CORS middleware - Basitleştirilmiş yapılandırma
+function getAllowedOrigins() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (isProduction) {
+    return ['https://kurye-backend-production.up.railway.app'];
+  } else {
+    return [
+      'http://localhost:4000', 
+      'http://localhost:8080',
+      'http://localhost:8081',
+      'http://localhost:19006', // Expo development server
+      'capacitor://localhost',
+      'ionic://localhost'
+    ];
+  }
+}
+
+const allowedOrigins = getAllowedOrigins();
+
 app.use(cors({
-  origin: "*",
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    // Development mode ve localhost check: daha esnek CORS
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 CORS Check - Origin:', origin);
+      console.log('🔍 CORS Check - Allowed:', allowedOrigins);
+    }
+    
+    // Her durumda localhost'a izin ver (development veya local testing için)
+    if (origin && (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1'))) {
+      console.log('✅ CORS allowed (localhost)');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed (whitelist)');
+      callback(null, true);
+    } else {
+      console.warn('🚫 CORS blocked origin:', origin);
+      console.warn('🔍 Available origins:', allowedOrigins);
+      callback(new Error('CORS policy violation'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
+
+// Debug: CORS allowed origins'i logla
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🌐 CORS Allowed Origins:', allowedOrigins);
+  console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+}
 
 // Body parser middleware
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -136,6 +186,32 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toLocaleString('tr-TR'),
     uptime: process.uptime()
   });
+});
+
+// API Health check endpoint (used by admin panel)
+app.get('/api/health', async (req, res) => {
+  const { healthCheck } = require('./config/db-config');
+  try {
+    const dbHealth = await healthCheck();
+    res.json({
+      success: true,
+      status: 'OK',
+      timestamp: new Date().toLocaleString('tr-TR'),
+      uptime: process.uptime(),
+      database: dbHealth,
+      server: {
+        memory: process.memoryUsage(),
+        version: process.version
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 'ERROR',
+      error: error.message,
+      timestamp: new Date().toLocaleString('tr-TR')
+    });
+  }
 });
 
 // Database health check endpoint
