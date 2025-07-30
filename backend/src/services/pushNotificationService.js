@@ -127,14 +127,14 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
           c.id as courier_id,
           c.name as courier_name,
           c.notification_mode,
-          pt.expo_push_token,
+          pt.token as expo_push_token,
           pt.platform,
           crp.is_selected
         FROM couriers c
         INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
         INNER JOIN courier_restaurant_preferences crp ON c.id = crp.courier_id 
         WHERE c.is_blocked = false 
-          AND pt.expo_push_token IS NOT NULL 
+          AND pt.token IS NOT NULL 
           AND pt.is_active = true
           AND crp.restaurant_id = ${restaurantId}
           AND crp.is_selected = true
@@ -148,12 +148,12 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
           c.id as courier_id,
           c.name as courier_name,
           c.notification_mode,
-          pt.expo_push_token,
+          pt.token as expo_push_token,
           pt.platform
         FROM couriers c
         INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
         WHERE c.is_blocked = false 
-          AND pt.expo_push_token IS NOT NULL 
+          AND pt.token IS NOT NULL 
           AND pt.is_active = true
         ORDER BY c.name
       `;
@@ -297,7 +297,7 @@ async function sendOrderAcceptedNotification(notificationData) {
     
     // Get restaurant push token
     const [restaurantToken] = await sql`
-      SELECT pt.expo_push_token, pt.platform, r.name as restaurant_name
+      SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
       FROM restaurants r
       INNER JOIN push_tokens pt ON r.id = pt.user_id AND pt.user_type = 'restaurant'
       WHERE r.id = ${restaurantId} AND pt.is_active = true
@@ -351,7 +351,7 @@ async function sendOrderCancelledNotification(notificationData) {
     
     // Get courier push token
     const [courierToken] = await sql`
-      SELECT pt.expo_push_token, pt.platform, c.name as courier_name
+      SELECT pt.token as expo_push_token, pt.platform, c.name as courier_name
       FROM couriers c
       INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
       WHERE c.id = ${courierId} AND pt.is_active = true
@@ -416,7 +416,7 @@ async function sendOrderDeliveredNotification(notificationData) {
     
     // Get restaurant push token
     const [restaurantToken] = await sql`
-      SELECT pt.expo_push_token, pt.platform, r.name as restaurant_name
+      SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
       FROM restaurants r
       INNER JOIN push_tokens pt ON r.id = pt.user_id AND pt.user_type = 'restaurant'
       WHERE r.id = ${restaurantId} AND pt.is_active = true
@@ -469,7 +469,7 @@ async function sendOrderApprovedNotification(notificationData) {
     
     // Get courier push token
     const [courierToken] = await sql`
-      SELECT pt.expo_push_token, pt.platform, c.name as courier_name
+      SELECT pt.token as expo_push_token, pt.platform, c.name as courier_name
       FROM couriers c
       INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
       WHERE c.id = ${courierId} AND pt.is_active = true
@@ -523,7 +523,7 @@ async function sendAdminTimeoutNotification(notificationData) {
     
     // Get admin push tokens (if any exist)
     const adminTokens = await sql`
-      SELECT pt.expo_push_token, pt.platform, pt.user_id
+      SELECT pt.token as expo_push_token, pt.platform, pt.user_id
       FROM push_tokens pt
       WHERE pt.user_type = 'admin' AND pt.is_active = true
       ORDER BY pt.updated_at DESC
@@ -605,7 +605,7 @@ async function sendDeliveryApprovalNotification(notificationData) {
     
     // Get restaurant push token
          const [restaurantToken] = await sql`
-       SELECT pt.expo_push_token, pt.platform, r.name as restaurant_name
+       SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
        FROM restaurants r
        INNER JOIN push_tokens pt ON r.id = pt.user_id AND pt.user_type = 'restaurant'
        WHERE r.id = ${restaurantId} AND pt.is_active = true
@@ -675,7 +675,7 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
     // Get restaurant push token
     console.log(`🔍 Searching for push token for restaurant ${restaurantId}...`);
     const [restaurantToken] = await sql`
-      SELECT pt.expo_push_token, pt.platform, r.name as restaurant_name
+      SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
       FROM restaurants r
       INNER JOIN push_tokens pt ON r.id = pt.user_id AND pt.user_type = 'restaurant'
       WHERE r.id = ${restaurantId} AND pt.is_active = true

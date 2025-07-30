@@ -40,7 +40,7 @@ router.post('/register', async (req, res) => {
        // Update existing token
        await sql`
                  UPDATE push_tokens 
-        SET expo_push_token = ${expoPushToken}, 
+        SET token = ${expoPushToken}, 
             platform = ${platform},
             is_active = true,
             updated_at = NOW()
@@ -51,7 +51,7 @@ router.post('/register', async (req, res) => {
      } else {
        // Insert new token
        await sql`
-                 INSERT INTO push_tokens (user_id, user_type, expo_push_token, platform, is_active, created_at, updated_at)
+                 INSERT INTO push_tokens (user_id, user_type, token, platform, is_active, created_at, updated_at)
         VALUES (${userId}, ${userType}, ${expoPushToken}, ${platform}, true, NOW(), NOW())
        `;
        
@@ -133,7 +133,7 @@ router.post('/test', async (req, res) => {
 
          // Get user's push token
      const [tokenRecord] = await sql`
-             SELECT expo_push_token, platform 
+             SELECT token as expo_push_token, platform 
       FROM push_tokens 
       WHERE user_id = ${userId} AND user_type = ${userType} AND is_active = true
       ORDER BY updated_at DESC
