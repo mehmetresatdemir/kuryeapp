@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 // Get environment variables - FORCE LOCAL IP FOR MOBILE TESTING
 const API_HOST = '192.168.1.106'; // Forced IP for mobile testing
 const API_PORT = '3000';
-const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || '16.171.131.126:4000';
+const REMOTE_API_HOST = Constants.expoConfig?.extra?.REMOTE_API_HOST || process.env.EXPO_PUBLIC_REMOTE_API_HOST || 'kurye-backend-production.up.railway.app';
 const USE_REMOTE = true; // Force local for testing
 
 // API Configuration

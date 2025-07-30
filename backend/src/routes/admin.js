@@ -352,7 +352,7 @@ router.get('/debug/push-tokens', async (req, res) => {
                     WHEN pt.user_type = 'courier' THEN c.is_online
                     ELSE false
                 END as is_online,
-                LEFT(pt.token, 25) || '...' as token_preview
+                LEFT(pt.expo_push_token, 25) || '...' as token_preview
             FROM push_tokens pt
             LEFT JOIN couriers c ON pt.user_type = 'courier' AND pt.user_id = c.id
             LEFT JOIN restaurants r ON pt.user_type = 'restaurant' AND pt.user_id = r.id
@@ -2335,7 +2335,7 @@ router.get('/debug/active-push-tokens', async (req, res) => {
                     WHEN pt.user_type = 'restaurant' THEN r.name
                     ELSE 'Unknown'
                 END as user_name,
-                LEFT(pt.token, 25) || '...' as token_preview
+                LEFT(pt.expo_push_token, 25) || '...' as token_preview
             FROM push_tokens pt
             LEFT JOIN couriers c ON pt.user_type = 'courier' AND pt.user_id = c.id
             LEFT JOIN restaurants r ON pt.user_type = 'restaurant' AND pt.user_id = r.id

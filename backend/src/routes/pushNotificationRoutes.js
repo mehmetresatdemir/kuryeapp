@@ -39,20 +39,20 @@ router.post('/register', async (req, res) => {
      if (existingToken) {
        // Update existing token
        await sql`
-         UPDATE push_tokens 
-         SET token = ${expoPushToken}, 
-             platform = ${platform},
-             is_active = true,
-             updated_at = NOW()
-         WHERE user_id = ${userId} AND user_type = ${userType}
+                 UPDATE push_tokens 
+        SET expo_push_token = ${expoPushToken}, 
+            platform = ${platform},
+            is_active = true,
+            updated_at = NOW()
+        WHERE user_id = ${userId} AND user_type = ${userType}
        `;
        
        console.log(`📱 Updated push token for ${userType} ${userId}`);
      } else {
        // Insert new token
        await sql`
-         INSERT INTO push_tokens (user_id, user_type, token, platform, is_active, created_at, updated_at)
-         VALUES (${userId}, ${userType}, ${expoPushToken}, ${platform}, true, NOW(), NOW())
+                 INSERT INTO push_tokens (user_id, user_type, expo_push_token, platform, is_active, created_at, updated_at)
+        VALUES (${userId}, ${userType}, ${expoPushToken}, ${platform}, true, NOW(), NOW())
        `;
        
        console.log(`📱 Registered new push token for ${userType} ${userId}`);
@@ -133,11 +133,11 @@ router.post('/test', async (req, res) => {
 
          // Get user's push token
      const [tokenRecord] = await sql`
-       SELECT token as expo_push_token, platform 
-       FROM push_tokens 
-       WHERE user_id = ${userId} AND user_type = ${userType} AND is_active = true
-       ORDER BY updated_at DESC
-       LIMIT 1
+             SELECT expo_push_token, platform 
+      FROM push_tokens 
+      WHERE user_id = ${userId} AND user_type = ${userType} AND is_active = true
+      ORDER BY updated_at DESC
+      LIMIT 1
      `;
 
     if (!tokenRecord) {
