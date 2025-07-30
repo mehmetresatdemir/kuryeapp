@@ -145,7 +145,7 @@
       },
       "API_HOST": "localhost",
       "API_PORT": "3000",
-      "REMOTE_API_HOST": "kurye-backend-production.up.railway.app",
+      "REMOTE_API_HOST": "16.171.131.126:4000",
       "USE_REMOTE": false,
       "eas": {
         "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
