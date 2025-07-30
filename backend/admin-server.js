@@ -68,7 +68,7 @@ function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
   if (isProduction) {
-    return ['https://kurye-backend-production.up.railway.app'];
+    return ['http://16.171.131.126:4000'];
   } else {
     return [
       'http://localhost:4000',

@@ -328,14 +328,14 @@ const fixImageUrl = (imageUrl: string | null): string | null => {
   // Eğer tam URL ise doğrudan kullan
   if (imageUrl.startsWith('http')) {
     // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-    if (imageUrl.startsWith('https://admin.enucuzal.com')) {
-      return imageUrl.replace('https://admin.enucuzal.com', 'http://admin.enucuzal.com');
+    if (imageUrl.startsWith('http://16.171.131.126:4000')) {
+      return imageUrl.replace('http://16.171.131.126:4000', 'http://16.171.131.126:4000');
     }
     return imageUrl;
   }
   
   // Göreceli yolları tam URL'ye çevir
-  const baseUrl = 'http://admin.enucuzal.com:3000';
+  const baseUrl = 'http://16.171.131.126:4000:3000';
   return `${baseUrl}${imageUrl}`;
 };
 
@@ -1520,6 +1520,19 @@ const KuryeOrders = () => {
                       </View>
                       <Text style={styles.gridValue} numberOfLines={1}>
                         {item.odeme_yontemi}
+                      </Text>
+                    </View>
+
+                    {/* Teslimat Süresi */}
+                    <View style={styles.gridItem}>
+                      <View style={styles.gridIconBox}>
+                        <Ionicons name="time" size={14} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.gridValue} numberOfLines={1}>
+                        {item.delivery_time_minutes && item.delivery_time_minutes > 0 
+                          ? `${Math.round(item.delivery_time_minutes)} dk`
+                          : item.status === 'teslim edildi' ? 'Hesaplanamadı' : '-'
+                        }
                       </Text>
                     </View>
                   </View>

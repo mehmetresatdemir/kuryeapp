@@ -22,7 +22,13 @@ const getAllCouriers = async (req, res) => {
                 c.total_deliveries,
                 c.updated_at,
                 COUNT(o.id) FILTER (WHERE o.status = 'kuryede') as active_orders_count,
-                COALESCE(SUM(o.courier_price), 0) as total_earnings
+                COALESCE(SUM(o.courier_price), 0) as total_earnings,
+                COALESCE(
+                    AVG(
+                        EXTRACT(EPOCH FROM (o.delivered_at - o.created_at)) / 60
+                    ) FILTER (WHERE o.status = 'teslim edildi' AND o.delivered_at IS NOT NULL), 
+                    0
+                ) as avg_delivery_time_minutes
             FROM 
                 couriers c
             LEFT JOIN 
@@ -45,21 +51,28 @@ const getCourierById = async (req, res) => {
     try {
         const [courier] = await sql`
             SELECT 
-                id, 
-                name, 
-                email,
-                phone,
-                COALESCE(is_blocked, false) as is_blocked,
-                COALESCE(is_online, false) as is_online, 
-                COALESCE(package_limit, 5) as package_limit,
-                COALESCE(total_deliveries, 0) as total_deliveries,
-                last_seen,
-                created_at,
-                COALESCE(updated_at, created_at) as updated_at,
-                latitude,
-                longitude
-            FROM couriers 
-            WHERE id = ${id}
+                c.id, 
+                c.name, 
+                c.email,
+                c.phone,
+                COALESCE(c.is_blocked, false) as is_blocked,
+                COALESCE(c.is_online, false) as is_online, 
+                COALESCE(c.package_limit, 5) as package_limit,
+                COUNT(o.id) FILTER (WHERE o.status = 'teslim edildi') as total_deliveries,
+                COALESCE(
+                    AVG(EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60) 
+                    FILTER (WHERE o.status = 'teslim edildi' AND o.delivered_at IS NOT NULL AND o.accepted_at IS NOT NULL), 
+                    0
+                ) as avg_delivery_time_minutes,
+                c.last_seen,
+                c.created_at,
+                COALESCE(c.updated_at, c.created_at) as updated_at,
+                c.latitude,
+                c.longitude
+            FROM couriers c
+            LEFT JOIN orders o ON c.id = o.kuryeid
+            WHERE c.id = ${id}
+            GROUP BY c.id, c.name, c.email, c.phone, c.is_blocked, c.is_online, c.package_limit, c.last_seen, c.created_at, c.updated_at, c.latitude, c.longitude
         `;
         
         if (!courier) {
@@ -167,6 +180,62 @@ const getCourierEarnings = async (req, res) => {
         res.json({ success: true, data: earnings });
     } catch (error) {
         console.error(`Kurye #${courierId} kazançları alınırken hata:`, error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+// Kurye teslimat istatistikleri - ortalama süre ve performans metrikleri
+const getCourierDeliveryStats = async (req, res) => {
+    const { courierId } = req.params;
+    const { id: userId, role } = req.user;
+
+    // Authorization check
+    if (role !== 'admin' && parseInt(courierId) !== userId) {
+        return res.status(403).json({ success: false, message: 'Bu bilgilere erişim yetkiniz yok.' });
+    }
+
+    try {
+        const stats = await sql`
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'teslim edildi') as total_delivered_orders,
+                COALESCE(
+                    AVG(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 60) 
+                    FILTER (WHERE status = 'teslim edildi' AND delivered_at IS NOT NULL), 
+                    0
+                ) as avg_delivery_time_minutes,
+                COALESCE(
+                    MIN(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 60) 
+                    FILTER (WHERE status = 'teslim edildi' AND delivered_at IS NOT NULL), 
+                    0
+                ) as fastest_delivery_minutes,
+                COALESCE(
+                    MAX(EXTRACT(EPOCH FROM (delivered_at - created_at)) / 60) 
+                    FILTER (WHERE status = 'teslim edildi' AND delivered_at IS NOT NULL), 
+                    0
+                ) as slowest_delivery_minutes,
+                COUNT(*) FILTER (WHERE status = 'iptal edildi') as cancelled_orders,
+                COUNT(*) as total_orders
+            FROM orders
+            WHERE kuryeid = ${courierId}
+        `;
+
+        const result = stats[0];
+        
+        res.json({ 
+            success: true, 
+            data: {
+                totalDeliveredOrders: parseInt(result.total_delivered_orders) || 0,
+                avgDeliveryTimeMinutes: Math.round(parseFloat(result.avg_delivery_time_minutes) || 0),
+                fastestDeliveryMinutes: Math.round(parseFloat(result.fastest_delivery_minutes) || 0),
+                slowestDeliveryMinutes: Math.round(parseFloat(result.slowest_delivery_minutes) || 0),
+                cancelledOrders: parseInt(result.cancelled_orders) || 0,
+                totalOrders: parseInt(result.total_orders) || 0,
+                successRate: result.total_orders > 0 ? 
+                    Math.round((result.total_delivered_orders / result.total_orders) * 100) : 0
+            }
+        });
+    } catch (error) {
+        console.error(`Kurye #${courierId} teslimat istatistikleri alınırken hata:`, error);
         res.status(500).json({ success: false, message: 'Sunucu hatası' });
     }
 };
@@ -642,6 +711,7 @@ module.exports = {
     login,
     updateLocationAndStatus,
     getCourierEarnings,
+    getCourierDeliveryStats, // Yeni eklenen teslimat istatistikleri fonksiyonu
     authenticateCourier, // Export for unified login
     addCourier,
     updateCourier,

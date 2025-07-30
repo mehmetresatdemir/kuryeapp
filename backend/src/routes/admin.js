@@ -147,8 +147,8 @@ router.post('/login', loginLimiter, async (req, res) => {
             });
         }
 
-        // Environment'tan admin şifresini al, yoksa varsayılan kullan
-        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        // Admin şifresi direkt olarak asd123 yapıldı
+        const adminPassword = 'asd123';
         
         if (password === adminPassword) {
             // JWT token oluştur
@@ -192,7 +192,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 router.get('/config/api-base-url', (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kurye-backend-production.up.railway.app';
+    const remoteApiBase = process.env.REMOTE_API_BASE || 'http://16.171.131.126:4000';
 
     const apiBaseUrl = isProduction ? remoteApiBase : localApiBase;
 

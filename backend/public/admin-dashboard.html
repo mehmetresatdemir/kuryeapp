@@ -382,7 +382,9 @@
         // Google Maps API'sini dinamik olarak yükle
         async function loadGoogleMapsScript() {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`);
+                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`, {
+                    headers: getAuthHeaders()
+                });
                 const data = await response.json();
 
                 if (data.success && data.key) {

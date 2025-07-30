@@ -120,7 +120,7 @@ Nginx kullanıyorsanız örnek yapılandırma:
 ```nginx
 server {
     listen 80;
-    server_name admin.enucuzal.com;
+    server_name 16.171.131.126:4000;
 
     location / {
         proxy_pass http://localhost:3000;

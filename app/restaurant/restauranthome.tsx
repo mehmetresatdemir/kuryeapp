@@ -1199,8 +1199,8 @@ const RestaurantHome = () => {
     // Eğer tam URL ise doğrudan kullan
     if (imageUrl.startsWith('http')) {
       // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-      if (imageUrl.startsWith('https://admin.enucuzal.com')) {
-        return imageUrl.replace('https://admin.enucuzal.com', 'http://admin.enucuzal.com');
+      if (imageUrl.startsWith('http://16.171.131.126:4000')) {
+        return imageUrl.replace('http://16.171.131.126:4000', 'http://16.171.131.126:4000');
       }
       return imageUrl;
     }

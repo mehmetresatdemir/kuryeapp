@@ -52,7 +52,7 @@ module.exports = {
   deploy: {
     production: {
       user: 'root',
-      host: 'admin.enucuzal.com',
+      host: '16.171.131.126:4000',
       ref: 'origin/main',
       repo: 'your-git-repo-url',
       path: '/var/www/kurye-backend',

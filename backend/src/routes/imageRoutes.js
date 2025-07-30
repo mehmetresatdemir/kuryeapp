@@ -70,7 +70,7 @@ router.post('/uploadImage', upload.single('image'), (req, res) => {
     const filename = req.file.filename;
     // Use appropriate server URL based on environment
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://kurye-backend-production.up.railway.app'
+      ? 'http://16.171.131.126:4000'
       : `http://${req.get('host')}`;
     
     const imageUrl = `${baseUrl}/uploads/orders/${filename}`;
@@ -109,7 +109,7 @@ router.post('/upload', upload.single('image'), (req, res) => {
     const filename = req.file.filename;
     // Use appropriate server URL based on environment
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://kurye-backend-production.up.railway.app'
+      ? 'http://16.171.131.126:4000'
       : `http://${req.get('host')}`;
     
     const imageUrl = `${baseUrl}/uploads/orders/${filename}`;
@@ -149,7 +149,7 @@ router.post('/upload-multiple', upload.array('images', 10), (req, res) => {
 
     // Use appropriate server URL based on environment
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://kurye-backend-production.up.railway.app'
+      ? 'http://16.171.131.126:4000'
       : `http://${req.get('host')}`;
 
     const uploadedImages = files.map(file => ({

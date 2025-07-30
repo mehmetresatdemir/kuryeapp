@@ -42,7 +42,7 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0"
             },
-            "admin.enucuzal.com": {
+            "16.171.131.126:4000": {
               "NSExceptionMinimumTLSVersion": "TLSv1.2",
               "NSIncludesSubdomains": true
             },

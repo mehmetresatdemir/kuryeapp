@@ -300,7 +300,9 @@
         // Load support tickets
         async function loadSupportTickets() {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/support-tickets`);
+                const response = await fetch(`${API_BASE}/api/admin/support-tickets`, {
+                    headers: getAuthHeaders()
+                });
                 const data = await response.json();
                 
                 if (data.success) {

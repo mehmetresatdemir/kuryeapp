@@ -13,7 +13,7 @@ const getAbsoluteImageUrl = (relativePath, req = null) => {
     // Use appropriate server URL based on environment
     let baseUrl;
     if (process.env.NODE_ENV === 'production') {
-        baseUrl = 'https://kurye-backend-production.up.railway.app';
+        baseUrl = 'http://16.171.131.126:4000';
     } else if (req) {
         baseUrl = `http://${req.get('host')}`;
     } else {
@@ -310,7 +310,12 @@ const getActiveOrdersForCourier = async (req, res) => {
                 o.approved_at::text as approved_at,
                 o.courier_price, o.restaurant_price,
                 r.name as firma_name,
-                r.phone as firma_phone
+                r.phone as firma_phone,
+                CASE 
+                    WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                        EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                    ELSE NULL
+                END as delivery_time_minutes
             FROM orders o
             LEFT JOIN restaurants r ON o.firmaid = r.id
             WHERE o.kuryeid = ${courierId} AND o.status NOT IN ('teslim edildi', 'iptal edildi', 'onay bekliyor')
@@ -349,7 +354,12 @@ const getOrdersForRestaurant = async (req, res) => {
                 c.name as kurye_surname,
                 c.phone as kurye_phone,
                 COALESCE(o.courier_price, 0) as courier_price,
-                COALESCE(o.restaurant_price, 0) as restaurant_price
+                COALESCE(o.restaurant_price, 0) as restaurant_price,
+                CASE 
+                    WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                        EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                    ELSE NULL
+                END as delivery_time_minutes
             FROM orders o
             LEFT JOIN couriers c ON o.kuryeid = c.id
             WHERE o.firmaid = ${restaurantId} 
@@ -889,7 +899,12 @@ const getPendingApprovalOrdersForCourier = async (req, res) => {
                 o.courier_price, o.restaurant_price,
                 r.name as restaurant_name, 
                 r.latitude as restaurant_lat, 
-                r.longitude as restaurant_lng
+                r.longitude as restaurant_lng,
+                CASE 
+                    WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                        EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                    ELSE NULL
+                END as delivery_time_minutes
             FROM orders o
             LEFT JOIN restaurants r ON o.firmaid = r.id
             WHERE o.kuryeid = ${courierId} AND o.status = 'onay bekliyor'
@@ -1306,7 +1321,12 @@ const getOrdersForCourierWithPreferences = async (req, res) => {
                     o.delivered_at::text as delivered_at,
                     o.approved_at::text as approved_at,
                     o.courier_price, o.restaurant_price,
-                    r.name as restaurant_name
+                    r.name as restaurant_name,
+                    CASE 
+                        WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                            EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                        ELSE NULL
+                    END as delivery_time_minutes
                 FROM orders o
                 LEFT JOIN restaurants r ON o.firmaid = r.id
                 WHERE o.status = 'bekleniyor'
@@ -1325,7 +1345,12 @@ const getOrdersForCourierWithPreferences = async (req, res) => {
                     o.delivered_at::text as delivered_at,
                     o.approved_at::text as approved_at,
                     o.courier_price, o.restaurant_price,
-                    r.name as restaurant_name
+                    r.name as restaurant_name,
+                    CASE 
+                        WHEN o.accepted_at IS NOT NULL AND o.delivered_at IS NOT NULL THEN
+                            EXTRACT(EPOCH FROM (o.delivered_at - o.accepted_at)) / 60
+                        ELSE NULL
+                    END as delivery_time_minutes
                 FROM orders o
                 LEFT JOIN restaurants r ON o.firmaid = r.id
                 INNER JOIN courier_restaurant_preferences crp 

@@ -109,41 +109,66 @@
     </div>
 
     <script>
-        // Basit şifre (değiştirilebilir)
-        const ADMIN_PASSWORD = 'admin123';
-        
-        // Zaten giriş yapılmışsa dashboard'a yönlendir
-        if (localStorage.getItem('adminAuth') === 'authenticated') {
+        // JWT token kontrolü - zaten giriş yapılmışsa dashboard'a yönlendir
+        if (localStorage.getItem('token')) {
             window.location.href = 'admin-dashboard.html';
         }
 
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const password = document.getElementById('password').value;
             const errorMsg = document.getElementById('errorMessage');
             const successMsg = document.getElementById('successMessage');
+            const submitBtn = document.querySelector('.login-btn');
             
             // Hata ve başarı mesajlarını gizle
             errorMsg.style.display = 'none';
             successMsg.style.display = 'none';
             
-            if (password === ADMIN_PASSWORD) {
-                // Şifre doğru - localStorage'a token kaydet
-                localStorage.setItem('adminAuth', 'authenticated');
+            // Loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = '🔄 Giriş yapılıyor...';
+            
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
+                });
                 
-                // Başarı mesajı göster
-                successMsg.style.display = 'block';
+                const data = await response.json();
                 
-                // 1 saniye sonra dashboard'a yönlendir
-                setTimeout(() => {
-                    window.location.href = 'admin-dashboard.html';
-                }, 1000);
-            } else {
-                // Şifre yanlış - hata mesajı göster
+                if (data.success) {
+                    // JWT token'ı localStorage'a kaydet
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('adminAuth', 'authenticated'); // Eski sistem uyumluluğu için
+                    
+                    // Başarı mesajı göster
+                    successMsg.textContent = data.message || 'Giriş başarılı!';
+                    successMsg.style.display = 'block';
+                    
+                    // 1 saniye sonra dashboard'a yönlendir
+                    setTimeout(() => {
+                        window.location.href = 'admin-dashboard.html';
+                    }, 1000);
+                } else {
+                    // Şifre yanlış - hata mesajı göster
+                    errorMsg.textContent = data.message || 'Giriş başarısız';
+                    errorMsg.style.display = 'block';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                }
+            } catch (error) {
+                console.error('Login hatası:', error);
+                errorMsg.textContent = 'Bağlantı hatası. Lütfen tekrar deneyin.';
                 errorMsg.style.display = 'block';
-                document.getElementById('password').value = '';
-                document.getElementById('password').focus();
+            } finally {
+                // Reset button state
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🔓 Giriş Yap';
             }
         });
 

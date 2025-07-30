@@ -267,6 +267,7 @@
                                 <th>Email</th>
                                 <th>Şifre</th>
                                 <th>Aktif Sipariş / Limit</th>
+                                <th>Ortalama Teslimat</th>
                                 <th>Son Görülme</th>
                                 <th>İşlemler</th>
                             </tr>
@@ -365,7 +366,9 @@
 
         // Kuryeleri yükle
         function loadCouriers() {
-            fetch(`${API_BASE}/api/admin/couriers`)
+            fetch(`${API_BASE}/api/admin/couriers`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -379,7 +382,7 @@
                 .catch(error => {
                     console.error('Kuryeler yüklenirken hata:', error);
                     document.getElementById('couriers-table-body').innerHTML = 
-                        '<tr><td colspan="7" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
+                        '<tr><td colspan="9" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
                 });
         }
 
@@ -388,7 +391,7 @@
             const tableBody = document.getElementById('couriers-table-body');
             
             if (couriers.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="7" class="loading">Kurye bulunamadı</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="9" class="loading">Kurye bulunamadı</td></tr>';
                 return;
             }
 
@@ -417,6 +420,13 @@
                         <td><span style="color: #666; font-size: 0.9rem;">${courier.email}</span></td>
                         <td><span style="color: #666; font-size: 0.8rem; font-family: monospace;">••••••••</span> <button class="btn" style="padding: 2px 6px; font-size: 0.7rem;" onclick="showPassword(${courier.id}, '${courier.password}')" title="Şifreyi Göster">👁️</button></td>
                         <td><span class="delivery-count">${totalDeliveries}</span> / ${courier.package_limit}</td>
+                        <td>
+                            <span style="color: #059669; font-weight: 600;">
+                                ${courier.avg_delivery_time_minutes && courier.avg_delivery_time_minutes > 0 ? 
+                                    Math.round(courier.avg_delivery_time_minutes) + ' dk' : 
+                                    'Veri yok'}
+                            </span>
+                        </td>
                         <td>${courier.updated_at ? new Date(courier.updated_at).toLocaleString('tr-TR') : 'Bilinmiyor'}</td>
                         <td class="actions">
                             <button class="btn btn-warning btn-edit" data-courier-id="${courier.id}" title="Düzenle">
@@ -535,7 +545,7 @@
             try {
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(courierData)
                 });
                 const result = await response.json();
@@ -561,7 +571,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/admin/couriers/${courierId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: getAuthHeaders()
                 });
                 const result = await response.json();
                 if (result.success) {

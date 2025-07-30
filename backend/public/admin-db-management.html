@@ -712,7 +712,9 @@
         // Tabloları yükle
         async function loadTables() {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/db/tables`);
+                const response = await fetch(`${API_BASE}/api/admin/db/tables`, {
+                    headers: getAuthHeaders()
+                });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -938,7 +940,7 @@
 
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(updateData)
                 });
 
@@ -1109,7 +1111,8 @@
                 const recordId = getRecordId(record);
 
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
                 });
 
                 const result = await response.json();
@@ -1188,7 +1191,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(recordData)
                 });
 
@@ -1256,7 +1259,9 @@
                 showNotification('Yedekleme başlatılıyor...', 'info');
                 
                 // Tüm tabloları al
-                const response = await fetch(`${API_BASE}/api/admin/db/tables`);
+                const response = await fetch(`${API_BASE}/api/admin/db/tables`, {
+                    headers: getAuthHeaders()
+                });
                 const data = await response.json();
                 
                 if (!data.success) {
@@ -1294,7 +1299,7 @@
                 
                 const response = await fetch(`${API_BASE}/api/admin/db/generate-test-data`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: getAuthHeaders()
                 });
 
                 const result = await response.json();

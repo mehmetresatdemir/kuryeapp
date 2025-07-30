@@ -20,6 +20,9 @@ router.put('/presence/:id', protect, courierController.updateLocationAndStatus);
 // Kuryenin kazançlarını getir (mobil uygulama için)
 router.get('/:courierId/earnings', protect, courierController.getCourierEarnings);
 
+// Kuryenin teslimat istatistiklerini getir (ortalama süre, performans metrikleri)
+router.get('/:courierId/delivery-stats', protect, courierController.getCourierDeliveryStats);
+
 // Kurye profil güncelleme (mobil uygulama için)
 router.put('/:id/profile', protect, courierController.updateCourierProfile);
 

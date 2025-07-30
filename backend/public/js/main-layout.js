@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="admin-settings.html" class="nav-link ${pageName === 'Settings' ? 'active' : ''}">Ayarlar</a>
                 <a href="admin-support.html" class="nav-link ${pageName === 'Support' ? 'active' : ''}">🎧 Destek</a>
                 <a href="admin-db-management.html" class="nav-link ${pageName === 'DB Management' ? 'active' : ''}">Veritabanı</a>
+                <button onclick="adminLogout()" class="nav-link" style="background: #dc2626; border: none; cursor: pointer;">🚪 Çıkış</button>
             </div>
         </div>
     `;
@@ -244,6 +245,15 @@ function getAuthHeaders() {
         };
     }
     return { 'Content-Type': 'application/json' };
+}
+
+// Logout fonksiyonu
+function adminLogout() {
+    if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('adminAuth');
+        window.location.href = 'admin-login.html';
+    }
 }
 
 // Bildirim gösterme fonksiyonu

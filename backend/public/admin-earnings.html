@@ -334,7 +334,9 @@
                 if (courierId) params.append('courierId', courierId);
                 
                 // Call the real API endpoint
-                const response = await fetch(`${API_BASE}/api/admin/earnings?${params.toString()}`);
+                const response = await fetch(`${API_BASE}/api/admin/earnings?${params.toString()}`, {
+                    headers: getAuthHeaders()
+                });
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

@@ -8,6 +8,8 @@ import { LogBox } from "react-native";
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { API_CONFIG } from '../constants/api';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -94,9 +96,9 @@ export default function RootLayout() {
           return;
         }
         
-        // Get push token
+        // Get push token with project ID from API config
         const token = await Notifications.getExpoPushTokenAsync({
-          projectId: '70e18522-9b6c-49fa-8fb5-04a6f3a0ee84' // Your Expo project ID
+          projectId: Constants.expoConfig?.extra?.eas?.projectId || API_CONFIG.EXPO_PROJECT_ID
         });
         
         console.log('📱 Push token obtained:', token.data);

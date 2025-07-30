@@ -128,7 +128,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">🚴 En Çok Sipariş Yapan Kuryeler</h3>
+                        <h3 class="card-title">🚴 Kurye Performans Analizi</h3>
                         <button class="refresh-btn" onclick="loadTopCouriers()">🔄</button>
                     </div>
                     <div class="table-container">
@@ -138,10 +138,12 @@
                                     <th>#</th>
                                     <th>Kurye Adı</th>
                                     <th>Toplam Sipariş</th>
+                                    <th>Ortalama Teslimat</th>
+                                    <th>Performans</th>
                                 </tr>
                             </thead>
                             <tbody id="topCouriersTable">
-                                <tr><td colspan="3" class="loading">Yükleniyor...</td></tr>
+                                <tr><td colspan="5" class="loading">Yükleniyor...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -253,7 +255,7 @@
             }
         }
 
-        // En Çok Sipariş Yapan Kuryeleri Yükle
+        // Kurye Performans Analizini Yükle
         async function loadTopCouriers() {
             try {
                 const response = await fetch(`${API_BASE}/api/admin/analytics/top-couriers`, {
@@ -263,19 +265,53 @@
                 const tbody = document.getElementById('topCouriersTable');
 
                 if (data.success && data.data && data.data.length > 0) {
-                    tbody.innerHTML = data.data.map((courier, index) => `
-                <tr>
-                    <td>${index + 1}</td>
+                    tbody.innerHTML = data.data.map((courier, index) => {
+                        const avgTime = Math.round(courier.avg_delivery_time_minutes || 0);
+                        const totalOrders = courier.total_orders || 0;
+                        
+                        // Performans değerlendirmesi (basit algoritma)
+                        let performanceRating = '⭐';
+                        let performanceColor = '#f59e0b';
+                        
+                        if (avgTime > 0) {
+                            if (avgTime <= 20 && totalOrders >= 10) {
+                                performanceRating = '🏆 Mükemmel';
+                                performanceColor = '#059669';
+                            } else if (avgTime <= 30 && totalOrders >= 5) {
+                                performanceRating = '🥇 Çok İyi';
+                                performanceColor = '#0891b2';
+                            } else if (avgTime <= 45) {
+                                performanceRating = '🥈 İyi';
+                                performanceColor = '#65a30d';
+                            } else {
+                                performanceRating = '🥉 Gelişir';
+                                performanceColor = '#dc2626';
+                            }
+                        }
+                        
+                        return `
+                        <tr>
+                            <td>${index + 1}</td>
                             <td>${courier.name || 'N/A'}</td>
-                            <td>${courier.total_orders || 0}</td>
-                </tr>
-            `).join('');
+                            <td><span style="font-weight: 600; color: #1f2937;">${totalOrders}</span></td>
+                            <td>
+                                <span style="color: #059669; font-weight: 600;">
+                                    ${avgTime > 0 ? avgTime + ' dk' : 'Veri yok'}
+                                </span>
+                            </td>
+                            <td>
+                                <span style="color: ${performanceColor}; font-weight: 600;">
+                                    ${performanceRating}
+                                </span>
+                            </td>
+                        </tr>`;
+                    }).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="3" class="loading">Veri bulunamadı.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="loading">Veri bulunamadı.</td></tr>';
                 }
             } catch (error) {
-                console.error('En çok sipariş yapan kuryeler yüklenirken hata:', error);
-                document.getElementById('topCouriersTable').innerHTML = '<tr><td colspan="3" class="loading">Yükleme hatası.</td></tr>';
+                console.error('Kurye performans analizi yüklenirken hata:', error);
+                document.getElementById('topCouriersTable').innerHTML = '<tr><td colspan="5" class="loading">Yükleme hatası.</td></tr>';
             }
         }
 

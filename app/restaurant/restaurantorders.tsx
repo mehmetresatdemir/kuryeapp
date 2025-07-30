@@ -43,6 +43,7 @@ interface DeliveredOrder {
   status?: string; // Sipariş durumu
   courier_phone?: string; // Kurye telefonu
   preparation_time?: number; // Hazırlık süresi
+  delivery_time_minutes?: number; // Teslimat süresi (dakika)
 }
 
 const RestaurantOrders = () => {
@@ -709,6 +710,11 @@ const RestaurantOrders = () => {
           <View style={styles.orderDetails}>
             <Text style={styles.orderAddress}>{item.mahalle}</Text>
             <Text style={styles.courierNameText}>Kurye: {item.kurye_adi || 'Atanmamış'}</Text>
+            {item.delivery_time_minutes && item.delivery_time_minutes > 0 && (
+              <Text style={styles.deliveryTimeText}>
+                Teslimat Süresi: {Math.round(item.delivery_time_minutes)} dk
+              </Text>
+            )}
           </View>
           <View style={styles.orderFooter}>
             <Text style={styles.paymentType}>{paymentInfo.label}</Text>
@@ -1392,6 +1398,12 @@ const styles = StyleSheet.create({
   courierNameText: {
     fontSize: 12,
     color: '#059669',
+  },
+  deliveryTimeText: {
+    fontSize: 12,
+    color: '#7C3AED',
+    fontWeight: '600',
+    marginTop: 2,
   },
   orderFooter: {
     flexDirection: 'row',

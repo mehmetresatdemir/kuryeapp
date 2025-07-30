@@ -548,7 +548,9 @@
         // Google Maps API'sini dinamik olarak yükle
         async function loadGoogleMapsScript() {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`);
+                const response = await fetch(`${API_BASE}/api/admin/config/google-maps-key`, {
+                    headers: getAuthHeaders()
+                });
                 const data = await response.json();
 
                 if (data.success && data.key) {
@@ -591,7 +593,9 @@
 
         // Restoranları yükle
         function loadRestaurants() {
-            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -670,7 +674,9 @@
         // Teslimat alanlarını yükle
         function loadDeliveryAreas(restaurantId) {
             console.log('Loading delivery areas for restaurant:', restaurantId);
-            fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}/neighborhoods`)
+            fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}/neighborhoods`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -763,7 +769,7 @@
 
             fetch(`${API_BASE}/api/admin/restaurants/${currentRestaurantId}/delivery-areas`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                headers: getAuthHeaders(),
                 body: JSON.stringify(formData)
             })
             .then(response => {
@@ -800,7 +806,7 @@
             
             fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${areaId}/toggle-availability`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' }
+                headers: getAuthHeaders()
             })
             .then(response => {
                 if (!response.ok) {
@@ -894,7 +900,7 @@
 
             fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${currentEditAreaId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                headers: getAuthHeaders(),
                 body: JSON.stringify(formData)
             })
             .then(response => {
@@ -923,7 +929,7 @@
             if (confirm('Bu teslimat alanını silmek istediğinizden emin misiniz?')) {
                 fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${areaId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: getAuthHeaders()
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -970,7 +976,9 @@
             restaurantMarkers.forEach(marker => marker.setMap(null));
             restaurantMarkers = [];
             
-            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -1076,7 +1084,9 @@
             });
             
             // Mevcut restoran konumunu göster (korunmalı rota olduğu için token gerekir)
-            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -1166,7 +1176,7 @@
             
             fetch(`${API_BASE}/api/admin/restaurants/${currentRestaurantId}/location`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' }, // Sadece Content-Type gönder
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     latitude: selectedLocation.lat,
                     longitude: selectedLocation.lng
@@ -1337,7 +1347,7 @@
                 // Güncelleme işlemi
                 fetch(`${API_BASE}/api/admin/restaurants/${currentEditingRestaurantId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(formData)
                 })
                 .then(response => {
@@ -1368,7 +1378,7 @@
                 
                 fetch(`${API_BASE}/api/admin/restaurants`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(formData)
                 })
                 .then(response => {
@@ -1396,7 +1406,9 @@
         // Restoran düzenle
         function editRestaurant(restaurantId) {
             // Mevcut restoran bilgilerini bul (admin rotası kullanılacak)
-            fetch(`${API_BASE}/api/admin/restaurants-for-admin`)
+            fetch(`${API_BASE}/api/admin/restaurants-for-admin`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -1423,7 +1435,7 @@
                 // Not implemented yet (admin rotası kullanılacak)
                 fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: getAuthHeaders()
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -1471,7 +1483,9 @@
         // Mahalle isteklerini yükle
         function loadNeighborhoodRequests() {
             console.log('Loading neighborhood requests...');
-            fetch(`${API_BASE}/api/admin/neighborhood-requests`)
+            fetch(`${API_BASE}/api/admin/neighborhood-requests`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -1557,7 +1571,9 @@
             currentRequestId = requestId;
             
             // Request'i bul
-            fetch(`${API_BASE}/api/admin/neighborhood-requests`)
+            fetch(`${API_BASE}/api/admin/neighborhood-requests`, {
+                headers: getAuthHeaders()
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1657,7 +1673,7 @@
             
             fetch(`${API_BASE}/api/admin/neighborhood-requests/${requestId}/status`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     status: 'approved',
                     courier_price: courierPrice
@@ -1695,7 +1711,7 @@
             
             fetch(`${API_BASE}/api/admin/neighborhood-requests/${requestId}/status`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     status: 'rejected',
                     courier_price: 0

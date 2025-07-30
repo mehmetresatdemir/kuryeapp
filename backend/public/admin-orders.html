@@ -241,6 +241,7 @@
                                 <th>Durum</th>
                                 <th>Ödeme</th>
                                 <th>Tarih</th>
+                                <th>Teslimat Süresi</th>
                                 <th>Kalan Süre</th>
                                 <th>İşlemler</th>
                             </tr>
@@ -348,12 +349,14 @@
             console.log('🌐 API URL:', `${API_BASE}/api/admin/orders?${queryParams}`);
             
             try {
-                const response = await fetch(`${API_BASE}/api/admin/orders?${queryParams}`);
+                const response = await fetch(`${API_BASE}/api/admin/orders?${queryParams}`, {
+                    headers: getAuthHeaders()
+                });
                 console.log('📡 API Response status:', response.status);
                 
                 if (!response.ok) {
                     console.error('❌ Siparişler çekilemedi. Response:', response.status, response.statusText);
-                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="11">Siparişler yüklenirken bir hata oluştu.</td></tr>';
+                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">Siparişler yüklenirken bir hata oluştu.</td></tr>';
                     return;
                 }
                 
@@ -368,7 +371,7 @@
                 updateStats(allOrders);
             } catch (error) {
                 console.error('❌ Network error:', error);
-                document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="11">Network hatası: Sunucuya bağlanılamadı.</td></tr>';
+                document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">Network hatası: Sunucuya bağlanılamadı.</td></tr>';
             }
         }
 
@@ -402,13 +405,29 @@
         }
 
         function renderTable(orders) {
+            console.log('🎨 renderTable called with orders:', orders);
+            console.log('📏 Orders length:', orders.length);
             const tableBody = document.getElementById('orders-table-body');
+            console.log('🔍 Table body element:', tableBody);
+            
             if (orders.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="11">Bugün henüz sipariş bulunmamaktadır.</td></tr>';
+                console.log('❌ No orders - showing empty message');
+                tableBody.innerHTML = '<tr><td colspan="12">Bugün henüz sipariş bulunmamaktadır.</td></tr>';
                 return;
             }
+            
+            console.log('✅ Rendering', orders.length, 'orders...');
 
             tableBody.innerHTML = orders.map(order => {
+                // Teslimat süresi hesaplama ve gösterimi
+                let deliveryTimeDisplay = '-';
+                if (order.delivery_time_minutes && order.delivery_time_minutes > 0) {
+                    const minutes = Math.round(order.delivery_time_minutes);
+                    deliveryTimeDisplay = `<span style="color: #059669; font-weight: 600;">${minutes} dk</span>`;
+                } else if (order.status === 'teslim edildi') {
+                    deliveryTimeDisplay = '<span style="color: #f59e0b;">Hesaplanamadı</span>';
+                }
+
                 return `
                     <tr>
                         <td>#${order.id}</td>
@@ -420,6 +439,7 @@
                         <td><span class="badge badge-${order.status.replace(/ /g, '_')}">${order.status}</span></td>
                         <td>${order.odeme_yontemi}</td>
                         <td>${new Date(order.created_at).toLocaleString('tr-TR')}</td>
+                        <td>${deliveryTimeDisplay}</td>
                         <td>${calculateCountdown(order.created_at, order.status)}</td>
                         <td>
                             <button class="btn" onclick='viewOrder(${order.id})'>Detay</button>
@@ -649,7 +669,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(payload)
                 });
 
@@ -685,7 +705,9 @@
 
         async function getCouriers() {
              try {
-                const res = await fetch(`${API_BASE}/api/admin/couriers`);
+                const res = await fetch(`${API_BASE}/api/admin/couriers`, {
+                    headers: getAuthHeaders()
+                });
                 if(res.ok) {
                     const { data } = await res.json();
                     return data;
@@ -701,7 +723,8 @@
             if (confirm(`Sipariş ID ${orderId}'i silmek istediğinizden emin misiniz?`)) {
                 try {
                     const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: getAuthHeaders()
                     });
 
                     if (response.ok) {
@@ -730,7 +753,7 @@
                 try {
                     const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}`, {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: getAuthHeaders(),
                         body: JSON.stringify({
                             status: 'bekleniyor',
                             kuryeid: null // Kurye atamasını kaldır

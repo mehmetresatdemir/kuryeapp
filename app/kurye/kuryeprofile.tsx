@@ -720,10 +720,27 @@ const KuryeProfile = () => {
                 </View>
               </View>
 
+              <View style={styles.infoItem}>
+                <View style={styles.infoItemLeft}>
+                  <View style={[styles.infoIcon, { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name="time-outline" size={20} color="#F59E0B" />
+                  </View>
+                  <View>
+                    <Text style={styles.infoLabel}>Ortalama Teslimat Süresi</Text>
+                    <Text style={styles.infoValue}>
+                      {userData.avg_delivery_time_minutes && userData.avg_delivery_time_minutes > 0 
+                        ? `${Math.round(userData.avg_delivery_time_minutes)} dakika`
+                        : 'Veri yok'
+                      }
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
               <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
                 <View style={styles.infoItemLeft}>
                   <View style={[styles.infoIcon, { backgroundColor: '#F3F4F6' }]}>
-                    <Ionicons name="time-outline" size={20} color="#6B7280" />
+                    <Ionicons name="calendar-outline" size={20} color="#6B7280" />
                   </View>
                   <View>
                     <Text style={styles.infoLabel}>Kayıt Tarihi</Text>
