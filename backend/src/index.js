@@ -96,6 +96,7 @@ function getAllowedOrigins() {
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:19006', // Expo development server
+      'http://16.171.131.126:4000', // AWS server
       'capacitor://localhost',
       'ionic://localhost'
     ];

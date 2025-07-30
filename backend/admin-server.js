@@ -73,7 +73,8 @@ function getAllowedOrigins() {
     return [
       'http://localhost:4000',
       'http://localhost:8080', 
-      'http://localhost:8081'
+      'http://localhost:8081',
+      'http://16.171.131.126:4000' // AWS server
     ];
   }
 }
