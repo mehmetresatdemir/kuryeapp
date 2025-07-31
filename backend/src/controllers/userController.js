@@ -52,31 +52,40 @@ const unifiedLogin = async (req, res) => {
 
                 const token = generateToken(user, 'restaurant');
 
-                // Session management - önce eski sessionları invalidate et
-                const invalidatedSessions = await SessionService.invalidateUserSessions(user.id, 'restaurant');
-                
-                // Yeni session oluştur
-                await SessionService.createSession(user.id, 'restaurant', token, deviceInfo, ipAddress);
+                // Session management - daha robust hata kontrolü ile
+                let invalidatedSessions = [];
+                try {
+                    invalidatedSessions = await SessionService.invalidateUserSessions(user.id, 'restaurant');
+                    await SessionService.createSession(user.id, 'restaurant', token, deviceInfo, ipAddress);
+                } catch (sessionError) {
+                    console.error('Session yönetimi hatası (restaurant):', sessionError);
+                    // Session hatası olsa bile login'e devam et - çünkü session opsiyonel
+                }
 
                 // Socket.io ile diğer oturumlara logout sinyali gönder
-                if (invalidatedSessions.length > 0) {
-                    const io = req.app.get('io');
-                    if (io) {
-                        invalidatedSessions.forEach(session => {
-                            if (session.socket_id) {
-                                io.to(session.socket_id).emit('forceLogout', {
-                                    reason: 'CONCURRENT_SESSION',
-                                    message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                                });
-                            }
-                        });
-                        
-                        // Genel restaurant odasına da bildir
-                        io.to(`restaurant_${user.id}`).emit('forceLogout', {
-                            reason: 'CONCURRENT_SESSION',
-                            message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                        });
+                try {
+                    if (invalidatedSessions.length > 0) {
+                        const io = req.app.get('io');
+                        if (io) {
+                            invalidatedSessions.forEach(session => {
+                                if (session.socket_id) {
+                                    io.to(session.socket_id).emit('forceLogout', {
+                                        reason: 'CONCURRENT_SESSION',
+                                        message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                                    });
+                                }
+                            });
+                            
+                            // Genel restaurant odasına da bildir
+                            io.to(`restaurant_${user.id}`).emit('forceLogout', {
+                                reason: 'CONCURRENT_SESSION',
+                                message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                            });
+                        }
                     }
+                } catch (socketError) {
+                    console.error('Socket.io logout sinyali hatası (restaurant):', socketError);
+                    // Socket hatası login'i engellemez
                 }
 
                 return res.status(200).json({
@@ -117,31 +126,40 @@ const unifiedLogin = async (req, res) => {
 
                 const token = generateToken(user, 'courier');
 
-                // Session management - önce eski sessionları invalidate et
-                const invalidatedSessions = await SessionService.invalidateUserSessions(user.id, 'courier');
-                
-                // Yeni session oluştur
-                await SessionService.createSession(user.id, 'courier', token, deviceInfo, ipAddress);
+                // Session management - daha robust hata kontrolü ile
+                let invalidatedSessions = [];
+                try {
+                    invalidatedSessions = await SessionService.invalidateUserSessions(user.id, 'courier');
+                    await SessionService.createSession(user.id, 'courier', token, deviceInfo, ipAddress);
+                } catch (sessionError) {
+                    console.error('Session yönetimi hatası (courier):', sessionError);
+                    // Session hatası olsa bile login'e devam et - çünkü session opsiyonel
+                }
 
                 // Socket.io ile diğer oturumlara logout sinyali gönder
-                if (invalidatedSessions.length > 0) {
-                    const io = req.app.get('io');
-                    if (io) {
-                        invalidatedSessions.forEach(session => {
-                            if (session.socket_id) {
-                                io.to(session.socket_id).emit('forceLogout', {
-                                    reason: 'CONCURRENT_SESSION',
-                                    message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                                });
-                            }
-                        });
-                        
-                        // Genel courier odasına da bildir
-                        io.to(`courier_${user.id}`).emit('forceLogout', {
-                            reason: 'CONCURRENT_SESSION',
-                            message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                        });
+                try {
+                    if (invalidatedSessions.length > 0) {
+                        const io = req.app.get('io');
+                        if (io) {
+                            invalidatedSessions.forEach(session => {
+                                if (session.socket_id) {
+                                    io.to(session.socket_id).emit('forceLogout', {
+                                        reason: 'CONCURRENT_SESSION',
+                                        message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                                    });
+                                }
+                            });
+                            
+                            // Genel courier odasına da bildir
+                            io.to(`courier_${user.id}`).emit('forceLogout', {
+                                reason: 'CONCURRENT_SESSION',
+                                message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                            });
+                        }
                     }
+                } catch (socketError) {
+                    console.error('Socket.io logout sinyali hatası (courier):', socketError);
+                    // Socket hatası login'i engellemez
                 }
 
                 return res.status(200).json({

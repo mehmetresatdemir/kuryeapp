@@ -40,13 +40,10 @@ config.resolver.alias = {
   '@': path.resolve(__dirname, './'),
 };
 
-// Try to use SVG transformer if available, otherwise use default
-try {
-  config.transformer.babelTransformerPath = require.resolve(
-    'react-native-svg-transformer'
-  );
-} catch (error) {
-  console.warn('react-native-svg-transformer not found, using default transformer');
-}
+// Configure transformer to use react-native-svg-transformer for SVG files
+config.transformer = {
+  ...config.transformer,
+  babelTransformerPath: require.resolve('react-native-svg-transformer'),
+};
 
 module.exports = config;

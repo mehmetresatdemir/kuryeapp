@@ -24,8 +24,8 @@ class SessionService {
    */
   static async createSession(userId, userRole, sessionToken, deviceInfo = null, ipAddress = null, socketId = null) {
     try {
-      // Önce eski aktif sessionları invalidate et
-      await this.invalidateUserSessions(userId, userRole);
+      // NOT: invalidateUserSessions çağırılmayacak çünkü unifiedLogin'de zaten çağırılıyor
+      // Bu double invalidation race condition'a neden oluyordu
       
       // Token'dan expiration time'ı al
       const decoded = jwt.decode(sessionToken);

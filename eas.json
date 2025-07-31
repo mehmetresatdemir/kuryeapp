@@ -6,19 +6,26 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "20.11.0"
     },
     "preview": {
       "distribution": "internal",
+      "node": "20.11.0",
       "android": {
         "buildType": "apk",
         "resourceClass": "default"
       },
+      "env": {
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
+      },
       "cache": {
-        "disabled": true
+        "disabled": false
       }
     },
     "adhoc": {
+      "node": "20.11.0",
       "ios": {
         "distribution": "internal",
         "resourceClass": "m-medium"
@@ -30,13 +37,17 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
       },
       "cache": {
-        "disabled": true
+        "disabled": false
       }
     },
     "production": {
+      "developmentClient": false,
+      "node": "20.11.0",
       "ios": {
         "distribution": "store",
         "resourceClass": "m-medium"
@@ -48,13 +59,16 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
       },
       "cache": {
-        "disabled": true
+        "disabled": false
       }
     },
     "production-standalone": {
+      "node": "20.11.0",
       "ios": {
         "distribution": "internal",
         "resourceClass": "m-medium"
@@ -66,7 +80,30 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false"
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
+      },
+      "cache": {
+        "disabled": false
+      }
+    },
+    "standalone": {
+      "node": "20.11.0",
+      "ios": {
+        "distribution": "internal",
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "default"
+      },
+      "autoIncrement": true,
+      "env": {
+        "NODE_ENV": "production",
+        "NPM_CONFIG_PACKAGE_LOCK_ONLY": "false",
+        "NPM_CONFIG_FUND": "false",
+        "NPM_CONFIG_AUDIT": "false"
       },
       "cache": {
         "disabled": false
