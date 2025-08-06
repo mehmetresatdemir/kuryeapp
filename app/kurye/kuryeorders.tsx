@@ -43,6 +43,7 @@ interface Order {
   courier_price: number;
   nakit_tutari: number;
   banka_tutari: number;
+  delivery_time_minutes?: number;
   hediye_tutari: number;
 }
 
@@ -296,12 +297,17 @@ const DeliveryCountdown: React.FC<{ order: Order }> = ({ order }) => {
     );
   }
   
-  const timeLeft = deliveryCountdown.hours > 0 
-    ? `${deliveryCountdown.hours}s ${deliveryCountdown.minutes}dk ${deliveryCountdown.seconds}s`
-    : `${deliveryCountdown.minutes}dk ${deliveryCountdown.seconds}s`;
+  // NaN kontrolü ile güvenli string oluşturma
+  const safeHours = isNaN(deliveryCountdown.hours) ? 0 : deliveryCountdown.hours;
+  const safeMinutes = isNaN(deliveryCountdown.minutes) ? 0 : deliveryCountdown.minutes;
+  const safeSeconds = isNaN(deliveryCountdown.seconds) ? 0 : deliveryCountdown.seconds;
+  
+  const timeLeft = safeHours > 0 
+    ? `${safeHours}s ${safeMinutes}dk ${safeSeconds}s`
+    : `${safeMinutes}dk ${safeSeconds}s`;
     
-  const isUrgent = deliveryCountdown.hours === 0 && deliveryCountdown.minutes < 15;
-  const isModerate = deliveryCountdown.hours === 0 && deliveryCountdown.minutes < 30;
+  const isUrgent = safeHours === 0 && safeMinutes < 15;
+  const isModerate = safeHours === 0 && safeMinutes < 30;
   
   const backgroundColor = isUrgent ? '#EF4444' : isModerate ? '#F59E0B' : '#10B981';
   const statusText = isUrgent ? 'ACİL TESLİMAT!' : isModerate ? 'HIZLI TESLİMAT' : 'TESLİMAT SÜRESİ';

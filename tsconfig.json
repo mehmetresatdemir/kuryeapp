@@ -1,11 +1,22 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "baseUrl": ".",
+    "target": "esnext",
+    "lib": [
+      "es2017"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
     "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "react-native",
-    "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
@@ -20,5 +31,6 @@
     "expo-env.d.ts",
     "lib/supabaseClient.js",
     "nativewind-env.d.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

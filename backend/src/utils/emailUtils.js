@@ -20,7 +20,7 @@ const sendPasswordResetEmail = async (email, resetToken, userType) => {
         const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}&type=${userType}`;
         
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@kuryeapp.com',
+            from: process.env.EMAIL_USER || 'noreply@kurye-x.com',
             to: email,
             subject: 'Şifre Sıfırlama Talebi - Kurye App',
             html: `
@@ -89,7 +89,7 @@ const sendTestEmail = async (email) => {
         const transporter = createTransporter();
         
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'noreply@kuryeapp.com',
+            from: process.env.EMAIL_USER || 'noreply@kurye-x.com',
             to: email,
             subject: 'Test E-postası - Kurye App',
             html: `

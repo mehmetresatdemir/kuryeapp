@@ -35,6 +35,7 @@ interface UserData {
   last_seen: string;
   created_at: string;
   updated_at: string;
+  avg_delivery_time_minutes?: number;
 }
 
 const KuryeProfile = () => {

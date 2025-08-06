@@ -3,9 +3,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
-
-import { Platform } from 'react-native';
+import { LogBox, Platform } from "react-native";
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -35,6 +33,26 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     PlusJakartaSans: require("../assets/fonts/PlusJakartaSans-Regular.ttf"),
   });
+
+  // Load polyfills safely after component mount
+  useEffect(() => {
+    const loadPolyfills = async () => {
+      if (Platform.OS === 'android') {
+        try {
+          // Only load basic polyfills for Android
+          await import('intl');
+          await import('intl/locale-data/jsonp/tr');
+          await import('intl/locale-data/jsonp/en');
+          console.log('✅ Polyfills loaded successfully');
+        } catch (error) {
+          console.warn('⚠️ Polyfill loading skipped:', error.message);
+          // App continues without polyfills - fallback methods will be used
+        }
+      }
+    };
+    
+    loadPolyfills();
+  }, []);
 
   useEffect(() => {
     if (loaded) {

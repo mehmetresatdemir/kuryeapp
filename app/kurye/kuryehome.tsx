@@ -124,9 +124,14 @@ const OrderCountdown: React.FC<{ order: Order; blockTime: number }> = ({ order, 
   
   // Kabul yasağı bitti, otomatik silme countdown'u göster
   if (!deletionCountdown.isExpired) {
-    const timeLeft = deletionCountdown.hours > 0 
-      ? `${deletionCountdown.hours}sa ${deletionCountdown.minutes}dk`
-      : `${deletionCountdown.minutes}dk ${deletionCountdown.seconds}s`;
+    // NaN kontrolü ile güvenli string oluşturma
+    const safeHours = isNaN(deletionCountdown.hours) ? 0 : deletionCountdown.hours;
+    const safeMinutes = isNaN(deletionCountdown.minutes) ? 0 : deletionCountdown.minutes;
+    const safeSeconds = isNaN(deletionCountdown.seconds) ? 0 : deletionCountdown.seconds;
+    
+    const timeLeft = safeHours > 0 
+      ? `${safeHours}sa ${safeMinutes}dk`
+      : `${safeMinutes}dk ${safeSeconds}s`;
       
     return (
       <View style={styles.countdownContainer}>

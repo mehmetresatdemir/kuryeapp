@@ -32,19 +32,28 @@ const SignIn = () => {
 
     setLoading(true);
     try {
-      console.log("Attempting login...");
-      console.log("API URL:", getFullUrl(API_ENDPOINTS.LOGIN));
+      console.log("🚀 Attempting login...");
+      console.log("📧 Email:", email);
+      console.log("🔑 Password length:", password.length);
+      console.log("🌐 API URL:", getFullUrl(API_ENDPOINTS.LOGIN));
+      console.log("📱 Platform:", Platform.OS);
+      
+      const requestData = {
+        email: email,
+        password: password,
+      };
+      console.log("📤 Request data:", JSON.stringify(requestData));
       
       const response = await fetch(getFullUrl(API_ENDPOINTS.LOGIN), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+        body: JSON.stringify(requestData),
       });
+      
+      console.log("📥 Response status:", response.status);
+      console.log("📥 Response ok:", response.ok);
 
       const responseClone = response.clone();
       
@@ -111,7 +120,19 @@ const SignIn = () => {
       }
     } catch (error) {
       console.error("!!! Genel giriş hatası:", error);
-      Alert.alert("Hata", "Sunucu bağlantı hatası. İnternet bağlantınızı kontrol edin.");
+      console.error("Error type:", typeof error);
+      console.error("Error name:", error?.name);
+      console.error("Error message:", error?.message);
+      console.error("Error stack:", error?.stack);
+      
+      // Network specific errors
+      if (error?.message?.includes('Network')) {
+        Alert.alert("Ağ Hatası", "İnternet bağlantınızı kontrol edin ve tekrar deneyin.");
+      } else if (error?.message?.includes('fetch')) {
+        Alert.alert("Sunucu Hatası", "Sunucuya ulaşılamıyor. Lütfen daha sonra tekrar deneyin.");
+      } else {
+        Alert.alert("Hata", "Bilinmeyen bir hata oluştu. İnternet bağlantınızı kontrol edin.");
+      }
     } finally {
       setLoading(false);
     }

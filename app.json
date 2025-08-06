@@ -42,11 +42,7 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0"
             },
-            "16.171.131.126:4000": {
-              "NSExceptionMinimumTLSVersion": "TLSv1.2",
-              "NSIncludesSubdomains": true
-            },
-            "kurye.enucuzal.com": {
+            "ec2-16-171-131-126.eu-north-1.compute.amazonaws.com": {
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionRequiresForwardSecrecy": false,
               "NSExceptionMinimumTLSVersion": "1.0",
@@ -63,12 +59,18 @@
           "remote-notification",
           "processing",
           "fetch",
+          "audio",
+          "remote-notification",
+          "processing",
+          "fetch",
           "audio"
         ],
         "BGTaskSchedulerPermittedIdentifiers": [
+          "com.expo.modules.backgroundtask.processing",
           "com.expo.modules.backgroundtask.processing"
         ],
         "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
           "UIInterfaceOrientationPortrait"
         ]
       }
@@ -84,17 +86,14 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "NOTIFICATIONS",
-        "RECEIVE_BOOT_COMPLETED",
-        "WAKE_LOCK",
-        "VIBRATE",
-        "USE_FULL_SCREEN_INTENT",
-        "MODIFY_AUDIO_SETTINGS",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.kuryex.app",
-      "allowBackup": false
+      "usesCleartextTraffic": true,
+      "networkSecurityConfig": "@xml/network_security_config"
     },
     "plugins": [
       "expo-dev-client",
@@ -129,8 +128,11 @@
           },
           "android": {
             "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "34.0.0"
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "35.0.0",
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so", "**/libjsc.so"]
+            }
           }
         }
       ],
@@ -146,11 +148,17 @@
       "API_HOST": "localhost",
       "API_PORT": "3000",
       "REMOTE_API_HOST": "16.171.131.126:4000",
-      "USE_REMOTE": false,
+      "USE_REMOTE": true,
       "eas": {
         "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
       }
     },
-    "jsEngine": "jsc"
+    "jsEngine": "jsc",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
+    }
   }
 }

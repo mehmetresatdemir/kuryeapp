@@ -567,8 +567,8 @@ router.post('/db/backup', async (req, res) => {
 // Generate test data
 router.post('/db/generate-test-data', async (req, res) => {
     try {
-        const testCourierEmail = 'testkurye@kuryeapp.com';
-        const testRestaurantEmail = 'testrestoran@kuryeapp.com';
+        const testCourierEmail = 'testkurye@kurye-x.com';
+        const testRestaurantEmail = 'testrestoran@kurye-x.com';
         const plainPassword = 'password123';
         // Düz şifre kullanıyoruz, bcrypt yok
         const hashedPassword = plainPassword;
@@ -1241,7 +1241,7 @@ router.post('/create-test-users', async (req, res) => {
     const hashedPassword = password;
     
     // Test kurye oluştur
-    const testCourierEmail = 'testkurye@kuryeapp.com';
+    const testCourierEmail = 'testkurye@kurye-x.com';
     
     // Türkiye saatini doğrudan al
     

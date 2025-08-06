@@ -3,37 +3,52 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
-// Get environment variables - FORCE LOCAL IP FOR MOBILE TESTING
+// Get environment variables - FORCE REMOTE FOR APK TESTING
 const API_HOST = 'localhost'; // Use localhost for testing
 const API_PORT = '4000';
-const REMOTE_API_HOST = '16.171.131.126:4000';
+// Use new domain for production
+const REMOTE_API_HOST = 'kuryex.enucuzal.com'; // New production domain
 const USE_REMOTE = true; // Use remote server
+
+// APK debug logging
+console.log('📱 API Config Loading...');
+console.log('🔍 __DEV__:', typeof __DEV__ !== 'undefined' ? __DEV__ : 'undefined');
+console.log('🌐 USE_REMOTE:', USE_REMOTE);
+console.log('🎯 REMOTE_API_HOST:', REMOTE_API_HOST);
+
+// Debug için console log ekle
+console.log('🔧 API Config Debug:');
+console.log('📍 REMOTE_API_HOST:', REMOTE_API_HOST);
+console.log('🌐 USE_REMOTE:', USE_REMOTE);
+console.log('🏗️ __DEV__:', __DEV__);
 
 // API Configuration
 export const API_CONFIG = {
   // Development URLs
   LOCALHOST: `http://${API_HOST}:${API_PORT}`,
-  REMOTE_URL: `http://${REMOTE_API_HOST}`, // HTTP kullan - kendi sunucu
+  REMOTE_URL: `http://${REMOTE_API_HOST}`, // Use new domain for all platforms
   
   // Expo Push Notification Project ID
   EXPO_PROJECT_ID: '2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91',
   
   // Auto-detect environment and use appropriate URL
   get BASE_URL() {
-    // Always use remote server when USE_REMOTE is true
-    if (USE_REMOTE) {
-      console.log('🌐 Using remote server for API');
-      return this.REMOTE_URL;
+    console.log('🔍 BASE_URL getter called');
+    console.log('📍 USE_REMOTE:', USE_REMOTE);
+    console.log('🏗️ __DEV__:', typeof __DEV__ !== 'undefined' ? __DEV__ : 'UNDEFINED');
+    
+    // Force remote server for APK with explicit Android handling
+    const url = this.REMOTE_URL;
+    console.log('🌐 FORCING remote server for APK:', url);
+    console.log('📱 Platform:', Platform.OS);
+    
+    // Additional Android-specific logging
+    if (Platform.OS === 'android') {
+      console.log('🤖 Android platform detected - using HTTP');
+      console.log('🔗 Full URL will be:', url);
     }
     
-    // For development, use local IP for mobile compatibility
-    if (__DEV__) {
-      console.log('📱 Using local server for API');
-      return this.LOCALHOST;
-    }
-    
-    // Production fallback - use remote URL
-    return this.REMOTE_URL;
+    return url;
   },
   
   // Socket.io URL (same as BASE_URL)
@@ -135,11 +150,18 @@ export const API_ENDPOINTS = {
 // Helper function to get full URL
 export const getFullUrl = (endpoint: string) => {
   const baseUrl = API_CONFIG.BASE_URL;
+  console.log('🔗 getFullUrl called:');
+  console.log('📍 Base URL:', baseUrl);
+  console.log('🎯 Endpoint:', endpoint);
+  console.log('🌐 Full URL:', `${baseUrl}${endpoint}`);
   return `${baseUrl}${endpoint}`;
 };
 
 // New authenticated fetch wrapper
 export const authedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  console.log('🚀 API Request:', url);
+  console.log('📋 Request options:', JSON.stringify(options, null, 2));
+  
   const token = await AsyncStorage.getItem('userToken');
 
   if (!token) {
@@ -164,10 +186,14 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
     headers,
   };
 
-  const response = await fetch(url, finalOptions);
-  
-  // 401 hatası durumunda otomatik logout ve anasayfaya yönlendirme
-  if (response.status === 401) {
+  try {
+    console.log('📤 Making fetch request to:', url);
+    const response = await fetch(url, finalOptions);
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+    
+    // 401 hatası durumunda otomatik logout ve anasayfaya yönlendirme
+    if (response.status === 401) {
     console.warn('⚠️ Session expire - otomatik logout yapılıyor');
     
     try {
@@ -217,5 +243,9 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
     }
   }
 
-  return response;
+    return response;
+  } catch (error) {
+    console.error('❌ Network error in authedFetch:', error);
+    throw error;
+  }
 };

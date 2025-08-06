@@ -89,9 +89,11 @@
       }
     },
     "standalone": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "channel": "production",
       "node": "20.11.0",
       "ios": {
-        "distribution": "internal",
         "resourceClass": "m-medium"
       },
       "android": {

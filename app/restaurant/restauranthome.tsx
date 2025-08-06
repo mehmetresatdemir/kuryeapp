@@ -162,9 +162,14 @@ const RestaurantCountdown: React.FC<{ order: Order }> = ({ order }) => {
       );
     }
     
-    const timeLeft = autoDeleteCountdown.hours > 0 
-      ? `${autoDeleteCountdown.hours}s ${autoDeleteCountdown.minutes}dk`
-      : `${autoDeleteCountdown.minutes}dk ${autoDeleteCountdown.seconds}s`;
+    // NaN kontrolü ile güvenli string oluşturma
+    const safeHours = isNaN(autoDeleteCountdown.hours) ? 0 : autoDeleteCountdown.hours;
+    const safeMinutes = isNaN(autoDeleteCountdown.minutes) ? 0 : autoDeleteCountdown.minutes;
+    const safeSeconds = isNaN(autoDeleteCountdown.seconds) ? 0 : autoDeleteCountdown.seconds;
+    
+    const timeLeft = safeHours > 0 
+      ? `${safeHours}s ${safeMinutes}dk`
+      : `${safeMinutes}dk ${safeSeconds}s`;
     
           return (
         <View style={styles.modalCountdownContainer}>
