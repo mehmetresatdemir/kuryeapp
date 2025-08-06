@@ -98,7 +98,8 @@ function getAllowedOrigins() {
       'http://localhost:19006', // Expo development server
       'http://16.171.131.126:4000', // AWS server
       'capacitor://localhost',
-      'ionic://localhost'
+      'ionic://localhost',
+      'http://kuryex.enucuzal.com'
     ];
   }
 }

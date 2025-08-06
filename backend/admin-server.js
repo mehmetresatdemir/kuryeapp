@@ -74,7 +74,10 @@ function getAllowedOrigins() {
       'http://localhost:4000',
       'http://localhost:8080', 
       'http://localhost:8081',
-      'http://16.171.131.126:4000' // AWS server
+      'http://16.171.131.126:4000',
+      'http://kuryex.enucuzal.com'
+      
+       // AWS server
     ];
   }
 }

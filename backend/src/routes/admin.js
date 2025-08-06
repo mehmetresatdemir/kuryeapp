@@ -192,8 +192,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 router.get('/config/api-base-url', (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || 'http://16.171.131.126:4000';
-
+    const remoteApiBase = process.env.REMOTE_API_BASE || 'http://kuryex.enucuzal.com';
     const apiBaseUrl = isProduction ? remoteApiBase : localApiBase;
 
     res.json({

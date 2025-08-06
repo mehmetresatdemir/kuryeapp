@@ -147,7 +147,7 @@
       },
       "API_HOST": "localhost",
       "API_PORT": "3000",
-      "REMOTE_API_HOST": "16.171.131.126:4000",
+      "REMOTE_API_HOST": "http://kuryex.enucuzal.com",
       "USE_REMOTE": true,
       "eas": {
         "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
