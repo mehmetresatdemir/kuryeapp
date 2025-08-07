@@ -425,6 +425,15 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Dashboard v3.0 yükleniyor...', new Date().toISOString());
+            
+            // İlk olarak token kontrolü yap
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.log('❌ Token bulunamadı, login sayfasına yönlendiriliyor...');
+                window.location.href = 'admin-login.html';
+                return;
+            }
+            
             await fetchApiBase(); // Fetch API_BASE first
             loadOnlineStats();
             loadOrderStatusMetrics();
