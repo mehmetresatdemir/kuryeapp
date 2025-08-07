@@ -695,11 +695,11 @@
                     console.log('API_BASE başarıyla ayarlandı:', API_BASE);
                 } else {
                     console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
-                    API_BASE = 'http://localhost:3000';
+                    API_BASE = 'https://kuryex.enucuzal.com';
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
-                API_BASE = 'http://localhost:3000';
+                API_BASE = 'https://kuryex.enucuzal.com';
             }
         }
 

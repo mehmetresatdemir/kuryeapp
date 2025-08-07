@@ -259,7 +259,7 @@
     </div>
 
     <script>
-        let API_BASE = 'http://localhost:3000';
+        let API_BASE = 'https://kuryex.enucuzal.com';
         let supportTickets = [];
 
         // Sayfa yüklendiğinde
@@ -287,11 +287,11 @@
                 if (data.success && data.apiBaseUrl) {
                     API_BASE = data.apiBaseUrl;
                 } else {
-                    API_BASE = 'http://localhost:3000';
+                    API_BASE = 'https://kuryex.enucuzal.com';
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata:', error);
-                API_BASE = 'http://localhost:3000';
+                API_BASE = 'https://kuryex.enucuzal.com';
             }
         }
 

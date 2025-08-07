@@ -299,11 +299,11 @@
                     console.log('API_BASE başarıyla ayarlandı:', API_BASE);
                 } else {
                     console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
-                    API_BASE = 'http://localhost:3000'; // Fallback to localhost
+                    API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
-                API_BASE = 'http://localhost:3000'; // Fallback to localhost on error
+                API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
             }
         }
 
