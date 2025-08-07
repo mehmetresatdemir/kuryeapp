@@ -169,13 +169,24 @@
     </div>
 
     <script>
-        // 🔐 Admin şifre kontrolü
+        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
         
         // Sayfa yüklendiğinde şifre kontrol et
@@ -185,7 +196,7 @@
 
         let API_BASE; // Define API_BASE globally but without immediate assignment
 
-        // Function to fetch API_BASE from backend
+        // Function to fetch API_BASE from backend with HTTPS support
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -200,6 +211,12 @@
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
                 API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
+            }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
             }
         }
 
@@ -217,12 +234,36 @@
             fetchEarningsData();
         });
 
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
         async function loadFilters() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, filtreler bekleniyor...');
+                setTimeout(loadFilters, 1000);
+                return;
+            }
+            
             try {
                 // Fetch restaurants and couriers for filter dropdowns
                 const [restaurantsRes, couriersRes] = await Promise.all([
-                    fetch(`${API_BASE}/api/restaurants`),
-                    fetch(`${API_BASE}/api/couriers`)
+                    fetch(`${API_BASE}/api/restaurants`, {
+                        headers: getAuthHeaders(),
+                        mode: 'cors'
+                    }),
+                    fetch(`${API_BASE}/api/couriers`, {
+                        headers: getAuthHeaders(),
+                        mode: 'cors'
+                    })
                 ]);
 
                 if (restaurantsRes.ok) {
@@ -320,6 +361,12 @@
         }
 
         async function fetchEarningsData() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, kazanç verileri bekleniyor...');
+                setTimeout(fetchEarningsData, 1000);
+                return;
+            }
+            
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const restaurantId = document.getElementById('restaurantFilter').value;
@@ -335,7 +382,8 @@
                 
                 // Call the real API endpoint
                 const response = await fetch(`${API_BASE}/api/admin/earnings?${params.toString()}`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 
                 if (!response.ok) {

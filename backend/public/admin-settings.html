@@ -891,13 +891,24 @@
         </div>
     </div>
     <script>
-        // 🔐 Admin şifre kontrolü
+        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
         
         // Sayfa yüklendiğinde şifre kontrol et
@@ -908,7 +919,7 @@
         let API_BASE; // Define API_BASE globally but without immediate assignment
         const socket = io();
 
-        // Function to fetch API_BASE from backend
+        // Function to fetch API_BASE from backend with HTTPS support
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -923,6 +934,12 @@
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
                 API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
+            }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
             }
         }
 
@@ -958,10 +975,17 @@
 
         // System status check
         async function checkSystemStatus() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, system status bekleniyor...');
+                setTimeout(checkSystemStatus, 1000);
+                return;
+            }
+            
             try {
                 // Database status
                 const dbResponse = await fetch(`${API_BASE}/api/admin/status/database`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const dbData = await dbResponse.json();
                 document.getElementById('databaseStatus').innerHTML = dbData.success ? 
@@ -970,7 +994,8 @@
 
                 // API status
                 const apiResponse = await fetch(`${API_BASE}/api/admin/status/api`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const apiData = await apiResponse.json();
                 document.getElementById('apiStatus').innerHTML = apiData.success ? 
@@ -1447,18 +1472,7 @@
         // Bildirim Sesleri Yönetimi Fonksiyonları Kaldırıldı
         // Admin panel artık sadece local assets klasöründeki sesleri kullanıyor
 
-        // Auth headers helper function (update to support form data)
-        function getAuthHeaders(includeContentType = true) {
-            const headers = {
-                'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
-            };
-            
-            if (includeContentType) {
-                headers['Content-Type'] = 'application/json';
-            }
-            
-            return headers;
-        }
+        // Not: getAuthHeaders fonksiyonu yukarıda zaten tanımlı, bu duplicate kaldırıldı
 
         // Modal'ı kapatmak için dış alana tıklama
         window.onclick = function(event) {

@@ -321,13 +321,24 @@
         </div>
     </div>
     <script>
-        // 🔐 Admin şifre kontrolü
+        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
         
         // Sayfa yüklendiğinde şifre kontrol et
@@ -340,7 +351,7 @@
 
         let allCouriers = []; // Global variable to store all couriers
 
-        // Function to fetch API_BASE from backend
+        // Function to fetch API_BASE from backend with HTTPS support
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -356,6 +367,12 @@
                 console.error('API_BASE yüklenirken hata oluştu:', error);
                 API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
             }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
+            }
         }
 
         // Sayfa yüklendiğinde
@@ -364,10 +381,29 @@
             loadCouriers();
         });
 
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
+        }
+
         // Kuryeleri yükle
         function loadCouriers() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, kuryeler bekleniyor...');
+                setTimeout(loadCouriers, 1000);
+                return;
+            }
+            
             fetch(`${API_BASE}/api/admin/couriers`, {
-                headers: getAuthHeaders()
+                headers: getAuthHeaders(),
+                mode: 'cors'
             })
                 .then(response => response.json())
                 .then(data => {

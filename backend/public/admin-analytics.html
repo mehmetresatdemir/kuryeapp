@@ -176,13 +176,24 @@
     </div>
 
     <script>
-        // 🔐 Admin şifre kontrolü
+        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
         
         // Sayfa yüklendiğinde şifre kontrol et
@@ -192,7 +203,7 @@
 
         let API_BASE; // API_BASE'i global olarak tanımlayın, ancak hemen atama yapmayın
 
-        // API_BASE'i arka uçtan çekme fonksiyonu
+        // API_BASE'i arka uçtan çekme fonksiyonu (HTTPS desteği ile)
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -207,6 +218,12 @@
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
                 API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
+            }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
             }
         }
 
@@ -231,9 +248,16 @@
 
         // En Çok Sipariş Alan Restoranları Yükle
         async function loadTopRestaurants() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, restoranlar bekleniyor...');
+                setTimeout(loadTopRestaurants, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/analytics/top-restaurants`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const data = await response.json();
                 const tbody = document.getElementById('topRestaurantsTable');
@@ -257,9 +281,16 @@
 
         // Kurye Performans Analizini Yükle
         async function loadTopCouriers() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, kuryeler bekleniyor...');
+                setTimeout(loadTopCouriers, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/analytics/top-couriers`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const data = await response.json();
                 const tbody = document.getElementById('topCouriersTable');
@@ -317,9 +348,16 @@
 
         // En Çok Kazandıran Restoranları Yükle (Yeni Eklendi)
         async function loadTopEarningRestaurants() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, kazançlar bekleniyor...');
+                setTimeout(loadTopEarningRestaurants, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/analytics/top-earning-restaurants`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const data = await response.json();
                 const tbody = document.getElementById('topEarningRestaurantsTable');
