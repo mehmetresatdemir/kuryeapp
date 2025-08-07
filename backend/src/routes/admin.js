@@ -190,14 +190,21 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 // API Base URL endpoint (korumasız - frontend config için gerekli)
 router.get('/config/api-base-url', (req, res) => {
-    const isProduction = process.env.NODE_ENV === 'production';
+    // Sunucu üzerinde çalıştığımızda req.get('host') ile gerçek host'u alıyoruz
+    const currentHost = req.get('host');
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    
+    // Eğer localhost değilse production kabul et
+    const isProduction = !currentHost.includes('localhost');
     const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || 'http://kuryex.enucuzal.com';
+    const remoteApiBase = process.env.REMOTE_API_BASE || `${protocol}://${currentHost}`;
     const apiBaseUrl = isProduction ? remoteApiBase : localApiBase;
 
     res.json({
         success: true,
-        apiBaseUrl: apiBaseUrl
+        apiBaseUrl: apiBaseUrl,
+        detectedHost: currentHost,
+        isProduction: isProduction
     });
 });
 

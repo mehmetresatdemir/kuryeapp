@@ -69,9 +69,11 @@ router.post('/uploadImage', upload.single('image'), (req, res) => {
 
     const filename = req.file.filename;
     // Use appropriate server URL based on environment
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'http://16.171.131.126:4000'
-      : `http://${req.get('host')}`;
+    const currentHost = req.get('host');
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const baseUrl = currentHost.includes('localhost') 
+      ? `http://${currentHost}`
+      : `${protocol}://${currentHost}`;
     
     const imageUrl = `${baseUrl}/uploads/orders/${filename}`;
 
@@ -108,9 +110,11 @@ router.post('/upload', upload.single('image'), (req, res) => {
 
     const filename = req.file.filename;
     // Use appropriate server URL based on environment
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'http://16.171.131.126:4000'
-      : `http://${req.get('host')}`;
+    const currentHost = req.get('host');
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const baseUrl = currentHost.includes('localhost') 
+      ? `http://${currentHost}`
+      : `${protocol}://${currentHost}`;
     
     const imageUrl = `${baseUrl}/uploads/orders/${filename}`;
 
@@ -148,9 +152,11 @@ router.post('/upload-multiple', upload.array('images', 10), (req, res) => {
     }
 
     // Use appropriate server URL based on environment
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'http://16.171.131.126:4000'
-      : `http://${req.get('host')}`;
+    const currentHost = req.get('host');
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const baseUrl = currentHost.includes('localhost') 
+      ? `http://${currentHost}`
+      : `${protocol}://${currentHost}`;
 
     const uploadedImages = files.map(file => ({
       filename: file.filename,
