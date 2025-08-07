@@ -42,6 +42,18 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0"
             },
+            "kuryex.enucuzal.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionRequiresForwardSecrecy": false,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            },
+            "enucuzal.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSExceptionRequiresForwardSecrecy": false,
+              "NSExceptionMinimumTLSVersion": "1.0",
+              "NSIncludesSubdomains": true
+            },
             "ec2-16-171-131-126.eu-north-1.compute.amazonaws.com": {
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionRequiresForwardSecrecy": false,
@@ -145,8 +157,8 @@
       "router": {
         "origin": false
       },
-      "API_HOST": "localhost",
-      "API_PORT": "3000",
+      "API_HOST": "kuryex.enucuzal.com",
+      "API_PORT": "80",
       "REMOTE_API_HOST": "http://kuryex.enucuzal.com",
       "USE_REMOTE": true,
       "eas": {

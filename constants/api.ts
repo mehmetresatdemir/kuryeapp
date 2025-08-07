@@ -36,16 +36,21 @@ export const API_CONFIG = {
     console.log('🔍 BASE_URL getter called');
     console.log('📍 USE_REMOTE:', USE_REMOTE);
     console.log('🏗️ __DEV__:', typeof __DEV__ !== 'undefined' ? __DEV__ : 'UNDEFINED');
+    console.log('🎯 REMOTE_API_HOST ENV:', REMOTE_API_HOST);
     
     // Force remote server for APK with explicit Android handling
     const url = this.REMOTE_URL;
     console.log('🌐 FORCING remote server for APK:', url);
     console.log('📱 Platform:', Platform.OS);
     
-    // Additional Android-specific logging
+    // Additional Android-specific logging for APK debugging
     if (Platform.OS === 'android') {
       console.log('🤖 Android platform detected - using HTTP');
       console.log('🔗 Full URL will be:', url);
+      console.log('⚙️ Network Config should allow:', REMOTE_API_HOST);
+      
+      // APK bağlantı kontrolü için test
+      console.log('🔍 APK Network Test - attempting connection...');
     }
     
     return url;
