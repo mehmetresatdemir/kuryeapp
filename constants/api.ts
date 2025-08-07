@@ -26,7 +26,7 @@ console.log('🏗️ __DEV__:', __DEV__);
 export const API_CONFIG = {
   // Development URLs
   LOCALHOST: `http://${API_HOST}:${API_PORT}`,
-  REMOTE_URL: `http://${REMOTE_API_HOST}`, // Use new domain for all platforms
+  REMOTE_URL: `https://${REMOTE_API_HOST}`, // Use new domain for all platforms with SSL
   
   // Expo Push Notification Project ID
   EXPO_PROJECT_ID: '2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91',

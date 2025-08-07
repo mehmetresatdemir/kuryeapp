@@ -1,0 +1,6 @@
+module Pods_KuryeX {
+  umbrella header "Pods-KuryeX-umbrella.h"
+
+  export *
+  module * { export * }
+}
