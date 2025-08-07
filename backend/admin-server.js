@@ -67,14 +67,14 @@ if (process.env.NODE_ENV !== 'production') {
 function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
-  if (isProduction) {
-    return ['http://16.171.131.126:4000'];
+    if (isProduction) {
+    return ['http://kuryex.enucuzal.com'];
   } else {
     return [
-      'http://localhost:4000',
-      'http://localhost:8080', 
+      'http://localhost:4000', 
+      'http://localhost:8080',
       'http://localhost:8081',
-      'http://16.171.131.126:4000',
+      'http://kuryex.enucuzal.com',
       'http://kuryex.enucuzal.com'
       
        // AWS server

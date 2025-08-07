@@ -89,17 +89,16 @@ function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
   if (isProduction) {
-    return ['http://16.171.131.126:4000'];
+    return ['http://kuryex.enucuzal.com'];
   } else {
     return [
       'http://localhost:4000', 
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:19006', // Expo development server
-      'http://16.171.131.126:4000', // AWS server
+      'http://kuryex.enucuzal.com', // Production server
       'capacitor://localhost',
-      'ionic://localhost',
-      'http://kuryex.enucuzal.com'
+      'ionic://localhost'
     ];
   }
 }

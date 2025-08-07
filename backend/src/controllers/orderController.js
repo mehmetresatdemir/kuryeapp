@@ -12,8 +12,8 @@ const getAbsoluteImageUrl = (relativePath, req = null) => {
     
     // Use appropriate server URL based on environment
     let baseUrl;
-    if (process.env.NODE_ENV === 'production') {
-        baseUrl = 'http://16.171.131.126:4000';
+      if (process.env.NODE_ENV === 'production') {
+    baseUrl = 'http://kuryex.enucuzal.com';
     } else if (req) {
         baseUrl = `http://${req.get('host')}`;
     } else {
