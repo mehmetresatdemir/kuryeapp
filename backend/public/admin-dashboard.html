@@ -445,8 +445,15 @@
 
         // Online istatistikleri yükle
         function loadOnlineStats() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, bekleniyor...');
+                setTimeout(loadOnlineStats, 1000);
+                return;
+            }
+            
             fetch(`${API_BASE}/api/admin/online-stats`, {
-                headers: getAuthHeaders()
+                headers: getAuthHeaders(),
+                mode: 'cors'
             })
                 .then(response => {
                     if (!response.ok) {
@@ -461,10 +468,18 @@
                         
                         // Kurye listesini güncelle
                         updateCourierList(data.data.onlineCouriers || []);
+                    } else {
+                        console.error('Online stats API yanıtı:', data);
+                        // Fallback values
+                        document.getElementById('onlineCouriers').textContent = '-';
+                        document.getElementById('onlineRestaurants').textContent = '-';
                     }
                 })
                 .catch(error => {
                     console.error('Online istatistikler yüklenirken hata:', error);
+                    // Fallback values
+                    document.getElementById('onlineCouriers').textContent = 'Hata';
+                    document.getElementById('onlineRestaurants').textContent = 'Hata';
                 });
         }
 
@@ -519,10 +534,22 @@
 
         // Sipariş durumu metriklerini yükle (Eski loadOrderChart yerine)
         async function loadOrderStatusMetrics() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, order status metrics bekleniyor...');
+                setTimeout(loadOrderStatusMetrics, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/analytics/order-status-counts`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
 
                 if (data.success && data.data) {
@@ -540,8 +567,9 @@
                 }
             } catch (error) {
                 console.error('Sipariş durumu metrikleri yüklenirken hata:', error);
+                // Fallback values
                 document.getElementById('ordersBekliyor').textContent = 'Hata';
-                document.getElementById('ordersHazirlaniyor').textContent = 'Hata';
+                document.getElementById('ordersOnayBekliyor').textContent = 'Hata';
                 document.getElementById('ordersKuryede').textContent = 'Hata';
                 document.getElementById('ordersTeslimEdildi').textContent = 'Hata';
             }

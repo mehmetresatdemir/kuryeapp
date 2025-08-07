@@ -197,14 +197,19 @@ router.get('/config/api-base-url', (req, res) => {
     // Eğer localhost değilse production kabul et
     const isProduction = !currentHost.includes('localhost');
     const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || `${protocol}://${currentHost}`;
-    const apiBaseUrl = isProduction ? remoteApiBase : localApiBase;
+    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kuryex.enucuzal.com';
+    
+    // HTTPS support için - eğer request HTTPS'den geliyorsa production API kullan
+    const isHTTPS = protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+    const apiBaseUrl = (isProduction || isHTTPS) ? remoteApiBase : localApiBase;
 
     res.json({
         success: true,
         apiBaseUrl: apiBaseUrl,
         detectedHost: currentHost,
-        isProduction: isProduction
+        isProduction: isProduction,
+        protocol: protocol,
+        isHTTPS: isHTTPS
     });
 });
 

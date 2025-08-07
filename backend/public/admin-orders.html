@@ -329,6 +329,12 @@
         });
 
         async function fetchOrders() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, siparişler bekleniyor...');
+                setTimeout(fetchOrders, 1000);
+                return;
+            }
+            
             // DOĞRU: Tarih, yerel saat dilimine göre doğru bir şekilde formatlanır.
             const localDate = new Date();
             const year = localDate.getFullYear();
@@ -350,13 +356,20 @@
             
             try {
                 const response = await fetch(`${API_BASE}/api/admin/orders?${queryParams}`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 console.log('📡 API Response status:', response.status);
                 
                 if (!response.ok) {
                     console.error('❌ Siparişler çekilemedi. Response:', response.status, response.statusText);
-                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">Siparişler yüklenirken bir hata oluştu.</td></tr>';
+                    if (response.status === 401) {
+                        document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">🔐 Yetki hatası - Lütfen tekrar giriş yapın.</td></tr>';
+                        // Redirect to login if unauthorized
+                        setTimeout(() => { window.location.href = 'admin-login.html'; }, 2000);
+                    } else {
+                        document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">⚠️ Siparişler yüklenirken bir hata oluştu.</td></tr>';
+                    }
                     return;
                 }
                 
@@ -371,7 +384,11 @@
                 updateStats(allOrders);
             } catch (error) {
                 console.error('❌ Network error:', error);
-                document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">Network hatası: Sunucuya bağlanılamadı.</td></tr>';
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">🌐 Ağ hatası: Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.</td></tr>';
+                } else {
+                    document.getElementById('orders-table-body').innerHTML = '<tr><td colspan="12">❌ Beklenmeyen hata: ' + error.message + '</td></tr>';
+                }
             }
         }
 
@@ -704,19 +721,25 @@
         }
 
         async function getCouriers() {
-             try {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, kuryeler bekleniyor...');
+                return [];
+            }
+            
+            try {
                 const res = await fetch(`${API_BASE}/api/admin/couriers`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 if(res.ok) {
                     const { data } = await res.json();
                     return data;
                 }
-             } catch(e) {
+            } catch(e) {
                 console.error("Kuryeler çekilemedi", e);
                 return [];
-             }
-             return [];
+            }
+            return [];
         }
 
         async function deleteOrder(orderId) {
