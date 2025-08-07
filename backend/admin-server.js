@@ -68,14 +68,14 @@ function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
     if (isProduction) {
-    return [process.env.API_BASE_URL || 'http://kuryex.enucuzal.com'];
+    return [process.env.API_BASE_URL || 'https://kuryex.enucuzal.com'];
   } else {
     return [
       'http://localhost:4000', 
       'http://localhost:8080',
       'http://localhost:8081',
-      process.env.API_BASE_URL || 'http://kuryex.enucuzal.com',
-      'http://kuryex.enucuzal.com'
+      process.env.API_BASE_URL || 'https://kuryex.enucuzal.com',
+      'https://kuryex.enucuzal.com'
       
        // AWS server
     ];
