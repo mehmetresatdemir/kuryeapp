@@ -270,16 +270,27 @@
             });
         });
 
-        // Admin authentication check
+        // Admin authentication check (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
 
-        // API Base URL fetch
+        // API Base URL fetch with HTTPS support
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -293,15 +304,40 @@
                 console.error('API_BASE yüklenirken hata:', error);
                 API_BASE = 'https://kuryex.enucuzal.com';
             }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
         }
 
         // Tab switching functionality removed - only support tickets now
 
         // Load support tickets
         async function loadSupportTickets() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, destek talepleri bekleniyor...');
+                setTimeout(loadSupportTickets, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/support-tickets`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const data = await response.json();
                 

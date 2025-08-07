@@ -661,13 +661,24 @@
 
 
     <script>
-        // 🔐 Admin şifre kontrolü
+        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
-            if (localStorage.getItem('adminAuth') !== 'authenticated') {
-                window.location.href = 'admin-login.html';
-                return false;
+            const token = localStorage.getItem('token');
+            const oldAuth = localStorage.getItem('adminAuth');
+            
+            // JWT token varsa geçerli
+            if (token) {
+                return true;
             }
-            return true;
+            
+            // Geriye uyumluluk için eski auth sistemi kontrol et
+            if (oldAuth === 'authenticated') {
+                return true;
+            }
+            
+            // Token yoksa login'e yönlendir
+            window.location.href = 'admin-login.html';
+            return false;
         }
         
         // Sayfa yüklendiğinde şifre kontrol et
@@ -685,7 +696,7 @@
         let tableSchema = [];
         let editingCell = null;
 
-        // API_BASE'i backend'den al
+        // API_BASE'i backend'den al (HTTPS desteği ile)
         async function fetchApiBase() {
             try {
                 const response = await fetch('/api/admin/config/api-base-url');
@@ -701,6 +712,24 @@
                 console.error('API_BASE yüklenirken hata oluştu:', error);
                 API_BASE = 'https://kuryex.enucuzal.com';
             }
+            
+            // Production ortamında force HTTPS
+            if (window.location.protocol === 'https:' && API_BASE && API_BASE.startsWith('http:')) {
+                API_BASE = API_BASE.replace('http:', 'https:');
+                console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
+            }
+        }
+
+        // Helper function to get authorization headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                return {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+            return { 'Content-Type': 'application/json' };
         }
 
         // Sayfa yüklendiğinde
@@ -711,9 +740,16 @@
 
         // Tabloları yükle
         async function loadTables() {
+            if (!API_BASE) {
+                console.log('API_BASE henüz yüklenmedi, tablolar bekleniyor...');
+                setTimeout(loadTables, 1000);
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/api/admin/db/tables`, {
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
                 const data = await response.json();
                 
@@ -749,7 +785,10 @@
         // Tablo kayıt sayısını al
         async function getTableCount(tableName) {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`);
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`, {
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
+                });
                 const data = await response.json();
                 if (data.success) {
                     document.getElementById(`count-${tableName}`).textContent = data.data.length;
@@ -787,7 +826,10 @@
             try {
                 document.getElementById('table-content').innerHTML = '<div class="loading"><i class="fas fa-spinner"></i> Veriler yükleniyor...</div>';
                 
-                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`);
+                const response = await fetch(`${API_BASE}/api/admin/db/tables/${tableName}`, {
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
+                });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -808,7 +850,10 @@
         // Tablo şemasını yükle
         async function loadTableSchema(tableName) {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/db/schema/${tableName}`);
+                const response = await fetch(`${API_BASE}/api/admin/db/schema/${tableName}`, {
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
+                });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -941,6 +986,7 @@
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
                     method: 'PUT',
                     headers: getAuthHeaders(),
+                    mode: 'cors',
                     body: JSON.stringify(updateData)
                 });
 
@@ -1112,7 +1158,8 @@
 
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}/${recordId}`, {
                     method: 'DELETE',
-                    headers: getAuthHeaders()
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
                 });
 
                 const result = await response.json();
@@ -1192,6 +1239,7 @@
                 const response = await fetch(`${API_BASE}/api/admin/db/tables/${currentTable}`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
+                    mode: 'cors',
                     body: JSON.stringify(recordData)
                 });
 
