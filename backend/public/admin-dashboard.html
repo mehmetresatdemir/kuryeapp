@@ -425,33 +425,6 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🚀 Dashboard v3.0 yükleniyor...', new Date().toISOString());
-            
-            // İlk olarak token kontrolü yap
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.log('❌ Token bulunamadı, login sayfasına yönlendiriliyor...');
-                window.location.href = 'admin-login.html';
-                return;
-            }
-            
-            // Token geçerliliğini kontrol et
-            try {
-                const tokenValidation = await fetch('/api/admin/validate-token', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                
-                if (!tokenValidation.ok) {
-                    console.log('❌ Token geçersiz, temizleniyor...');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('adminAuth');
-                    window.location.href = 'admin-login.html';
-                    return;
-                }
-            } catch (error) {
-                console.log('⚠️ Token doğrulama hatası:', error);
-                // Network hatası durumunda token'ı koruyalım, devam edelim
-            }
-            
             await fetchApiBase(); // Fetch API_BASE first
             loadOnlineStats();
             loadOrderStatusMetrics();
