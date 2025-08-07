@@ -334,8 +334,9 @@ const fixImageUrl = (imageUrl: string | null): string | null => {
   // Eğer tam URL ise doğrudan kullan
   if (imageUrl.startsWith('http')) {
     // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-          if (imageUrl.startsWith('http://kuryex.enucuzal.com')) {
-        return imageUrl.replace('http://kuryex.enucuzal.com', 'http://kuryex.enucuzal.com');
+          const DOMAIN = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com';
+      if (imageUrl.startsWith(`http://${DOMAIN}`)) {
+        return imageUrl.replace(`http://${DOMAIN}`, `http://${DOMAIN}`);
     }
     return imageUrl;
   }

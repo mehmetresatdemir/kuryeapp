@@ -6,8 +6,8 @@ import { router } from 'expo-router';
 // Get environment variables - FORCE REMOTE FOR APK TESTING
 const API_HOST = 'localhost'; // Use localhost for testing
 const API_PORT = '4000';
-// Use new domain for production
-const REMOTE_API_HOST = 'kuryex.enucuzal.com'; // New production domain
+// Use environment variable or fallback to domain for production
+const REMOTE_API_HOST = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com'; // Domain from env or fallback
 const USE_REMOTE = true; // Use remote server
 
 // APK debug logging

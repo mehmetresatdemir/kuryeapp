@@ -19,7 +19,25 @@
     </div>
 
     <script>
-        const API_BASE = 'http://kuryex.enucuzal.com';
+        // API Base URL'ini dinamik olarak al
+        let API_BASE = 'http://kuryex.enucuzal.com'; // fallback
+        
+        // Backend'den API base URL'ini al
+        async function fetchApiBase() {
+            try {
+                const response = await fetch('/api/admin/config/api-base-url');
+                const data = await response.json();
+                if (data.success && data.apiBaseUrl) {
+                    API_BASE = data.apiBaseUrl;
+                    console.log('✅ API_BASE dinamik olarak alındı:', API_BASE);
+                }
+            } catch (error) {
+                console.warn('⚠️ API_BASE alınamadı, fallback kullanılıyor:', API_BASE);
+            }
+        }
+        
+        // Sayfa yüklendiğinde API base'i al
+        fetchApiBase();
         
         function addLog(message) {
             const logsDiv = document.getElementById('logs');
