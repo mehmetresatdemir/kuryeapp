@@ -188,6 +188,40 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 });
 
+// Token validation endpoint (korumasız - token geçerliliği kontrolü)
+router.get('/validate-token', async (req, res) => {
+    try {
+        let token;
+
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'Token bulunamadı' });
+        }
+
+        // Token'ı doğrula
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'defaultSecret');
+        
+        // Admin token kontrolü
+        if (decoded.role !== 'admin' || decoded.id !== 'admin') {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Geçersiz admin token' 
+            });
+        }
+
+        res.json({ success: true, message: 'Token geçerli' });
+    } catch (error) {
+        console.error('Token validation hatası:', error);
+        res.status(401).json({ 
+            success: false, 
+            message: 'Geçersiz token' 
+        });
+    }
+});
+
 // API Base URL endpoint (korumasız - frontend config için gerekli)
 router.get('/config/api-base-url', (req, res) => {
     // Sunucu üzerinde çalıştığımızda req.get('host') ile gerçek host'u alıyoruz
