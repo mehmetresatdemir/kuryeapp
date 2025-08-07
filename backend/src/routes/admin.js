@@ -201,7 +201,20 @@ router.get('/config/api-base-url', (req, res) => {
     
     // HTTPS support için - eğer request HTTPS'den geliyorsa production API kullan
     const isHTTPS = protocol === 'https' || req.get('x-forwarded-proto') === 'https';
-    const apiBaseUrl = (isProduction || isHTTPS) ? remoteApiBase : localApiBase;
+    
+    // Remote sunucuda çalışıyorsa her zaman HTTPS kullan
+    let apiBaseUrl;
+    if (isProduction || isHTTPS) {
+        apiBaseUrl = remoteApiBase;
+    } else {
+        apiBaseUrl = localApiBase;
+    }
+    
+    // Production ortamında host varsa, host-based URL oluştur
+    if (isProduction && currentHost && !currentHost.includes('localhost')) {
+        const productionProtocol = isHTTPS ? 'https' : 'http';
+        apiBaseUrl = `${productionProtocol}://${currentHost}`;
+    }
 
     res.json({
         success: true,
@@ -209,7 +222,9 @@ router.get('/config/api-base-url', (req, res) => {
         detectedHost: currentHost,
         isProduction: isProduction,
         protocol: protocol,
-        isHTTPS: isHTTPS
+        isHTTPS: isHTTPS,
+        originalHost: req.get('host'),
+        userAgent: req.get('user-agent')
     });
 });
 

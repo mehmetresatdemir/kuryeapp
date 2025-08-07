@@ -378,6 +378,12 @@
                 if (data.success && data.apiBaseUrl) {
                     API_BASE = data.apiBaseUrl;
                     console.log('API_BASE başarıyla ayarlandı:', API_BASE);
+                    
+                    // Production ortamında force HTTPS
+                    if (window.location.protocol === 'https:' && API_BASE.startsWith('http:')) {
+                        API_BASE = API_BASE.replace('http:', 'https:');
+                        console.log('🔒 HTTPS zorlandı, API_BASE güncellendi:', API_BASE);
+                    }
                 } else {
                     console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
                     API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS
@@ -488,9 +494,18 @@
                 })
                 .catch(error => {
                     console.error('Online istatistikler yüklenirken hata:', error);
-                    // Fallback values
-                    document.getElementById('onlineCouriers').textContent = 'Hata';
-                    document.getElementById('onlineRestaurants').textContent = 'Hata';
+                    console.error('🌐 Current URL:', window.location.href);
+                    console.error('🔗 API_BASE:', API_BASE);
+                    
+                    // Network hatası kontrolü
+                    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                        console.error('❌ Network error - Server bağlantısı yok');
+                        document.getElementById('onlineCouriers').textContent = 'Bağlantı Yok';
+                        document.getElementById('onlineRestaurants').textContent = 'Bağlantı Yok';
+                    } else {
+                        document.getElementById('onlineCouriers').textContent = 'Hata';
+                        document.getElementById('onlineRestaurants').textContent = 'Hata';
+                    }
                 });
         }
 

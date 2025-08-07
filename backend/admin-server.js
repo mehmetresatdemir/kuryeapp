@@ -67,17 +67,23 @@ if (process.env.NODE_ENV !== 'production') {
 function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
-    if (isProduction) {
-    return [process.env.API_BASE_URL || 'https://kuryex.enucuzal.com'];
+  if (isProduction) {
+    return [
+      process.env.API_BASE_URL || 'https://kuryex.enucuzal.com',
+      'https://kuryex.enucuzal.com',
+      // Allow same-origin requests in production
+      'https://kuryex.enucuzal.com',
+      // Allow other possible production domains
+      'https://www.kuryex.enucuzal.com'
+    ];
   } else {
     return [
       'http://localhost:4000', 
       'http://localhost:8080',
       'http://localhost:8081',
+      'http://localhost:3000',
       process.env.API_BASE_URL || 'https://kuryex.enucuzal.com',
       'https://kuryex.enucuzal.com'
-      
-       // AWS server
     ];
   }
 }
@@ -89,15 +95,25 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn('🚫 CORS blocked origin:', origin);
-      callback(new Error('CORS policy violation'));
+    // Same-origin requests - allow if origin matches current host
+    if (origin && allowedOrigins.some(allowed => origin === allowed)) {
+      return callback(null, true);
     }
+    
+    // In production, be more flexible with same domain
+    if (process.env.NODE_ENV === 'production' && origin) {
+      const url = new URL(origin);
+      if (url.hostname === 'kuryex.enucuzal.com' || url.hostname.endsWith('.kuryex.enucuzal.com')) {
+        return callback(null, true);
+      }
+    }
+    
+    console.warn('🚫 CORS blocked origin:', origin);
+    console.warn('🌐 Allowed origins:', allowedOrigins);
+    callback(new Error('CORS policy violation'));
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true
 }));
 
