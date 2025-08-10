@@ -33,7 +33,6 @@ interface RestaurantData {
   yetkili_name: string;
   address: string;
   logo: string | null;
-  is_active: boolean;
   created_at: string;
   updated_at: string;
   role: string;
@@ -550,10 +549,7 @@ const RestaurantProfile = () => {
     setNeighborhoodRequestsLoading(false);
   };
 
-  // Durum badge rengi
-  const getStatusBadgeColor = () => {
-    return restaurantData?.is_active ? '#10B981' : '#EF4444';
-  };
+
 
   // Mahalle talep durumu rengi
   const getRequestStatusColor = (status: string) => {
@@ -583,10 +579,7 @@ const RestaurantProfile = () => {
     }
   };
 
-  // Durum metni
-  const getStatusText = () => {
-    return restaurantData?.is_active ? 'Aktif' : 'Pasif';
-  };
+
 
   if (loading) {
     return (
@@ -1254,23 +1247,7 @@ const RestaurantProfile = () => {
                 </View>
               </View>
 
-              <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
-                <View style={styles.infoItemLeft}>
-                  <View style={[styles.infoIcon, { backgroundColor: getStatusBadgeColor() + '20' }]}>
-                    <Ionicons 
-                      name={restaurantData.is_active ? "checkmark-circle-outline" : "close-circle-outline"} 
-                      size={20} 
-                      color={getStatusBadgeColor()} 
-                    />
-                  </View>
-                  <View>
-                    <Text style={styles.infoLabel}>Hesap Durumu</Text>
-                    <Text style={[styles.infoValue, { color: getStatusBadgeColor() }]}>
-                      {getStatusText()}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+
             </View>
 
             {/* Preferences Section */}
@@ -1640,15 +1617,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  statusBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
+
   userInfo: {
     alignItems: 'center',
   },

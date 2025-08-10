@@ -17,13 +17,13 @@ const NOTIFICATION_SOUNDS = [
   {
     id: 'ring_bell',
     name: 'Ring Bell',
-    filename: 'ring_bell.wav',
+    filename: 'ring_bell',
     description: 'Custom ring bell sound'
   },
   {
     id: 'ring_bell2',
     name: 'Ring Bell 2',
-    filename: 'ring_bell2.wav',
+    filename: 'ring_bell2',
     description: 'Custom ring bell sound 2'
   }
 ];
@@ -35,7 +35,7 @@ const NOTIFICATION_SOUNDS = [
  */
 function getSoundConfig(soundId) {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
-  if (!sound) return 'ring_bell2.wav'; // Default to ring_bell2
+  if (!sound) return 'ring_bell2'; // Default to ring_bell2
   
   switch (soundId) {
     case 'system':

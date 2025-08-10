@@ -1895,7 +1895,7 @@ const KuryeHome = () => {
           userId: userData.id,
           userType: 'courier',
           expoPushToken: expoPushToken,
-          platform: 'ios' // Default platform
+          platform: Platform.OS
         })
       });
       

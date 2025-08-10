@@ -41,5 +41,13 @@ yarn-error.*
 build-*.ipa
 
 app-example
+# Native project folders (for CNG/Prebuild)
 android/
-ios/*.apk
+ios/
+
+# Build artifacts
+*.apk
+
+# Firebase/Google config (keep local, don't commit)
+google-services.json
+kuryex-*.json

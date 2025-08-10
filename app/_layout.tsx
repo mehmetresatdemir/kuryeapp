@@ -64,32 +64,40 @@ export default function RootLayout() {
   useEffect(() => {
     const setupNotificationChannels = async () => {
       if (Platform.OS === 'android') {
-        // Ana notification channel
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
-          sound: 'default',
-        });
+        try {
+          // Mevcut channel'ı sil (eğer varsa) ve yeniden oluştur
+          // Not: deleteNotificationChannelAsync API'si mevcut değilse skip et
+          try {
+            await Notifications.deleteNotificationChannelAsync('ring_bell2');
+            console.log('🗑️ Existing ring_bell2 channel deleted');
+          } catch (deleteError) {
+            console.log('ℹ️ No existing ring_bell2 channel to delete');
+          }
 
-        // Ring Bell 2 için özel channel
-        await Notifications.setNotificationChannelAsync('ring_bell2', {
-          name: 'Ring Bell 2 Notifications',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
-          sound: 'ring_bell2.wav',
-        });
+          // Ana notification channel
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+            sound: 'default',
+          });
 
-        // Ring Bell için özel channel
-        await Notifications.setNotificationChannelAsync('ring_bell', {
-          name: 'Ring Bell Notifications',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
-          sound: 'ring_bell.wav',
-        });
+          // Ring Bell 2 için özel channel - yeniden oluştur
+          await Notifications.setNotificationChannelAsync('ring_bell2', {
+            name: 'Ring Bell 2 Notifications',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+            sound: 'ring_bell2', // Android raw resource name (no extension)
+            enableLights: true,
+            enableVibrate: true,
+          });
+
+          console.log('✅ Notification channels configured successfully');
+        } catch (error) {
+          console.error('❌ Error setting up notification channels:', error);
+        }
       }
     };
 

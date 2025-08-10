@@ -331,10 +331,10 @@ const RestaurantHome = () => {
         content: {
           title: "Sipariş Kabul Edildi",
           body: "Siparişiniz kurye tarafından kabul edildi",
-          sound: 'ring_bell2.wav',
+          sound: 'ring_bell2', // Android raw resource name (no extension)
           data: { local: true }
         },
-        trigger: null, // Immediately
+        trigger: { seconds: 1, channelId: 'ring_bell2' },
       });
       console.log("🔔 Restaurant: Local notification with sound played");
     } catch (error) {
@@ -370,7 +370,7 @@ const RestaurantHome = () => {
            userId: user.id,
            userType: 'restaurant',
            expoPushToken: expoPushToken,
-           platform: 'ios' // Default platform
+          platform: Platform.OS
          })
       });
       

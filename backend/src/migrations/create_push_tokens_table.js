@@ -9,7 +9,7 @@ async function createPushTokensTable() {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('courier', 'restaurant', 'admin')),
-        expo_push_token TEXT NOT NULL,
+        token TEXT NOT NULL,
         platform VARCHAR(10) DEFAULT 'ios' CHECK (platform IN ('ios', 'android')),
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT NOW(),

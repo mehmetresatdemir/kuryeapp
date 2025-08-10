@@ -7,6 +7,7 @@ import {
   Alert,
   TouchableOpacity,
   Linking,
+  Platform,
 } from "react-native";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import * as Location from "expo-location";
@@ -104,10 +105,10 @@ const RestaurantLiveMap = () => {
         content: {
           title: "Sipariş Kabul Edildi",
           body: "Siparişiniz kurye tarafından kabul edildi",
-          sound: 'ring_bell2.wav',
+          sound: 'ring_bell2', // Android raw resource name (no extension)
           data: { local: true }
         },
-        trigger: null, // Immediately
+        trigger: { seconds: 1, channelId: 'ring_bell2' },
       });
       console.log("🔔 RestaurantLiveMap: Local notification with sound played");
     } catch (error) {
@@ -150,7 +151,7 @@ const RestaurantLiveMap = () => {
           userId: userData.id,
           userType: 'restaurant',
           expoPushToken: expoPushToken,
-          platform: 'ios' // Default platform
+          platform: Platform.OS
         })
       });
       

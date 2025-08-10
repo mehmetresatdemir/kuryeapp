@@ -84,7 +84,7 @@ const RestaurantOrders = () => {
           sound: 'ring_bell2.wav',
           data: { local: true }
         },
-        trigger: null, // Immediately
+        trigger: { seconds: 1, channelId: 'ring_bell2' },
       });
       console.log("🔔 RestaurantOrders: Local notification with sound played");
     } catch (error) {
@@ -274,7 +274,7 @@ const RestaurantOrders = () => {
            userId: userData.id,
            userType: 'restaurant',
            expoPushToken: expoPushToken,
-           platform: 'ios' // Default platform
+           platform: Platform.OS
          })
       });
       
