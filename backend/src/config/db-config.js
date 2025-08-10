@@ -34,11 +34,13 @@ pool.on('connect', async (client) => {
   try {
     // Her bağlantıda app schema'yı ayarla
     await client.query("SET search_path = app");
+    // Her bağlantıda timezone'u Türkiye olarak ayarla
+    await client.query("SET TIME ZONE 'Europe/Istanbul'");
     connectionCount++;
     
     // Sadece ilk bağlantıda veya development modunda mesaj göster
     if (connectionCount === 1 || process.env.NODE_ENV !== 'production') {
-      console.log('✅ Veritabanı bağlantı havuzu hazır (app schema ayarlandı)');
+      console.log('✅ Veritabanı bağlantı havuzu hazır (app schema + timezone ayarlandı)');
     }
   } catch (error) {
     console.error('❌ Veritabanı bağlantı hatası:', error);

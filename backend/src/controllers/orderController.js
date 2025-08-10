@@ -130,8 +130,7 @@ const addOrder = async (req, res) => {
 
                 const finalPreparationTime = preparationTime !== undefined && preparationTime !== null ? preparationTime : 20;
 
-        // Sunucu saati kullan (timezone olmadan) - Date objesi olarak geç
-        const currentTimestamp = new Date();
+        // DB tarafında timezone ayarlı olduğundan NOW() kullanıyoruz
         const [newOrder] = await sql`
             INSERT INTO orders (
                 firmaid, mahalle, odeme_yontemi, courier_price, restaurant_price, 
@@ -140,7 +139,7 @@ const addOrder = async (req, res) => {
             ) VALUES (
                 ${firmaid}, ${mahalle}, ${odemeYontemi}, ${deliveryPrice}, ${restaurantPrice}, 
                 ${firmaAdi}, ${imageUrl}, ${finalPreparationTime}, 
-                ${currentTimestamp}, 'bekleniyor',
+                NOW(), 'bekleniyor',
                 ${nakitTutari || 0}, ${bankaTutari || 0}, ${hediyeTutari || 0}
             ) RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -226,7 +225,7 @@ const updateOrderStatus = async (req, res) => {
         // Update order using PostgreSQL timezone - NOW() Türkiye saati döndürür
         const [updatedOrder] = await sql`
             UPDATE orders 
-            SET status = ${status}, updated_at = ${new Date()}
+            SET status = ${status}, updated_at = NOW()
             WHERE id = ${orderId} 
             RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -261,7 +260,7 @@ const assignCourier = async (req, res) => {
 
         const [updatedOrder] = await sql`
             UPDATE orders 
-            SET kuryeid = ${courierId}, status = 'kuryede', updated_at = ${new Date()} 
+            SET kuryeid = ${courierId}, status = 'kuryede', updated_at = NOW() 
             WHERE id = ${orderId}
             RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -385,12 +384,11 @@ const acceptOrders = async (req, res) => {
             
 
                           // Update order using sunucu saati (timezone olmadan)
-              const currentTimestamp = new Date();
               const result = await sql`
                 UPDATE orders 
                 SET kuryeid = ${courierId}, status = 'kuryede', 
-                    accepted_at = ${currentTimestamp}, 
-                    updated_at = ${currentTimestamp}
+                    accepted_at = NOW(), 
+                    updated_at = NOW()
                 WHERE id = ${orderId} AND status = 'bekleniyor'
                 RETURNING 
                     id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -506,8 +504,8 @@ const deliverOrder = async (req, res) => {
             await sql`
                 UPDATE orders 
                 SET status = 'teslim edildi', 
-                    delivered_at = ${new Date()}, 
-                    updated_at = ${new Date()}
+                    delivered_at = NOW(), 
+                    updated_at = NOW()
                 WHERE id = ${orderId}
             `;
 
@@ -550,8 +548,8 @@ const deliverOrder = async (req, res) => {
         await sql`
             UPDATE orders 
             SET status = 'onay bekliyor', 
-                delivered_at = ${new Date()}, 
-                updated_at = ${new Date()}
+                delivered_at = NOW(), 
+                updated_at = NOW()
             WHERE id = ${orderId}
         `;
 
@@ -630,7 +628,7 @@ const cancelOrder = async (req, res) => {
             SET status = 'bekleniyor',
                 kuryeid = NULL,
                 accepted_at = NULL,
-                updated_at = ${new Date()}
+                updated_at = NOW()
             WHERE id = ${orderId}
             RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -723,8 +721,8 @@ const approveOrder = async (req, res) => {
                 UPDATE orders 
                 SET 
                     status = 'teslim edildi',
-                    approved_at = ${new Date()},
-                    updated_at = ${new Date()}
+                    approved_at = NOW(),
+                    updated_at = NOW()
                 WHERE id = ${orderId}
                 RETURNING 
                     id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -798,8 +796,8 @@ const approveOrder = async (req, res) => {
             UPDATE orders 
             SET 
                 status = 'teslim edildi',
-                approved_at = ${new Date()},
-                updated_at = ${new Date()}
+                approved_at = NOW(),
+                updated_at = NOW()
             WHERE id = ${orderId} AND status = 'onay bekliyor'
             RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 
@@ -1094,7 +1092,7 @@ const updateOrder = async (req, res) => {
                 hediye_tutari = COALESCE(${hediyeTutari}, hediye_tutari),
                 preparation_time = COALESCE(${preparationTime}, preparation_time),
                 resim = ${newImageUrl},
-                updated_at = ${new Date()}
+                updated_at = NOW()
             WHERE id = ${orderId}
             RETURNING 
                 id, firmaid, mahalle, neighborhood_id, odeme_yontemi, 

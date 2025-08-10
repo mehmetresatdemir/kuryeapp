@@ -62,24 +62,22 @@ const unifiedLogin = async (req, res) => {
                     // Session hatası olsa bile login'e devam et - çünkü session opsiyonel
                 }
 
-                // Socket.io ile diğer oturumlara logout sinyali gönder
+                // Socket.io ile diğer oturumlara logout sinyali gönder (tekil socketId'lere)
                 try {
                     if (invalidatedSessions.length > 0) {
                         const io = req.app.get('io');
                         if (io) {
-                            invalidatedSessions.forEach(session => {
-                                if (session.socket_id) {
-                                    io.to(session.socket_id).emit('forceLogout', {
-                                        reason: 'CONCURRENT_SESSION',
-                                        message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                                    });
-                                }
-                            });
-                            
-                            // Genel restaurant odasına da bildir
-                            io.to(`restaurant_${user.id}`).emit('forceLogout', {
-                                reason: 'CONCURRENT_SESSION',
-                                message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                            const uniqueSocketIds = new Set(
+                                invalidatedSessions
+                                  .map(s => s.socket_id)
+                                  .filter(Boolean)
+                            );
+
+                            uniqueSocketIds.forEach(socketId => {
+                                io.to(socketId).emit('forceLogout', {
+                                    reason: 'CONCURRENT_SESSION',
+                                    message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                                });
                             });
                         }
                     }
@@ -136,24 +134,22 @@ const unifiedLogin = async (req, res) => {
                     // Session hatası olsa bile login'e devam et - çünkü session opsiyonel
                 }
 
-                // Socket.io ile diğer oturumlara logout sinyali gönder
+                // Socket.io ile diğer oturumlara logout sinyali gönder (tekil socketId'lere)
                 try {
                     if (invalidatedSessions.length > 0) {
                         const io = req.app.get('io');
                         if (io) {
-                            invalidatedSessions.forEach(session => {
-                                if (session.socket_id) {
-                                    io.to(session.socket_id).emit('forceLogout', {
-                                        reason: 'CONCURRENT_SESSION',
-                                        message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
-                                    });
-                                }
-                            });
-                            
-                            // Genel courier odasına da bildir
-                            io.to(`courier_${user.id}`).emit('forceLogout', {
-                                reason: 'CONCURRENT_SESSION',
-                                message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                            const uniqueSocketIds = new Set(
+                                invalidatedSessions
+                                  .map(s => s.socket_id)
+                                  .filter(Boolean)
+                            );
+
+                            uniqueSocketIds.forEach(socketId => {
+                                io.to(socketId).emit('forceLogout', {
+                                    reason: 'CONCURRENT_SESSION',
+                                    message: 'Hesabınıza başka bir cihazdan giriş yapıldı. Güvenlik nedeniyle çıkış yapılıyor.'
+                                });
                             });
                         }
                     }

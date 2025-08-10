@@ -1,5 +1,29 @@
 const { sql } = require('../config/db-config');
 const jwt = require('jsonwebtoken');
+const { sql } = require('../config/db-config');
+
+// Ensure active_sessions table exists (self-healing in case migration not applied)
+async function ensureActiveSessionsTable() {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS active_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        user_role TEXT NOT NULL,
+        session_token TEXT NOT NULL,
+        device_info TEXT,
+        ip_address TEXT,
+        socket_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+        last_activity TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+      )
+    `;
+  } catch (error) {
+    // If creation fails (permissions etc.), let caller handle downstream errors
+  }
+}
 
 class SessionService {
   /**
@@ -7,6 +31,7 @@ class SessionService {
    */
   static async getActiveSessions(userId, userRole) {
     try {
+      await ensureActiveSessionsTable();
       const sessions = await sql`
         SELECT * FROM active_sessions 
         WHERE user_id = ${userId} AND user_role = ${userRole} AND is_active = TRUE
@@ -24,6 +49,7 @@ class SessionService {
    */
   static async createSession(userId, userRole, sessionToken, deviceInfo = null, ipAddress = null, socketId = null) {
     try {
+      await ensureActiveSessionsTable();
       // NOT: invalidateUserSessions çağırılmayacak çünkü unifiedLogin'de zaten çağırılıyor
       // Bu double invalidation race condition'a neden oluyordu
       
@@ -59,6 +85,7 @@ class SessionService {
    */
   static async invalidateUserSessions(userId, userRole, excludeToken = null) {
     try {
+      await ensureActiveSessionsTable();
       let query;
       if (excludeToken) {
         query = sql`
@@ -104,6 +131,7 @@ class SessionService {
    */
   static async invalidateSession(sessionToken) {
     try {
+      await ensureActiveSessionsTable();
       const [session] = await sql`
         UPDATE active_sessions 
         SET is_active = FALSE, last_activity = ${new Date()} 
@@ -132,6 +160,7 @@ class SessionService {
    */
   static async validateSession(sessionToken) {
     try {
+      await ensureActiveSessionsTable();
       const [session] = await sql`
         SELECT * FROM active_sessions 
         WHERE session_token = ${sessionToken} AND is_active = TRUE AND expires_at > ${new Date()}
@@ -158,6 +187,7 @@ class SessionService {
    */
   static async updateSocketId(sessionToken, socketId) {
     try {
+      await ensureActiveSessionsTable();
       const [session] = await sql`
         UPDATE active_sessions 
         SET socket_id = ${socketId}, last_activity = ${new Date()} 
@@ -182,6 +212,7 @@ class SessionService {
    */
   static async cleanupExpiredSessions() {
     try {
+      await ensureActiveSessionsTable();
       const expiredSessions = await sql`
         DELETE FROM active_sessions 
         WHERE expires_at < ${new Date()} OR is_active = FALSE
@@ -209,6 +240,7 @@ class SessionService {
    */
   static async getOtherActiveSessions(userId, userRole, currentToken) {
     try {
+      await ensureActiveSessionsTable();
       const sessions = await sql`
         SELECT * FROM active_sessions 
         WHERE user_id = ${userId} AND user_role = ${userRole} AND session_token != ${currentToken} AND is_active = TRUE

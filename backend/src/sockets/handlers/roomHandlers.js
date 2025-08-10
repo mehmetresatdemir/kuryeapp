@@ -129,6 +129,15 @@ const registerRoomHandlers = (io, socket) => {
     const { restaurantId } = data;
     if (!restaurantId) return;
 
+    // Close existing connection if present (mirror courier behavior)
+    if (onlineRestaurants.has(String(restaurantId)) || onlineRestaurants.has(restaurantId)) {
+      const existing = onlineRestaurants.get(String(restaurantId)) || onlineRestaurants.get(restaurantId);
+      const existingSocket = io.sockets.sockets.get(existing?.socketId);
+      if (existingSocket) {
+        existingSocket.disconnect();
+      }
+    }
+
     socket.join("restaurants");
     socket.join(`restaurant_${restaurantId}`);
     socket.restaurantId = restaurantId;
@@ -143,8 +152,8 @@ const registerRoomHandlers = (io, socket) => {
       // Silent error
     }
     
-    // Add to online list
-    onlineRestaurants.set(restaurantId, {
+    // Add to online list (use consistent string key)
+    onlineRestaurants.set(String(restaurantId), {
       socketId: socket.id,
       joinTime: new Date(),
       lastActivity: new Date()
@@ -347,9 +356,9 @@ module.exports = {
     totalOnlineRestaurants: onlineRestaurants.size
   }),
   isRestaurantOnline: (restaurantId) => {
-    return onlineRestaurants.has(restaurantId.toString());
+    return onlineRestaurants.has(String(restaurantId));
   },
   isCourierOnline: (courierId) => {
-    return onlineCouriers.has(courierId.toString());
+    return onlineCouriers.has(String(courierId));
   }
 }; 
