@@ -110,7 +110,7 @@ router.post('/unregister', async (req, res) => {
 });
 
 /**
- * Test push notification
+  * Test push notification (courier or restaurant)
  * POST /api/push-notifications/test
  */
 router.post('/test', async (req, res) => {
@@ -120,7 +120,7 @@ router.post('/test', async (req, res) => {
       userType, 
       title = 'Test Bildirimi', 
       body = 'Bu bir test bildirimidir', 
-      soundId = 'ring_bell2',
+      soundId = 'ring_bell2', // Android için channelId ile eşleşir
       customData = {}
     } = req.body;
 

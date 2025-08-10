@@ -58,18 +58,26 @@ function getSoundConfig(soundId) {
  */
 function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ring_bell2', customData = {}) {
   const soundConfig = getSoundConfig(soundId);
-  
-  // ExpoNotificationApp ile aynı basit configuration
+
+  // Android tarafında özel sesi zorlamak için channelId kullan
+  // iOS bu alanı yok sayar, güvenli.
+  const androidChannelId = (soundId && soundId !== 'default' && soundId !== 'system')
+    ? soundId
+    : 'default';
+
   return {
     to: expoPushToken,
     sound: soundConfig,
     title,
     body,
-    data: { 
+    // Android alanları
+    channelId: androidChannelId,
+    priority: 'high',
+    data: {
       soundType: soundId,
       timestamp: Date.now(),
-      ...customData
-    }
+      ...customData,
+    },
   };
 }
 
