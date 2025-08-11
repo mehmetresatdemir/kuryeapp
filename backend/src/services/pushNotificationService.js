@@ -154,6 +154,29 @@ async function sendExpoPushNotification(payload) {
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for restaurant ${restaurantId} in neighborhood: ${neighborhood || 'all'}`);
+      // Eğer bu restorana seçilmiş kurye yoksa, genel aktif kurye listesine fallback yap
+      if (!result || result.length === 0) {
+        console.log(`↩️ No couriers selected for restaurant ${restaurantId}. Falling back to ALL active couriers.`);
+        result = await sql`
+          SELECT 
+            c.id as courier_id,
+            c.name as courier_name,
+            c.notification_mode,
+            pt.token as expo_push_token,
+            pt.platform
+          FROM couriers c
+          INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
+          WHERE c.is_blocked = false 
+            AND pt.token IS NOT NULL 
+            AND pt.is_active = true
+            AND NOT EXISTS (
+              SELECT 1 FROM push_tokens rt
+              WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+            )
+          ORDER BY c.name
+        `;
+        console.log(`📦 Fallback result: ${result.length} active couriers (no restaurant-specific selection).`);
+      }
     } else {
       // Fallback: get all active couriers (for general notifications)
       result = await sql`
@@ -221,8 +244,34 @@ async function sendNewOrderNotificationToCouriers(orderData) {
     // Çünkü aynı cihazda hem restoran hem kurye testlerinde kurye token'ı yanlışlıkla elenebiliyor.
     
     if (courierTokens.length === 0) {
-      console.log('📵 No eligible couriers found for notification');
-      return { success: true, sent: 0, failed: 0, details: [] };
+      console.log('📵 No eligible couriers found for notification. Forcing fallback to ALL active couriers.');
+      try {
+        courierTokens = await sql`
+          SELECT 
+            c.id as courier_id,
+            c.name as courier_name,
+            c.notification_mode,
+            pt.token as expo_push_token,
+            pt.platform
+          FROM couriers c
+          INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
+          WHERE c.is_blocked = false 
+            AND pt.token IS NOT NULL 
+            AND pt.is_active = true
+            AND NOT EXISTS (
+              SELECT 1 FROM push_tokens rt
+              WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+            )
+          ORDER BY c.name
+        `;
+        console.log(`📦 Forced fallback list size: ${courierTokens.length}`);
+      } catch (fbErr) {
+        console.warn('⚠️ Fallback query failed:', fbErr);
+      }
+
+      if (courierTokens.length === 0) {
+        return { success: true, sent: 0, failed: 0, details: [] };
+      }
     }
     
     const notifications = courierTokens.map(courier => {
