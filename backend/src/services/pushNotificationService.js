@@ -31,11 +31,11 @@ const NOTIFICATION_SOUNDS = [
 /**
  * Get sound configuration for notification
  * @param {string} soundId - Sound identifier
+ * @param {string} platform - Platform ('ios' or 'android')
  * @returns {string|boolean} Sound configuration
  */
-function getSoundConfig(soundId) {
+function getSoundConfig(soundId, platform = 'ios') {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
-  if (!sound) return 'ring_bell2'; // Default to ring_bell2 on iOS (no extension)
   
   switch (soundId) {
     case 'system':
@@ -43,11 +43,14 @@ function getSoundConfig(soundId) {
     case 'default':
       return 'default';
     case 'ring_bell2':
-      // iOS için .wav olmadan, sadece dosya adı
-      return 'ring_bell2';
+      // iOS: uzantısız, Android: uzantılı
+      return platform === 'ios' ? 'ring_bell2' : 'ring_bell2.wav';
     default:
-      // Diğer ses dosyaları için extension kaldır (iOS için)
-      return sound.filename.replace('.wav', '');
+      if (!sound) {
+        return platform === 'ios' ? 'ring_bell2' : 'ring_bell2.wav';
+      }
+      // iOS: uzantı kaldır, Android: orijinal filename
+      return platform === 'ios' ? sound.filename.replace('.wav', '') : sound.filename;
   }
 }
 
@@ -58,10 +61,11 @@ function getSoundConfig(soundId) {
  * @param {string} body - Notification body
  * @param {string} soundId - Sound identifier
  * @param {object} customData - Custom data to include
+ * @param {string} platform - Platform ('ios' or 'android')
  * @returns {object} Push notification payload
  */
-function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ring_bell2', customData = {}) {
-  const soundConfig = getSoundConfig(soundId);
+function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ring_bell2', customData = {}, platform = 'ios') {
+  const soundConfig = getSoundConfig(soundId, platform);
 
   // Android tarafında özel sesi zorlamak için channelId kullan
   // iOS bu alanı yok sayar, güvenli.
@@ -80,6 +84,7 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
     data: {
       soundType: soundId,
       timestamp: Date.now(),
+      platform: platform,
       ...customData,
     },
   };
@@ -295,7 +300,8 @@ async function sendNewOrderNotificationToCouriers(orderData) {
           courierPrice: orderData.courier_price || 0,
           restaurantId: orderData.firmaid,
           paymentMethod: orderData.odeme_yontemi
-        }
+        },
+        courier.platform || 'ios' // Platform bilgisi
       );
     });
     
@@ -418,7 +424,8 @@ async function sendOrderAcceptedNotification(notificationData) {
         courierName: courierName,
         restaurantId: restaurantId.toString(),
         preparationTime: orderDetails?.preparation_time !== undefined ? orderDetails.preparation_time : 20
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -471,7 +478,8 @@ async function sendOrderCancelledNotification(notificationData) {
         type: 'order_cancelled',
         restaurantName: restaurantName,
         courierId: courierId.toString()
-      }
+      },
+      courierToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -536,7 +544,8 @@ async function sendOrderDeliveredNotification(notificationData) {
         type: 'order_delivered_success',
         courierName: courierName,
         restaurantId: restaurantId.toString()
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -590,7 +599,8 @@ async function sendOrderApprovedNotification(notificationData) {
         restaurantName: restaurantName,
         courierId: courierId.toString(),
         paymentMethod: paymentMethod
-      }
+      },
+      courierToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -644,7 +654,8 @@ async function sendAdminTimeoutNotification(notificationData) {
           waitingTime: waitingTime,
           restaurantName: restaurantName,
           neighborhood: neighborhood
-        }
+        },
+        admin.platform || 'ios' // Platform bilgisi
       )
     );
     
@@ -725,7 +736,8 @@ async function sendDeliveryApprovalNotification(notificationData) {
         type: 'delivery_needs_approval',
         courierName: courierName,
         restaurantId: restaurantId.toString()
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -812,7 +824,8 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
         courierName: courierName,
         restaurantId: restaurantId.toString(),
         reason: reason
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     console.log(`🚀 Sending push notification to restaurant ${restaurantId}...`);
