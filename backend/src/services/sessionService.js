@@ -1,6 +1,5 @@
 const { sql } = require('../config/db-config');
 const jwt = require('jsonwebtoken');
-const { sql } = require('../config/db-config');
 
 // Ensure active_sessions table exists (self-healing in case migration not applied)
 async function ensureActiveSessionsTable() {

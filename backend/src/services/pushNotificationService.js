@@ -37,20 +37,24 @@ const NOTIFICATION_SOUNDS = [
 function getSoundConfig(soundId, platform = 'ios') {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
   
+  // iOS'ta HER ZAMAN ring_bell2 özel sesi kullan - sistem sesi asla
+  if (platform === 'ios') {
+    return 'ring_bell2'; // iOS için her zaman özel ses
+  }
+  
+  // Android için normal logic
   switch (soundId) {
     case 'system':
       return true; // Use system default sound
     case 'default':
       return 'default';
     case 'ring_bell2':
-      // iOS: uzantısız, Android: uzantılı
-      return platform === 'ios' ? 'ring_bell2' : 'ring_bell2.wav';
+      return 'ring_bell2.wav';
     default:
       if (!sound) {
-        return platform === 'ios' ? 'ring_bell2' : 'ring_bell2.wav';
+        return 'ring_bell2.wav';
       }
-      // iOS: uzantı kaldır, Android: orijinal filename
-      return platform === 'ios' ? sound.filename.replace('.wav', '') : sound.filename;
+      return sound.filename;
   }
 }
 
@@ -73,14 +77,11 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
     ? soundId
     : 'default';
 
-  return {
+  const payload = {
     to: expoPushToken,
     sound: soundConfig,
     title,
     body,
-    // Android alanları
-    channelId: androidChannelId,
-    priority: 'high',
     data: {
       soundType: soundId,
       timestamp: Date.now(),
@@ -88,6 +89,29 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
       ...customData,
     },
   };
+
+  // iOS için özelleştirmeler - sistem sesini devre dışı bırak, sadece özel ses
+  if (platform === 'ios') {
+    payload.priority = 'high';
+    payload.badge = 1;
+    // iOS'ta kritik bildirim özelliklerini ekle - sadece özel ses çalacak
+    payload.aps = {
+      alert: {
+        title: title,
+        body: body
+      },
+      sound: soundConfig,
+      badge: 1,
+      'mutable-content': 1,
+      'content-available': 1
+    };
+  } else {
+    // Android alanları
+    payload.channelId = androidChannelId;
+    payload.priority = 'high';
+  }
+
+  return payload;
 }
 
 /**
