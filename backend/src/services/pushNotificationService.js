@@ -35,15 +35,19 @@ const NOTIFICATION_SOUNDS = [
  */
 function getSoundConfig(soundId) {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
-  if (!sound) return 'ring_bell2.wav'; // Default to ring_bell2 on iOS (with extension)
+  if (!sound) return 'ring_bell2'; // Default to ring_bell2 on iOS (no extension)
   
   switch (soundId) {
     case 'system':
       return true; // Use system default sound
     case 'default':
       return 'default';
+    case 'ring_bell2':
+      // iOS için .wav olmadan, sadece dosya adı
+      return 'ring_bell2';
     default:
-      return sound.filename;
+      // Diğer ses dosyaları için extension kaldır (iOS için)
+      return sound.filename.replace('.wav', '');
   }
 }
 
