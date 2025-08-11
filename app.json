@@ -27,7 +27,7 @@
     "notification": {
       "icon": "./assets/icon.png",
       "color": "#3B82F6",
-      "iosDisplayInForeground": false,
+      "iosDisplayInForeground": true,
       "androidMode": "default",
       "androidCollapsedTitle": "KuryeX Bildirimi"
     },
@@ -120,7 +120,8 @@
           "sounds": [
             "./assets/sounds/ring_bell2.wav"
           ],
-          "iosDisplayInForeground": false
+          "iosDisplayInForeground": true,
+          "mode": "production"
         }
       ],
       "expo-dev-client",

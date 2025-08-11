@@ -94,17 +94,23 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
   if (platform === 'ios') {
     payload.priority = 'high';
     payload.badge = 1;
+    payload.subtitle = 'KuryeX';
     // iOS'ta kritik bildirim özelliklerini ekle - sadece özel ses çalacak
     payload.aps = {
       alert: {
         title: title,
+        subtitle: 'KuryeX',
         body: body
       },
       sound: soundConfig,
       badge: 1,
       'mutable-content': 1,
-      'content-available': 1
+      'content-available': 1,
+      'thread-id': 'kuryex-notifications'
     };
+    // Expo specific iOS configuration
+    payload._displayInForeground = true;
+    payload._category = 'kuryex';
   } else {
     // Android alanları
     payload.channelId = androidChannelId;
