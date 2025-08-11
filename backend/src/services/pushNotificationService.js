@@ -23,7 +23,7 @@ const NOTIFICATION_SOUNDS = [
   {
     id: 'ring_bell2',
     name: 'Ring Bell 2',
-    filename: 'ring_bell2',
+    filename: 'ring_bell2.wav',
     description: 'Custom ring bell sound 2'
   }
 ];
@@ -35,7 +35,7 @@ const NOTIFICATION_SOUNDS = [
  */
 function getSoundConfig(soundId) {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
-  if (!sound) return 'ring_bell2'; // Default to ring_bell2
+  if (!sound) return 'ring_bell2.wav'; // Default to ring_bell2 on iOS (with extension)
   
   switch (soundId) {
     case 'system':
@@ -124,12 +124,13 @@ async function sendExpoPushNotification(payload) {
  * @param {string} neighborhood - Optional neighborhood filter
  * @returns {Promise<Array>} Array of courier tokens with preferences
  */
-async function getActiveCourierTokens(neighborhood = null, restaurantId = null) {
+  async function getActiveCourierTokens(neighborhood = null, restaurantId = null) {
   try {
     let result;
     
     if (restaurantId) {
       // Get couriers who have selected this specific restaurant for notifications
+      // Exclude any courier tokens that are also registered to any restaurant account (shared device)
       result = await sql`
         SELECT 
           c.id as courier_id,
@@ -146,6 +147,10 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
           AND pt.is_active = true
           AND crp.restaurant_id = ${restaurantId}
           AND crp.is_selected = true
+          AND NOT EXISTS (
+            SELECT 1 FROM push_tokens rt
+            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for restaurant ${restaurantId} in neighborhood: ${neighborhood || 'all'}`);
@@ -163,6 +168,10 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
         WHERE c.is_blocked = false 
           AND pt.token IS NOT NULL 
           AND pt.is_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM push_tokens rt
+            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for neighborhood: ${neighborhood || 'all'}`);
@@ -185,7 +194,31 @@ async function sendNewOrderNotificationToCouriers(orderData) {
     console.log('🔔 Sending new order notifications to couriers...');
     
     // Get eligible courier tokens for this specific restaurant
-    const courierTokens = await getActiveCourierTokens(orderData.mahalle, orderData.firmaid);
+    let courierTokens = await getActiveCourierTokens(orderData.mahalle, orderData.firmaid);
+    
+    // Exclude restaurant devices from receiving the new order notification
+    // 1) Exclude the devices of the restaurant who created the order
+    try {
+      const restaurantDeviceTokens = await sql`
+        SELECT token
+        FROM push_tokens
+        WHERE user_type = 'restaurant' AND user_id = ${orderData.firmaid} AND is_active = true
+      `;
+      if (restaurantDeviceTokens?.length) {
+        const tokensToExclude = new Set(restaurantDeviceTokens.map(t => t.token));
+        const beforeCount = courierTokens.length;
+        courierTokens = courierTokens.filter(ct => !tokensToExclude.has(ct.expo_push_token));
+        const filteredOut = beforeCount - courierTokens.length;
+        if (filteredOut > 0) {
+          console.log(`🛑 Skipping ${filteredOut} courier token(s) that belong to restaurant ${orderData.firmaid}`);
+        }
+      }
+    } catch (excludeErr) {
+      console.warn('⚠️ Failed to exclude restaurant device tokens from courier notifications:', excludeErr);
+    }
+
+    // NOT: Global restaurant token exclusion KALDIRILDI.
+    // Çünkü aynı cihazda hem restoran hem kurye testlerinde kurye token'ı yanlışlıkla elenebiliyor.
     
     if (courierTokens.length === 0) {
       console.log('📵 No eligible couriers found for notification');

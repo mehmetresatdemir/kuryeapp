@@ -123,9 +123,9 @@ export default function RootLayout() {
         }
         
         // Get push token with project ID from API config
-        const token = await Notifications.getExpoPushTokenAsync({
-          projectId: Constants.expoConfig?.extra?.eas?.projectId || API_CONFIG.EXPO_PROJECT_ID
-        });
+         const token = await Notifications.getExpoPushTokenAsync({
+           projectId: (Constants as any).easConfig?.projectId || Constants.expoConfig?.extra?.eas?.projectId || API_CONFIG.EXPO_PROJECT_ID
+         });
         
         console.log('📱 Push token obtained:', token.data);
         

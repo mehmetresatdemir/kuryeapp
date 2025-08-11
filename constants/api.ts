@@ -196,57 +196,29 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
     const response = await fetch(url, finalOptions);
     console.log('📥 Response status:', response.status);
     console.log('📥 Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-    
-    // 401 hatası durumunda otomatik logout ve anasayfaya yönlendirme
+
+    // 401 durumunda: yalnızca backend açıkça shouldLogout:true dönerse çıkış yap
     if (response.status === 401) {
-    console.warn('⚠️ Session expire - otomatik logout yapılıyor');
-    
-    try {
-      // Response body'yi kontrol et
-      const responseData = await response.clone().json();
-      
-      // Eğer shouldLogout flag'i varsa veya session expire mesajı varsa logout yap
-      if (responseData.shouldLogout || responseData.message?.includes('session') || responseData.message?.includes('expire')) {
-        console.log('🔄 Session expire tespit edildi, logout işlemi başlatılıyor...');
-        
-        // AsyncStorage'ı temizle
-        await AsyncStorage.multiRemove([
-          'userData', 
-          'userToken', 
-          'pushToken', 
-          'pushTokenUserId', 
-          'pushTokenUserType',
-          'expoPushToken'
-        ]);
-        
-        console.log('✅ AsyncStorage temizlendi');
-        
-        // Anasayfaya yönlendir ve uyarı göster
-        setTimeout(() => {
-          Alert.alert(
-            '🔐 Oturum Süresi Doldu',
-            'Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-            [
-              {
-                text: 'Giriş Yap',
-                onPress: () => {
-                  router.replace('/(auth)/sign-in');
-                }
-              }
-            ],
-            { cancelable: false }
-          );
-        }, 100);
-        
-        // Hemen sign-in sayfasına yönlendir
-        router.replace('/(auth)/sign-in');
+      try {
+        const clone = response.clone();
+        const data = await clone.json();
+        if (data?.shouldLogout === true) {
+          console.warn('⚠️ Backend shouldLogout istedi, logout uygulanıyor');
+          await AsyncStorage.multiRemove([
+            'userData',
+            'userToken',
+            'pushToken',
+            'pushTokenUserId',
+            'pushTokenUserType',
+            'expoPushToken'
+          ]);
+          router.replace('/(auth)/sign-in');
+        }
+      } catch (e) {
+        // JSON parse edilemeyen 401'lerde otomatik logout yapma
+        console.log('ℹ️ 401 non-JSON response, otomatik logout yok');
       }
-    } catch (error) {
-      console.error('❌ Session expire handling error:', error);
-      // Hata olsa bile logout yap
-      router.replace('/(auth)/sign-in');
     }
-  }
 
     return response;
   } catch (error) {

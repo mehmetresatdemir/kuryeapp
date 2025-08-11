@@ -26,14 +26,20 @@ const storage = multer.diskStorage({
   }
 });
 
-// Dosya filtreleme - sadece resim dosyaları
+// Dosya filtreleme - sadece resim dosyaları (iOS HEIC/HEIF desteği dahil)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-  
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Sadece resim dosyaları yüklenebilir! (JPEG, PNG, WebP, GIF)'), false);
+  try {
+    const mime = (file.mimetype || '').toLowerCase();
+    // Genel image/* kabul et (sunucu tarafında boyut ve rota kontrolü mevcut)
+    const isImage = mime.startsWith('image/');
+    // Özellikle iOS HEIC/HEIF formatlarını destekle
+    const allowedExtra = ['image/heic', 'image/heif', 'image/heif-sequence', 'image/heic-sequence'];
+    if (isImage || allowedExtra.includes(mime)) {
+      return cb(null, true);
+    }
+    return cb(new Error('Sadece resim dosyaları yüklenebilir! (JPEG, PNG, WebP, GIF, HEIC/HEIF)'), false);
+  } catch (e) {
+    return cb(new Error('Dosya türü doğrulanamadı'), false);
   }
 };
 
@@ -41,7 +47,8 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    // Mobil fotoğraflar için limiti artır (10MB)
+    fileSize: 10 * 1024 * 1024
   }
 });
 

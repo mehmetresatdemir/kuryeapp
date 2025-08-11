@@ -21,12 +21,18 @@ const storage = multer.diskStorage({
     }
 });
 
-// File filter - sadece resim dosyalarını kabul et
+// File filter - sadece resim dosyalarını kabul et (HEIC/HEIF desteği dahil)
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-        cb(null, true);
-    } else {
-        cb(new Error('Sadece resim dosyaları kabul edilir!'), false);
+    try {
+        const mime = (file.mimetype || '').toLowerCase();
+        const isImage = mime.startsWith('image/');
+        const allowedExtra = ['image/heic', 'image/heif', 'image/heif-sequence', 'image/heic-sequence'];
+        if (isImage || allowedExtra.includes(mime)) {
+            return cb(null, true);
+        }
+        return cb(new Error('Sadece resim dosyaları kabul edilir! (JPEG, PNG, WebP, GIF, HEIC/HEIF)'), false);
+    } catch (e) {
+        return cb(new Error('Dosya türü doğrulanamadı'), false);
     }
 };
 
@@ -34,7 +40,8 @@ const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        // Mobil fotoğraflar için 10MB
+        fileSize: 10 * 1024 * 1024
     }
 });
 

@@ -1156,14 +1156,17 @@ const RestaurantHome = () => {
     if (!image) return null;
 
     setIsUploadingImage(true);
-    const uriParts = image.uri.split(".");
-    const fileType = uriParts[uriParts.length - 1];
+    // iOS'ta HEIC/HEIF ve büyük görseller için kalite düşürme/format belirleme
+    let fileExt = (image.uri.split('.').pop() || 'jpg').toLowerCase();
+    if (fileExt === 'heic' || fileExt === 'heif') {
+      fileExt = 'jpg';
+    }
 
     const formData = new FormData();
-    formData.append("image", {
+    formData.append('image', {
       uri: image.uri,
-      name: `order-${Date.now()}.${fileType}`,
-      type: `image/${fileType}`,
+      name: `order-${Date.now()}.${fileExt}`,
+      type: `image/${fileExt}`,
     } as any);
 
     try {
@@ -1174,7 +1177,15 @@ const RestaurantHome = () => {
         // FormData ile Content-Type header'ı otomatik ayarlanır
       });
       
-      const data = await response.json();
+      // Bazı hatalı proxy cevapları HTML döndürebilir; JSON parse hatasını yakala
+      const text = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('❌ Upload servis JSON parse hatası:', text?.slice(0, 200));
+        return null;
+      }
       
       if (data.success) {
         console.log("📷 Resim başarıyla yüklendi:", data.imageUrl);
