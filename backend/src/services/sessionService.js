@@ -155,7 +155,7 @@ class SessionService {
   }
 
   /**
-   * Session token'ını doğrular
+   * Session token'ını doğrular ve süresini uzatır
    */
   static async validateSession(sessionToken) {
     try {
@@ -166,12 +166,18 @@ class SessionService {
       `;
       
       if (session) {
-        // Last activity'yi güncelle
+        // JWT token'dan yeni expiration time'ı hesapla (30 gün daha)
+        const decoded = jwt.decode(sessionToken);
+        const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 gün
+        
+        // Last activity'yi güncelle ve session süresini uzat
         await sql`
           UPDATE active_sessions 
-          SET last_activity = ${new Date()} 
+          SET last_activity = ${new Date()}, expires_at = ${newExpiresAt}
           WHERE id = ${session.id}
         `;
+        
+        console.log(`🔄 Session süresi uzatıldı - User: ${session.user_id}, Yeni süre: ${newExpiresAt.toISOString()}`);
       }
       
       return session;
@@ -207,14 +213,16 @@ class SessionService {
   }
 
   /**
-   * Expire olmuş sessionları temizler
+   * Expire olmuş sessionları temizler (daha yumuşak yaklaşım)
    */
   static async cleanupExpiredSessions() {
     try {
       await ensureActiveSessionsTable();
+      // Sadece gerçekten expire olmuş session'ları temizle (7 gün önce expire olmuş)
+      const gracePeriod = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 gün önce
       const expiredSessions = await sql`
         DELETE FROM active_sessions 
-        WHERE expires_at < ${new Date()} OR is_active = FALSE
+        WHERE expires_at < ${gracePeriod} AND is_active = FALSE
         RETURNING 
           id, user_id, user_role, session_token, device_info, ip_address, socket_id, is_active,
           created_at::text as created_at,
@@ -224,7 +232,7 @@ class SessionService {
       `;
       
       if (expiredSessions.length > 0) {
-        console.log(`🧹 ${expiredSessions.length} expire olmuş session temizlendi`);
+        console.log(`🧹 ${expiredSessions.length} gerçekten expire olmuş session temizlendi (7 gün grace period)`);
       }
       
       return expiredSessions;

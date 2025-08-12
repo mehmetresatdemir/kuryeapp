@@ -47,7 +47,15 @@ ios/
 
 # Build artifacts
 *.apk
+build-*.apk
 
 # Firebase/Google config (keep local, don't commit)
 google-services.json
-kuryex-*.json
+backend/google-services.json
+backend/kuryex-*.json
+backend/src/config/firebase-config.js
+
+# SSL / credentials
+backend/ssl/
+credentials/
+credentials.json

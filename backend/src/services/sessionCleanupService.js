@@ -15,14 +15,14 @@ class SessionCleanupService {
     console.log('🧹 Session cleanup servisi başlatılıyor...');
     this.isRunning = true;
 
-    // Her 30 dakikada bir cleanup çalıştır
+    // Her 6 saatte bir cleanup çalıştır (daha az agresif)
     this.cleanupInterval = setInterval(async () => {
       try {
         await SessionService.cleanupExpiredSessions();
       } catch (error) {
         console.error('Session cleanup hatası:', error);
       }
-    }, 30 * 60 * 1000); // 30 dakika
+    }, 6 * 60 * 60 * 1000); // 6 saat
 
     // İlk cleanup'ı hemen çalıştır
     this.cleanup();

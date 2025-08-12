@@ -269,6 +269,16 @@
         </div>
     </div>
 
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content" style="max-width: 90%; width: auto; background: transparent; border: none; box-shadow: none;">
+            <div style="text-align: center; position: relative;">
+                <span class="close" onclick="closeImageModal()" style="position: absolute; top: -40px; right: 0; font-size: 40px; color: white; text-shadow: 0 0 10px rgba(0,0,0,0.8);">&times;</span>
+                <img id="modal-image" src="" alt="Sipariş Resmi" style="max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+            </div>
+        </div>
+    </div>
+
     <script>
         // 🔐 Admin şifre kontrolü (JWT token tabanlı)
         function checkAdminAuth() {
@@ -555,6 +565,30 @@
 
             document.getElementById('modal-title').innerText = `Sipariş #${order.id} Detayları`;
             const modalBody = document.getElementById('modal-body-content');
+            
+            // Resim URL'sini oluştur (eğer resim varsa)
+            let imageHtml = '';
+            if (order.resim && order.resim.trim() !== '') {
+                // Resim URL'si zaten tam URL ise direkt kullan, değilse API_BASE ekle
+                let imageUrl = order.resim;
+                if (!imageUrl.startsWith('http')) {
+                    // Relative path ise API_BASE ekle
+                    imageUrl = `${API_BASE}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+                }
+                
+                imageHtml = `
+                    <div style="margin: 15px 0; text-align: center;">
+                        <p><strong>Sipariş Resmi:</strong></p>
+                        <img src="${imageUrl}" 
+                             alt="Sipariş Resmi" 
+                             style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); cursor: pointer;"
+                             onclick="openImageModal('${imageUrl}')"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <p style="display: none; color: #666; font-style: italic;">Resim yüklenemedi</p>
+                    </div>
+                `;
+            }
+            
             modalBody.innerHTML = `
                 <p><strong>Restoran:</strong> ${order.firma_name || order.firma_adi || 'N/A'}</p>
                 <p><strong>Mahalle:</strong> ${order.mahalle || 'N/A'}</p>
@@ -565,6 +599,7 @@
                 <p><strong>Durum:</strong> ${order.status}</p>
                 <p><strong>Ödeme Yöntemi:</strong> ${order.odeme_yontemi}</p>
                 <p><strong>Tarih:</strong> ${new Date(order.created_at).toLocaleString('tr-TR')}</p>
+                ${imageHtml}
             `;
             document.getElementById('modal-submit-btn').style.display = 'none';
             document.getElementById('orderModal').style.display = 'block';
@@ -837,6 +872,17 @@
             document.getElementById('orderModal').style.display = 'none';
         }
 
+        function openImageModal(imageUrl) {
+            const imageModal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modal-image');
+            modalImage.src = imageUrl;
+            imageModal.style.display = 'block';
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
         // Status filter button functionality
         function filterByStatus(status) {
             // Update current status filter
@@ -851,9 +897,15 @@
         }
 
         window.onclick = function(event) {
-            const modal = document.getElementById('orderModal');
-            if (event.target == modal) {
-                modal.style.display = "none";
+            const orderModal = document.getElementById('orderModal');
+            const imageModal = document.getElementById('imageModal');
+            
+            if (event.target == orderModal) {
+                orderModal.style.display = "none";
+            }
+            
+            if (event.target == imageModal) {
+                imageModal.style.display = "none";
             }
         }
 

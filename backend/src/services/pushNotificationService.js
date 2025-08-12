@@ -1,4 +1,5 @@
 const { sql } = require('../config/db-config');
+const { getMessaging } = require('../config/firebase-config');
 
 // Notification sound configurations
 const NOTIFICATION_SOUNDS = [
@@ -121,6 +122,62 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
 }
 
 /**
+ * Send FCM notification to Android devices
+ * @param {string} fcmToken - FCM token
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
+ * @param {string} soundId - Sound identifier
+ * @param {object} customData - Custom data to include
+ * @returns {Promise<object>} Response from FCM
+ */
+async function sendFCMNotification(fcmToken, title, body, soundId = 'ring_bell2', customData = {}) {
+  try {
+    const messaging = getMessaging();
+    
+    // Android için özel ses konfigürasyonu
+    const soundConfig = getSoundConfig(soundId);
+    const soundFile = soundConfig === true ? 'default' : soundConfig.replace('.wav', '');
+    
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: title,
+        body: body
+      },
+      data: {
+        soundType: soundId,
+        timestamp: Date.now().toString(),
+        ...Object.fromEntries(Object.entries(customData).map(([k, v]) => [k, String(v)]))
+      },
+      android: {
+        notification: {
+          sound: soundFile,
+          channelId: 'kuryex-notifications',
+          priority: 'high',
+          defaultSound: soundFile === 'default',
+          defaultVibrateTimings: false,
+          vibrateTimingsMillis: [0, 500, 500, 500]
+        },
+        priority: 'high'
+      }
+    };
+
+    console.log('🤖 Sending FCM notification:', {
+      token: fcmToken?.substring(0, 20) + '...',
+      title: title,
+      sound: soundFile
+    });
+
+    const result = await messaging.send(message);
+    console.log('✅ FCM notification sent successfully:', result);
+    return { success: true, result };
+  } catch (error) {
+    console.error('❌ Error sending FCM notification:', error);
+    throw error;
+  }
+}
+
+/**
  * Send push notification using Expo Push API
  * @param {object} payload - Push notification payload
  * @returns {Promise<object>} Response from Expo Push API
@@ -154,6 +211,33 @@ async function sendExpoPushNotification(payload) {
     return result;
   } catch (error) {
     console.error('❌ Error sending push notification:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send platform-specific push notification
+ * @param {string} token - Push token (Expo or FCM)
+ * @param {string} platform - Platform type ('ios', 'android', 'web')
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
+ * @param {string} soundId - Sound identifier
+ * @param {object} customData - Custom data to include
+ * @returns {Promise<object>} Notification result
+ */
+async function sendPlatformSpecificNotification(token, platform, title, body, soundId = 'ring_bell2', customData = {}) {
+  try {
+    // Android için FCM kullan, diğerleri için Expo
+    if (platform === 'android' && token.length > 100) { // FCM token'lar daha uzun olur
+      return await sendFCMNotification(token, title, body, soundId, customData);
+    } else {
+      // iOS ve diğer platformlar için Expo Push kullan
+      const payload = createPushNotificationPayload(token, title, body, soundId, customData);
+      const result = await sendExpoPushNotification(payload);
+      return { success: true, result };
+    }
+  } catch (error) {
+    console.error(`❌ Error sending ${platform} notification:`, error);
     throw error;
   }
 }
@@ -313,15 +397,17 @@ async function sendNewOrderNotificationToCouriers(orderData) {
       }
     }
     
-    const notifications = courierTokens.map(courier => {
+    // Platform bazlı bildirim gönderimi
+    const notificationPromises = courierTokens.map(async (courier) => {
       const title = '🆕 Yeni Sipariş!';
       const body = `${orderData.mahalle} - ${orderData.courier_price || 0} ₺\n${orderData.firma_adi}`;
       
-      return createPushNotificationPayload(
+      return await sendPlatformSpecificNotification(
         courier.expo_push_token,
+        courier.platform || 'ios', // Default to iOS if platform not specified
         title,
         body,
-        'ring_bell2', // Use ring_bell2.wav as requested
+        'ring_bell2', // Use ring_bell2.wav for custom sound
         {
           orderId: orderData.id.toString(),
           type: 'new_order',
@@ -335,50 +421,34 @@ async function sendNewOrderNotificationToCouriers(orderData) {
       );
     });
     
-    // Send notifications in batches to avoid rate limiting
-    const batchSize = 100;
-    const results = [];
+    // Execute notifications with promise handling
+    const results = await Promise.allSettled(notificationPromises);
     let sentCount = 0;
     let failedCount = 0;
+    const detailedResults = [];
     
-    for (let i = 0; i < notifications.length; i += batchSize) {
-      const batch = notifications.slice(i, i + batchSize);
-      
-      try {
-        const batchResults = await Promise.allSettled(
-          batch.map(notification => sendExpoPushNotification(notification))
-        );
-        
-        batchResults.forEach((result, index) => {
-          const courierInfo = courierTokens[i + index];
-          if (result.status === 'fulfilled') {
-            sentCount++;
-            results.push({
-              courierId: courierInfo.courier_id,
-              courierName: courierInfo.courier_name,
-              status: 'success',
-              result: result.value
-            });
-          } else {
-            failedCount++;
-            results.push({
-              courierId: courierInfo.courier_id,
-              courierName: courierInfo.courier_name,
-              status: 'failed',
-              error: result.reason.message
-            });
-          }
+    results.forEach((result, index) => {
+      const courierInfo = courierTokens[index];
+      if (result.status === 'fulfilled') {
+        sentCount++;
+        detailedResults.push({
+          courierId: courierInfo.courier_id,
+          courierName: courierInfo.courier_name,
+          platform: courierInfo.platform || 'ios',
+          status: 'success',
+          result: result.value
         });
-        
-        // Small delay between batches
-        if (i + batchSize < notifications.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      } catch (error) {
-        console.error(`❌ Error sending batch ${i / batchSize + 1}:`, error);
-        failedCount += batch.length;
+      } else {
+        failedCount++;
+        detailedResults.push({
+          courierId: courierInfo.courier_id,
+          courierName: courierInfo.courier_name,
+          platform: courierInfo.platform || 'ios',
+          status: 'failed',
+          error: result.reason.message
+        });
       }
-    }
+    });
     
     console.log(`✅ New order notifications sent: ${sentCount} success, ${failedCount} failed`);
     
@@ -387,7 +457,7 @@ async function sendNewOrderNotificationToCouriers(orderData) {
       sent: sentCount,
       failed: failedCount,
       total: courierTokens.length,
-      details: results
+      details: detailedResults
     };
     
   } catch (error) {
@@ -875,6 +945,8 @@ module.exports = {
   getSoundConfig,
   createPushNotificationPayload,
   sendExpoPushNotification,
+  sendFCMNotification,
+  sendPlatformSpecificNotification,
   getActiveCourierTokens,
   sendNewOrderNotificationToCouriers,
   sendOrderAcceptedNotification,

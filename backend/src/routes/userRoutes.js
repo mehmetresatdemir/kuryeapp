@@ -13,6 +13,11 @@ router.post('/login', userController.unifiedLogin);
 // @access  Private
 router.post('/logout', protect, userController.logout);
 
+// @desc    Refresh user token (extend session)
+// @route   POST /api/refresh-token
+// @access  Private
+router.post('/refresh-token', protect, userController.refreshToken);
+
 // @desc    Request password reset
 // @route   POST /api/forgot-password
 // @access  Public

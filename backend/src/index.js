@@ -59,9 +59,11 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const http = require("http");
+const https = require("https");
 const { Server } = require("socket.io");
 
 const { testConnection } = require("./config/db-config");
+const { initializeFirebase } = require("./config/firebase-config");
 
 const initializeSocket = require("./sockets");
 const apiRoutes = require("./routes");
@@ -75,7 +77,26 @@ const sessionCleanupService = require('./services/sessionCleanupService');
 
 
 const app = express();
-const server = http.createServer(app);
+
+// HTTPS SSL sertifika konfigürasyonu
+let server;
+const useHTTPS = process.env.USE_HTTPS === 'true';
+
+if (useHTTPS) {
+  try {
+    const sslOptions = {
+      key: fs.readFileSync(path.join(BACKEND_ROOT, 'ssl', 'localhost.key')),
+      cert: fs.readFileSync(path.join(BACKEND_ROOT, 'ssl', 'localhost.crt'))
+    };
+    server = https.createServer(sslOptions, app);
+    console.log('🔒 HTTPS server configured');
+  } catch (error) {
+    console.warn('⚠️ SSL certificates not found, falling back to HTTP');
+    server = http.createServer(app);
+  }
+} else {
+  server = http.createServer(app);
+}
 
 // Only log startup in development
 if (process.env.NODE_ENV !== 'production') {
@@ -249,15 +270,19 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Test database connection and start server
-testConnection().then(() => {
+// Initialize Firebase and test database connection, then start server
+Promise.all([
+  testConnection(),
+  initializeFirebase()
+]).then(() => {
   const PORT = process.env.PORT || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
   
   server.listen(PORT, HOST, () => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`🚀 Server running on ${HOST}:${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
+      const protocol = useHTTPS ? 'https' : 'http';
+      console.log(`🚀 Server running on ${HOST}:${PORT} (${protocol.toUpperCase()})`);
+      console.log(`📊 Health check: ${protocol}://localhost:${PORT}/health`);
     }
     
     // Session cleanup service'i başlat
@@ -268,7 +293,7 @@ testConnection().then(() => {
     startOrderTimeoutService();
   });
 }).catch(err => {
-  console.error('❌ Database initialization failed:', err);
+  console.error('❌ Database or Firebase initialization failed:', err);
   process.exit(1);
 });
 

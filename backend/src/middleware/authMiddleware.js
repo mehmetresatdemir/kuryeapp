@@ -21,10 +21,12 @@ const protect = async (req, res, next) => {
             const session = await SessionService.validateSession(token);
             
             if (!session) {
+                console.warn(`⚠️ Session bulunamadı veya expire olmuş - Token: ${token.substring(0, 10)}...`);
                 return res.status(401).json({ 
                     success: false, 
-                    message: 'Session geçersiz veya expire olmuş, lütfen tekrar giriş yapın.',
-                    shouldLogout: true
+                    message: 'Oturum süreniz dolmuş, lütfen tekrar giriş yapın.',
+                    shouldLogout: true,
+                    code: 'SESSION_EXPIRED'
                 });
             }
 
@@ -34,12 +36,28 @@ const protect = async (req, res, next) => {
             
             return next();
         } catch (error) {
+            console.warn(`⚠️ Token doğrulama hatası:`, error.message);
             if (error.name === 'TokenExpiredError') {
-                return res.status(401).json({ success: false, message: 'Token süresi dolmuş, lütfen tekrar giriş yapın.' });
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Token süresi dolmuş, lütfen tekrar giriş yapın.',
+                    shouldLogout: true,
+                    code: 'TOKEN_EXPIRED'
+                });
             } else if (error.name === 'JsonWebTokenError') {
-                return res.status(401).json({ success: false, message: 'Geçersiz token.' });
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Geçersiz token.',
+                    shouldLogout: true,
+                    code: 'INVALID_TOKEN'
+                });
             } else {
-                return res.status(401).json({ success: false, message: 'Yetkisiz erişim, token geçersiz.' });
+                return res.status(401).json({ 
+                    success: false, 
+                    message: 'Yetkisiz erişim, token geçersiz.',
+                    shouldLogout: true,
+                    code: 'AUTH_ERROR'
+                });
             }
         }
     }

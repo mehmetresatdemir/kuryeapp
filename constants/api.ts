@@ -3,12 +3,48 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
-// Get environment variables - FORCE REMOTE FOR APK TESTING
-const API_HOST = 'localhost'; // Use localhost for testing
-const API_PORT = '4000';
+// Get environment variables - USE LOCAL BACKEND
+const sanitizeHost = (value?: string): string => {
+  if (!value) return '';
+  return value
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '') // leading/trailing quotes
+    .replace(/^https?:\/\//, '')   // strip protocol
+    .replace(/\/+$|^\/+/, '');     // strip leading/trailing slashes
+};
+
+// Prefer EXPO_PUBLIC_* env vars; fall back to app.json extra if not present (works in dev and in production builds)
+const getExtra = (key: string): string | undefined => {
+  try {
+    const value = (Constants as any)?.expoConfig?.extra?.[key];
+    return value === undefined || value === null ? undefined : String(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const getEnvOrExtra = (envKey: string, extraKey: string): string | undefined => {
+  const envVal = (process.env as any)?.[envKey];
+  if (envVal !== undefined && envVal !== null && String(envVal).length > 0) return String(envVal);
+  return getExtra(extraKey);
+};
+
+const ENV_API_HOST = sanitizeHost(getEnvOrExtra('EXPO_PUBLIC_API_HOST', 'API_HOST'));
+const ENV_API_PORT = getEnvOrExtra('EXPO_PUBLIC_API_PORT', 'API_PORT') || '4000';
+const ENV_REMOTE_API_HOST = sanitizeHost(getEnvOrExtra('EXPO_PUBLIC_REMOTE_API_HOST', 'REMOTE_API_HOST')) || 'kuryex.enucuzal.com';
+const ENV_USE_REMOTE = ['true', '1', 'yes', 'y'].includes(String(getEnvOrExtra('EXPO_PUBLIC_USE_REMOTE', 'USE_REMOTE')).toLowerCase());
+
+const isAndroid = Platform.OS === 'android';
+const defaultLocalHost = isAndroid ? '10.0.2.2' : 'localhost';
+
+// Resolve localhost for Android emulator automatically, prefer env if provided
+const API_HOST = (ENV_API_HOST && ENV_API_HOST.trim().length > 0
+  ? ENV_API_HOST
+  : defaultLocalHost);
+const API_PORT = ENV_API_PORT; // Backend port
 // Use environment variable or fallback to domain for production
-const REMOTE_API_HOST = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com'; // Domain from env or fallback
-const USE_REMOTE = true; // Use remote server
+const REMOTE_API_HOST = ENV_REMOTE_API_HOST; // Already sanitized domain
+const USE_REMOTE = ENV_USE_REMOTE; // Use local backend unless explicitly set
 
 // APK debug logging
 console.log('📱 API Config Loading...');
@@ -36,21 +72,18 @@ export const API_CONFIG = {
     console.log('🔍 BASE_URL getter called');
     console.log('📍 USE_REMOTE:', USE_REMOTE);
     console.log('🏗️ __DEV__:', typeof __DEV__ !== 'undefined' ? __DEV__ : 'UNDEFINED');
-    console.log('🎯 REMOTE_API_HOST ENV:', REMOTE_API_HOST);
+    console.log('🎯 LOCALHOST:', this.LOCALHOST);
     
-    // Force remote server for APK with explicit Android handling
-    const url = this.REMOTE_URL;
-    console.log('🌐 FORCING remote server for APK:', url);
+    // Use local backend for development
+    const url = USE_REMOTE ? this.REMOTE_URL : this.LOCALHOST;
+    console.log('🌐 Using backend URL:', url);
     console.log('📱 Platform:', Platform.OS);
     
-    // Additional Android-specific logging for APK debugging
-    if (Platform.OS === 'android') {
-      console.log('🤖 Android platform detected - using HTTP');
-      console.log('🔗 Full URL will be:', url);
-      console.log('⚙️ Network Config should allow:', REMOTE_API_HOST);
-      
-      // APK bağlantı kontrolü için test
-      console.log('🔍 APK Network Test - attempting connection...');
+    // Log the selected backend
+    if (USE_REMOTE) {
+      console.log('🌍 Remote backend selected:', url);
+    } else {
+      console.log('🏠 Local backend selected:', url);
     }
     
     return url;
@@ -66,6 +99,7 @@ export const API_CONFIG = {
 export const API_ENDPOINTS = {
   // Auth
   LOGIN: "/api/login",
+  REFRESH_TOKEN: "/api/refresh-token",
   FORGOT_PASSWORD: "/api/forgot-password",
   RESET_PASSWORD: "/api/reset-password",
   
@@ -162,6 +196,43 @@ export const getFullUrl = (endpoint: string) => {
   return `${baseUrl}${endpoint}`;
 };
 
+// Token refresh function
+export const refreshUserToken = async (): Promise<string | null> => {
+  try {
+    console.log('🔄 Token refresh işlemi başlatılıyor...');
+    const token = await AsyncStorage.getItem('userToken');
+    
+    if (!token) {
+      console.warn('❌ Refresh için token bulunamadı');
+      return null;
+    }
+
+    const response = await fetch(getFullUrl(API_ENDPOINTS.REFRESH_TOKEN), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.token) {
+        // Yeni token'ı kaydet
+        await AsyncStorage.setItem('userToken', data.token);
+        console.log('✅ Token başarıyla yenilendi');
+        return data.token;
+      }
+    }
+    
+    console.warn('❌ Token refresh başarısız');
+    return null;
+  } catch (error) {
+    console.error('❌ Token refresh hatası:', error);
+    return null;
+  }
+};
+
 // New authenticated fetch wrapper
 export const authedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
   console.log('🚀 API Request:', url);
@@ -196,29 +267,91 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
     const response = await fetch(url, finalOptions);
     console.log('📥 Response status:', response.status);
     console.log('📥 Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-
-    // 401 durumunda: yalnızca backend açıkça shouldLogout:true dönerse çıkış yap
+    
+    // 401 hatası durumunda dikkatli logout handling
     if (response.status === 401) {
-      try {
-        const clone = response.clone();
-        const data = await clone.json();
-        if (data?.shouldLogout === true) {
-          console.warn('⚠️ Backend shouldLogout istedi, logout uygulanıyor');
-          await AsyncStorage.multiRemove([
-            'userData',
-            'userToken',
-            'pushToken',
-            'pushTokenUserId',
-            'pushTokenUserType',
-            'expoPushToken'
-          ]);
+    console.warn('⚠️ 401 hatası alındı - kontrol ediliyor...');
+    
+    try {
+      // Response body'yi kontrol et
+      const responseData = await response.clone().json();
+      
+      // Sadece kesin logout gereken durumlar için logout yap
+      const shouldForceLogout = responseData.shouldLogout || 
+                               responseData.message?.includes('session') || 
+                               responseData.message?.includes('expire') ||
+                               responseData.message?.includes('geçersiz') ||
+                               responseData.message?.includes('invalid');
+      
+      if (shouldForceLogout) {
+        console.log('🔄 Kesin logout gerekiyor, işlem başlatılıyor...');
+        
+        // AsyncStorage'ı temizle
+        await AsyncStorage.multiRemove([
+          'userData', 
+          'userToken', 
+          'pushToken', 
+          'pushTokenUserId', 
+          'pushTokenUserType',
+          'expoPushToken'
+        ]);
+        
+        console.log('✅ AsyncStorage temizlendi');
+        
+        // Anasayfaya yönlendir ve uyarı göster
+        setTimeout(() => {
+          Alert.alert(
+            '🔐 Oturum Süresi Doldu',
+            'Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
+            [
+              {
+                text: 'Giriş Yap',
+                onPress: () => {
+                  router.replace('/(auth)/sign-in');
+                }
+              }
+            ],
+            { cancelable: false }
+          );
+        }, 500);
+        
+        // Biraz bekleyip sign-in sayfasına yönlendir
+        setTimeout(() => {
           router.replace('/(auth)/sign-in');
+        }, 100);
+      } else {
+        // Token refresh deneyebiliriz
+        console.log('🔄 Token refresh deneniyor...');
+        const newToken = await refreshUserToken();
+        
+        if (newToken) {
+          // Yeni token ile request'i tekrar dene
+          console.log('✅ Token yenilendi, request tekrarlanıyor...');
+          const retryHeaders = {
+            ...finalOptions.headers,
+            'Authorization': `Bearer ${newToken}`
+          };
+          
+          try {
+            const retryResponse = await fetch(url, {
+              ...finalOptions,
+              headers: retryHeaders
+            });
+            return retryResponse;
+          } catch (retryError) {
+            console.error('❌ Retry request failed:', retryError);
+            // Retry da başarısız olursa orijinal response'u döndür
+          }
+        } else {
+          console.log('❌ Token refresh başarısız, logout gerekebilir');
         }
-      } catch (e) {
-        // JSON parse edilemeyen 401'lerde otomatik logout yapma
-        console.log('ℹ️ 401 non-JSON response, otomatik logout yok');
       }
+    } catch (error) {
+      console.error('❌ 401 response parsing error:', error);
+      // Parse hatası varsa, muhtemelen ağ sorunu, logout yapma
+      console.log('🔄 Response parse edilemedi, network hatası olabilir');
     }
+  }
 
     return response;
   } catch (error) {

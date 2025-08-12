@@ -508,10 +508,67 @@ const logout = async (req, res) => {
     }
 };
 
+// @desc    Refresh user token (extend session)
+// @route   POST /api/refresh-token
+// @access  Private
+const refreshToken = async (req, res) => {
+    try {
+        const { user, session } = req; // authMiddleware'dan geliyor
+        
+        // Mevcut token'ı al
+        const currentToken = req.headers.authorization.split(' ')[1];
+        
+        // Yeni token oluştur (aynı payload ile)
+        const { generateToken } = require('../config/auth');
+        const newToken = generateToken(
+            { 
+                id: user.id, 
+                name: user.name, 
+                role: user.aud || user.role 
+            }, 
+            user.aud || user.role
+        );
+        
+        // Yeni session oluştur ve eskisini invalidate et
+        const SessionService = require('../services/sessionService');
+        await SessionService.invalidateSession(currentToken);
+        
+        const newSession = await SessionService.createSession(
+            user.id,
+            user.aud || user.role,
+            newToken,
+            session.device_info,
+            session.ip_address,
+            session.socket_id
+        );
+        
+        console.log(`🔄 Token refresh edildi - User: ${user.id}, Role: ${user.aud || user.role}`);
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Token başarıyla yenilendi',
+            token: newToken,
+            user: {
+                id: user.id,
+                name: user.name,
+                role: user.aud || user.role
+            }
+        });
+
+    } catch (error) {
+        console.error('Token refresh sırasında hata:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Token yenileme sırasında sunucu hatası oluştu' 
+        });
+    }
+};
+
 module.exports = {
     unifiedLogin,
     loginUser,
     requestPasswordReset,
     resetPassword,
-    logout
+    logout,
+    refreshToken
 }; 
