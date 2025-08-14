@@ -38,9 +38,9 @@ const NOTIFICATION_SOUNDS = [
 function getSoundConfig(soundId, platform = 'ios') {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
   
-  // iOS'ta HER ZAMAN ring_bell2 özel sesi kullan - sistem sesi asla
+  // iOS: Expo Push 'sound' alanında dosya adı (uzantı ile) bekler
   if (platform === 'ios') {
-    return 'ring_bell2'; // iOS için her zaman özel ses
+    return 'ring_bell2.wav';
   }
   
   // Android için normal logic
@@ -96,22 +96,8 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
     payload.priority = 'high';
     payload.badge = 1;
     payload.subtitle = 'KuryeX';
-    // iOS'ta kritik bildirim özelliklerini ekle - sadece özel ses çalacak
-    payload.aps = {
-      alert: {
-        title: title,
-        subtitle: 'KuryeX',
-        body: body
-      },
-      sound: soundConfig,
-      badge: 1,
-      'mutable-content': 1,
-      'content-available': 1,
-      'thread-id': 'kuryex-notifications'
-    };
-    // Expo specific iOS configuration
+    // Expo push API iOS alanlarını otomatik map'ler; ek aps alanı göndermiyoruz
     payload._displayInForeground = true;
-    payload._category = 'kuryex';
   } else {
     // Android alanları
     payload.channelId = androidChannelId;
