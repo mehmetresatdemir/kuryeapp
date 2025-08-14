@@ -706,11 +706,11 @@
                     console.log('API_BASE başarıyla ayarlandı:', API_BASE);
                 } else {
                     console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
-                    API_BASE = 'https://kuryex1.enucuzal.com';
+                    API_BASE = 'https://kuryex.enucuzal.com';
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
-                API_BASE = 'https://kuryex1.enucuzal.com';
+                API_BASE = 'https://kuryex.enucuzal.com';
             }
             
             // Production ortamında force HTTPS

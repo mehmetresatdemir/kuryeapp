@@ -73,7 +73,7 @@ if pm2 list | grep -q "kurye-backend.*online"; then
     echo ""
     echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
     echo -e "${BLUE}📱 Application is running on port $PORT${NC}"
-    API_BASE=${API_BASE_URL:-https://kuryex1.enucuzal.com}
+    API_BASE=${API_BASE_URL:-https://kuryex.enucuzal.com}
 echo -e "${BLUE}🔗 Health check: ${API_BASE}/health${NC}"
 echo -e "${BLUE}👨‍💼 Admin panel: ${API_BASE}/admin${NC}"
 echo -e "${BLUE}📷 Image upload: ${API_BASE}/api/uploadImage${NC}"

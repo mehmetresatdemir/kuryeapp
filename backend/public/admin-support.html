@@ -259,7 +259,7 @@
     </div>
 
     <script>
-        let API_BASE = 'https://kuryex1.enucuzal.com';
+        let API_BASE = 'https://kuryex.enucuzal.com';
         let supportTickets = [];
 
         // Sayfa yüklendiğinde
@@ -298,11 +298,11 @@
                 if (data.success && data.apiBaseUrl) {
                     API_BASE = data.apiBaseUrl;
                 } else {
-                    API_BASE = 'https://kuryex1.enucuzal.com';
+                    API_BASE = 'https://kuryex.enucuzal.com';
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata:', error);
-                API_BASE = 'https://kuryex1.enucuzal.com';
+                API_BASE = 'https://kuryex.enucuzal.com';
             }
             
             // Production ortamında force HTTPS

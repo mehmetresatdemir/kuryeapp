@@ -51,9 +51,9 @@ module.exports = () => {
   // Optional: allow overriding API hosts via env without editing app.json
   expoConfig.extra = expoConfig.extra || {};
   const extra = expoConfig.extra;
-  extra.API_HOST = process.env.API_HOST || extra.API_HOST || 'kuryex1.enucuzal.com';
+  extra.API_HOST = process.env.API_HOST || extra.API_HOST || 'kuryex.enucuzal.com';
   extra.API_PORT = process.env.API_PORT || extra.API_PORT || '80';
-  extra.REMOTE_API_HOST = process.env.REMOTE_API_HOST || extra.REMOTE_API_HOST || 'https://kuryex1.enucuzal.com';
+  extra.REMOTE_API_HOST = process.env.REMOTE_API_HOST || extra.REMOTE_API_HOST || 'https://kuryex.enucuzal.com';
   extra.USE_REMOTE = typeof process.env.USE_REMOTE !== 'undefined' ? process.env.USE_REMOTE === 'true' : (extra.USE_REMOTE ?? true);
 
   return expoConfig;

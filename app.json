@@ -46,7 +46,7 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionMinimumTLSVersion": "1.0"
             },
-            "kuryex1.enucuzal.com": {
+            "kuryex.enucuzal.com": {
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSExceptionRequiresForwardSecrecy": false,
               "NSExceptionMinimumTLSVersion": "1.0",
@@ -168,9 +168,9 @@
       "router": {
         "origin": false
       },
-      "API_HOST": "kuryex1.enucuzal.com",
+      "API_HOST": "kuryex.enucuzal.com",
       "API_PORT": "80",
-      "REMOTE_API_HOST": "https://kuryex1.enucuzal.com",
+      "REMOTE_API_HOST": "https://kuryex.enucuzal.com",
       "USE_REMOTE": true,
       "eas": {
         "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
