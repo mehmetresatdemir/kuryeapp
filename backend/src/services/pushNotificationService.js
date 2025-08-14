@@ -270,10 +270,6 @@ async function sendPlatformSpecificNotification(token, platform, title, body, so
           AND pt.is_active = true
           AND crp.restaurant_id = ${restaurantId}
           AND crp.is_selected = true
-          AND NOT EXISTS (
-            SELECT 1 FROM push_tokens rt
-            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
-          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for restaurant ${restaurantId} in neighborhood: ${neighborhood || 'all'}`);
@@ -292,10 +288,6 @@ async function sendPlatformSpecificNotification(token, platform, title, body, so
           WHERE c.is_blocked = false 
             AND pt.token IS NOT NULL 
             AND pt.is_active = true
-            AND NOT EXISTS (
-              SELECT 1 FROM push_tokens rt
-              WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
-            )
           ORDER BY c.name
         `;
         console.log(`📦 Fallback result: ${result.length} active couriers (no restaurant-specific selection).`);
@@ -314,10 +306,6 @@ async function sendPlatformSpecificNotification(token, platform, title, body, so
         WHERE c.is_blocked = false 
           AND pt.token IS NOT NULL 
           AND pt.is_active = true
-          AND NOT EXISTS (
-            SELECT 1 FROM push_tokens rt
-            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
-          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for neighborhood: ${neighborhood || 'all'}`);
