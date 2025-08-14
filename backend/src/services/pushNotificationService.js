@@ -1,4 +1,5 @@
 const { sql } = require('../config/db-config');
+const { getMessaging } = require('../config/firebase-config');
 
 // Notification sound configurations
 const NOTIFICATION_SOUNDS = [
@@ -17,7 +18,7 @@ const NOTIFICATION_SOUNDS = [
   {
     id: 'ring_bell',
     name: 'Ring Bell',
-    filename: 'ring_bell.wav',
+    filename: 'ring_bell',
     description: 'Custom ring bell sound'
   },
   {
@@ -31,18 +32,29 @@ const NOTIFICATION_SOUNDS = [
 /**
  * Get sound configuration for notification
  * @param {string} soundId - Sound identifier
+ * @param {string} platform - Platform ('ios' or 'android')
  * @returns {string|boolean} Sound configuration
  */
-function getSoundConfig(soundId) {
+function getSoundConfig(soundId, platform = 'ios') {
   const sound = NOTIFICATION_SOUNDS.find(s => s.id === soundId);
-  if (!sound) return 'ring_bell2.wav'; // Default to ring_bell2
   
+  // iOS'ta HER ZAMAN ring_bell2 özel sesi kullan - sistem sesi asla
+  if (platform === 'ios') {
+    return 'ring_bell2'; // iOS için her zaman özel ses
+  }
+  
+  // Android için normal logic
   switch (soundId) {
     case 'system':
       return true; // Use system default sound
     case 'default':
       return 'default';
+    case 'ring_bell2':
+      return 'ring_bell2.wav';
     default:
+      if (!sound) {
+        return 'ring_bell2.wav';
+      }
       return sound.filename;
   }
 }
@@ -54,23 +66,115 @@ function getSoundConfig(soundId) {
  * @param {string} body - Notification body
  * @param {string} soundId - Sound identifier
  * @param {object} customData - Custom data to include
+ * @param {string} platform - Platform ('ios' or 'android')
  * @returns {object} Push notification payload
  */
-function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ring_bell2', customData = {}) {
-  const soundConfig = getSoundConfig(soundId);
-  
-  // ExpoNotificationApp ile aynı basit configuration
-  return {
+function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ring_bell2', customData = {}, platform = 'ios') {
+  const soundConfig = getSoundConfig(soundId, platform);
+
+  // Android tarafında özel sesi zorlamak için channelId kullan
+  // iOS bu alanı yok sayar, güvenli.
+  const androidChannelId = (soundId && soundId !== 'default' && soundId !== 'system')
+    ? soundId
+    : 'default';
+
+  const payload = {
     to: expoPushToken,
     sound: soundConfig,
     title,
     body,
-    data: { 
+    data: {
       soundType: soundId,
       timestamp: Date.now(),
-      ...customData
-    }
+      platform: platform,
+      ...customData,
+    },
   };
+
+  // iOS için özelleştirmeler - sistem sesini devre dışı bırak, sadece özel ses
+  if (platform === 'ios') {
+    payload.priority = 'high';
+    payload.badge = 1;
+    payload.subtitle = 'KuryeX';
+    // iOS'ta kritik bildirim özelliklerini ekle - sadece özel ses çalacak
+    payload.aps = {
+      alert: {
+        title: title,
+        subtitle: 'KuryeX',
+        body: body
+      },
+      sound: soundConfig,
+      badge: 1,
+      'mutable-content': 1,
+      'content-available': 1,
+      'thread-id': 'kuryex-notifications'
+    };
+    // Expo specific iOS configuration
+    payload._displayInForeground = true;
+    payload._category = 'kuryex';
+  } else {
+    // Android alanları
+    payload.channelId = androidChannelId;
+    payload.priority = 'high';
+  }
+
+  return payload;
+}
+
+/**
+ * Send FCM notification to Android devices
+ * @param {string} fcmToken - FCM token
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
+ * @param {string} soundId - Sound identifier
+ * @param {object} customData - Custom data to include
+ * @returns {Promise<object>} Response from FCM
+ */
+async function sendFCMNotification(fcmToken, title, body, soundId = 'ring_bell2', customData = {}) {
+  try {
+    const messaging = getMessaging();
+    
+    // Android için özel ses konfigürasyonu
+    const soundConfig = getSoundConfig(soundId);
+    const soundFile = soundConfig === true ? 'default' : soundConfig.replace('.wav', '');
+    
+    const message = {
+      token: fcmToken,
+      notification: {
+        title: title,
+        body: body
+      },
+      data: {
+        soundType: soundId,
+        timestamp: Date.now().toString(),
+        ...Object.fromEntries(Object.entries(customData).map(([k, v]) => [k, String(v)]))
+      },
+      android: {
+        notification: {
+          sound: soundFile,
+          channelId: 'kuryex-notifications',
+          priority: 'high',
+          defaultSound: soundFile === 'default',
+          defaultVibrateTimings: false,
+          vibrateTimingsMillis: [0, 500, 500, 500]
+        },
+        priority: 'high'
+      }
+    };
+
+    console.log('🤖 Sending FCM notification:', {
+      token: fcmToken?.substring(0, 20) + '...',
+      title: title,
+      sound: soundFile
+    });
+
+    const result = await messaging.send(message);
+    console.log('✅ FCM notification sent successfully:', result);
+    return { success: true, result };
+  } catch (error) {
+    console.error('❌ Error sending FCM notification:', error);
+    throw error;
+  }
 }
 
 /**
@@ -112,16 +216,44 @@ async function sendExpoPushNotification(payload) {
 }
 
 /**
+ * Send platform-specific push notification
+ * @param {string} token - Push token (Expo or FCM)
+ * @param {string} platform - Platform type ('ios', 'android', 'web')
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
+ * @param {string} soundId - Sound identifier
+ * @param {object} customData - Custom data to include
+ * @returns {Promise<object>} Notification result
+ */
+async function sendPlatformSpecificNotification(token, platform, title, body, soundId = 'ring_bell2', customData = {}) {
+  try {
+    // Android için FCM kullan, diğerleri için Expo
+    if (platform === 'android' && token.length > 100) { // FCM token'lar daha uzun olur
+      return await sendFCMNotification(token, title, body, soundId, customData);
+    } else {
+      // iOS ve diğer platformlar için Expo Push kullan
+      const payload = createPushNotificationPayload(token, title, body, soundId, customData);
+      const result = await sendExpoPushNotification(payload);
+      return { success: true, result };
+    }
+  } catch (error) {
+    console.error(`❌ Error sending ${platform} notification:`, error);
+    throw error;
+  }
+}
+
+/**
  * Get all active courier push tokens with preferences
  * @param {string} neighborhood - Optional neighborhood filter
  * @returns {Promise<Array>} Array of courier tokens with preferences
  */
-async function getActiveCourierTokens(neighborhood = null, restaurantId = null) {
+  async function getActiveCourierTokens(neighborhood = null, restaurantId = null) {
   try {
     let result;
     
     if (restaurantId) {
       // Get couriers who have selected this specific restaurant for notifications
+      // Exclude any courier tokens that are also registered to any restaurant account (shared device)
       result = await sql`
         SELECT 
           c.id as courier_id,
@@ -138,9 +270,36 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
           AND pt.is_active = true
           AND crp.restaurant_id = ${restaurantId}
           AND crp.is_selected = true
+          AND NOT EXISTS (
+            SELECT 1 FROM push_tokens rt
+            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for restaurant ${restaurantId} in neighborhood: ${neighborhood || 'all'}`);
+      // Eğer bu restorana seçilmiş kurye yoksa, genel aktif kurye listesine fallback yap
+      if (!result || result.length === 0) {
+        console.log(`↩️ No couriers selected for restaurant ${restaurantId}. Falling back to ALL active couriers.`);
+        result = await sql`
+          SELECT 
+            c.id as courier_id,
+            c.name as courier_name,
+            c.notification_mode,
+            pt.token as expo_push_token,
+            pt.platform
+          FROM couriers c
+          INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
+          WHERE c.is_blocked = false 
+            AND pt.token IS NOT NULL 
+            AND pt.is_active = true
+            AND NOT EXISTS (
+              SELECT 1 FROM push_tokens rt
+              WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+            )
+          ORDER BY c.name
+        `;
+        console.log(`📦 Fallback result: ${result.length} active couriers (no restaurant-specific selection).`);
+      }
     } else {
       // Fallback: get all active couriers (for general notifications)
       result = await sql`
@@ -155,6 +314,10 @@ async function getActiveCourierTokens(neighborhood = null, restaurantId = null) 
         WHERE c.is_blocked = false 
           AND pt.token IS NOT NULL 
           AND pt.is_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM push_tokens rt
+            WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+          )
         ORDER BY c.name
       `;
       console.log(`📱 Found ${result.length} active courier tokens for neighborhood: ${neighborhood || 'all'}`);
@@ -177,22 +340,74 @@ async function sendNewOrderNotificationToCouriers(orderData) {
     console.log('🔔 Sending new order notifications to couriers...');
     
     // Get eligible courier tokens for this specific restaurant
-    const courierTokens = await getActiveCourierTokens(orderData.mahalle, orderData.firmaid);
+    let courierTokens = await getActiveCourierTokens(orderData.mahalle, orderData.firmaid);
+    
+    // Exclude restaurant devices from receiving the new order notification
+    // 1) Exclude the devices of the restaurant who created the order
+    try {
+      const restaurantDeviceTokens = await sql`
+        SELECT token
+        FROM push_tokens
+        WHERE user_type = 'restaurant' AND user_id = ${orderData.firmaid} AND is_active = true
+      `;
+      if (restaurantDeviceTokens?.length) {
+        const tokensToExclude = new Set(restaurantDeviceTokens.map(t => t.token));
+        const beforeCount = courierTokens.length;
+        courierTokens = courierTokens.filter(ct => !tokensToExclude.has(ct.expo_push_token));
+        const filteredOut = beforeCount - courierTokens.length;
+        if (filteredOut > 0) {
+          console.log(`🛑 Skipping ${filteredOut} courier token(s) that belong to restaurant ${orderData.firmaid}`);
+        }
+      }
+    } catch (excludeErr) {
+      console.warn('⚠️ Failed to exclude restaurant device tokens from courier notifications:', excludeErr);
+    }
+
+    // NOT: Global restaurant token exclusion KALDIRILDI.
+    // Çünkü aynı cihazda hem restoran hem kurye testlerinde kurye token'ı yanlışlıkla elenebiliyor.
     
     if (courierTokens.length === 0) {
-      console.log('📵 No eligible couriers found for notification');
-      return { success: true, sent: 0, failed: 0, details: [] };
+      console.log('📵 No eligible couriers found for notification. Forcing fallback to ALL active couriers.');
+      try {
+        courierTokens = await sql`
+          SELECT 
+            c.id as courier_id,
+            c.name as courier_name,
+            c.notification_mode,
+            pt.token as expo_push_token,
+            pt.platform
+          FROM couriers c
+          INNER JOIN push_tokens pt ON c.id = pt.user_id AND pt.user_type = 'courier'
+          WHERE c.is_blocked = false 
+            AND pt.token IS NOT NULL 
+            AND pt.is_active = true
+            AND NOT EXISTS (
+              SELECT 1 FROM push_tokens rt
+              WHERE rt.user_type = 'restaurant' AND rt.is_active = true AND rt.token = pt.token
+            )
+          ORDER BY c.name
+        `;
+        console.log(`📦 Forced fallback list size: ${courierTokens.length}`);
+      } catch (fbErr) {
+        console.warn('⚠️ Fallback query failed:', fbErr);
+      }
+
+      if (courierTokens.length === 0) {
+        return { success: true, sent: 0, failed: 0, details: [] };
+      }
     }
     
-    const notifications = courierTokens.map(courier => {
+    // Platform bazlı bildirim gönderimi
+    const notificationPromises = courierTokens.map(async (courier) => {
       const title = '🆕 Yeni Sipariş!';
       const body = `${orderData.mahalle} - ${orderData.courier_price || 0} ₺\n${orderData.firma_adi}`;
       
-      return createPushNotificationPayload(
+      return await sendPlatformSpecificNotification(
         courier.expo_push_token,
+        courier.platform || 'ios', // Default to iOS if platform not specified
         title,
         body,
-        'ring_bell2', // Use ring_bell2.wav as requested
+        'ring_bell2', // Use ring_bell2.wav for custom sound
         {
           orderId: orderData.id.toString(),
           type: 'new_order',
@@ -201,54 +416,39 @@ async function sendNewOrderNotificationToCouriers(orderData) {
           courierPrice: orderData.courier_price || 0,
           restaurantId: orderData.firmaid,
           paymentMethod: orderData.odeme_yontemi
-        }
+        },
+        courier.platform || 'ios' // Platform bilgisi
       );
     });
     
-    // Send notifications in batches to avoid rate limiting
-    const batchSize = 100;
-    const results = [];
+    // Execute notifications with promise handling
+    const results = await Promise.allSettled(notificationPromises);
     let sentCount = 0;
     let failedCount = 0;
+    const detailedResults = [];
     
-    for (let i = 0; i < notifications.length; i += batchSize) {
-      const batch = notifications.slice(i, i + batchSize);
-      
-      try {
-        const batchResults = await Promise.allSettled(
-          batch.map(notification => sendExpoPushNotification(notification))
-        );
-        
-        batchResults.forEach((result, index) => {
-          const courierInfo = courierTokens[i + index];
-          if (result.status === 'fulfilled') {
-            sentCount++;
-            results.push({
-              courierId: courierInfo.courier_id,
-              courierName: courierInfo.courier_name,
-              status: 'success',
-              result: result.value
-            });
-          } else {
-            failedCount++;
-            results.push({
-              courierId: courierInfo.courier_id,
-              courierName: courierInfo.courier_name,
-              status: 'failed',
-              error: result.reason.message
-            });
-          }
+    results.forEach((result, index) => {
+      const courierInfo = courierTokens[index];
+      if (result.status === 'fulfilled') {
+        sentCount++;
+        detailedResults.push({
+          courierId: courierInfo.courier_id,
+          courierName: courierInfo.courier_name,
+          platform: courierInfo.platform || 'ios',
+          status: 'success',
+          result: result.value
         });
-        
-        // Small delay between batches
-        if (i + batchSize < notifications.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      } catch (error) {
-        console.error(`❌ Error sending batch ${i / batchSize + 1}:`, error);
-        failedCount += batch.length;
+      } else {
+        failedCount++;
+        detailedResults.push({
+          courierId: courierInfo.courier_id,
+          courierName: courierInfo.courier_name,
+          platform: courierInfo.platform || 'ios',
+          status: 'failed',
+          error: result.reason.message
+        });
       }
-    }
+    });
     
     console.log(`✅ New order notifications sent: ${sentCount} success, ${failedCount} failed`);
     
@@ -257,7 +457,7 @@ async function sendNewOrderNotificationToCouriers(orderData) {
       sent: sentCount,
       failed: failedCount,
       total: courierTokens.length,
-      details: results
+      details: detailedResults
     };
     
   } catch (error) {
@@ -282,20 +482,7 @@ async function sendOrderAcceptedNotification(notificationData) {
     console.log('🔔 Checking if restaurant is online before sending push notification...');
     
     const { restaurantId, orderId, courierName, orderDetails } = notificationData;
-    
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (isOnline) {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE - skipping push notification (socket event will be sent instead)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
-    
-    console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending push notification...`);
-    
-    // Get restaurant push token
+    // Get restaurant push token (önce platformu öğrenelim)
     const [restaurantToken] = await sql`
       SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
       FROM restaurants r
@@ -308,6 +495,21 @@ async function sendOrderAcceptedNotification(notificationData) {
     if (!restaurantToken) {
       console.log(`📵 No push token found for restaurant ${restaurantId}`);
       return { success: false, error: 'No push token found' };
+    }
+    
+    // Check if restaurant is online (socket connected)
+    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
+    const isOnline = isRestaurantOnline(restaurantId);
+    console.log(`🔍 Restaurant ${restaurantId} online status check: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    
+    // Android için: Uygulama online olsa bile push gönder (bazı cihazlarda socket foreground olsa bile OS sesi çalmayabilir)
+    if (!isOnline) {
+      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending push notification...`);
+    } else if ((restaurantToken.platform || 'ios') === 'android') {
+      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending push anyway to ensure sound/alert`);
+    } else {
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping push (socket handles UI)`);
+      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
     }
     
     const title = '✅ Sipariş Kabul Edildi!';
@@ -324,7 +526,8 @@ async function sendOrderAcceptedNotification(notificationData) {
         courierName: courierName,
         restaurantId: restaurantId.toString(),
         preparationTime: orderDetails?.preparation_time !== undefined ? orderDetails.preparation_time : 20
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -377,7 +580,8 @@ async function sendOrderCancelledNotification(notificationData) {
         type: 'order_cancelled',
         restaurantName: restaurantName,
         courierId: courierId.toString()
-      }
+      },
+      courierToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -401,20 +605,7 @@ async function sendOrderDeliveredNotification(notificationData) {
     console.log('🔔 Checking if restaurant is online before sending delivery push notification...');
     
     const { restaurantId, orderId, courierName } = notificationData;
-    
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for delivery: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (isOnline) {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE - skipping delivery push notification (socket event will be sent instead)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
-    
-    console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery push notification...`);
-    
-    // Get restaurant push token
+    // Get restaurant push token (platform bilgisini de al)
     const [restaurantToken] = await sql`
       SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
       FROM restaurants r
@@ -427,6 +618,20 @@ async function sendOrderDeliveredNotification(notificationData) {
     if (!restaurantToken) {
       console.log(`📵 No push token found for restaurant ${restaurantId}`);
       return { success: false, error: 'No push token found' };
+    }
+    
+    // Check if restaurant is online (socket connected)
+    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
+    const isOnline = isRestaurantOnline(restaurantId);
+    console.log(`🔍 Restaurant ${restaurantId} online status check for delivery: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    
+    if (!isOnline) {
+      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery push notification...`);
+    } else if ((restaurantToken.platform || 'ios') === 'android') {
+      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending delivery push anyway to ensure sound/alert`);
+    } else {
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping delivery push (socket handles UI)`);
+      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
     }
     
     const title = '✅ Sipariş Teslim Edildi!';
@@ -442,7 +647,8 @@ async function sendOrderDeliveredNotification(notificationData) {
         type: 'order_delivered_success',
         courierName: courierName,
         restaurantId: restaurantId.toString()
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -496,7 +702,8 @@ async function sendOrderApprovedNotification(notificationData) {
         restaurantName: restaurantName,
         courierId: courierId.toString(),
         paymentMethod: paymentMethod
-      }
+      },
+      courierToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -550,7 +757,8 @@ async function sendAdminTimeoutNotification(notificationData) {
           waitingTime: waitingTime,
           restaurantName: restaurantName,
           neighborhood: neighborhood
-        }
+        },
+        admin.platform || 'ios' // Platform bilgisi
       )
     );
     
@@ -590,21 +798,8 @@ async function sendDeliveryApprovalNotification(notificationData) {
     console.log('🔔 Checking if restaurant is online before sending delivery approval push notification...');
     
     const { restaurantId, orderId, courierName } = notificationData;
-    
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for approval: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (isOnline) {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE - skipping approval push notification (socket event will be sent instead)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
-    
-    console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery approval push notification...`);
-    
-    // Get restaurant push token
-         const [restaurantToken] = await sql`
+    // Get restaurant push token (platform bilgisini de al)
+    const [restaurantToken] = await sql`
        SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
        FROM restaurants r
        INNER JOIN push_tokens pt ON r.id = pt.user_id AND pt.user_type = 'restaurant'
@@ -616,6 +811,20 @@ async function sendDeliveryApprovalNotification(notificationData) {
     if (!restaurantToken) {
       console.log(`📵 No push token found for restaurant ${restaurantId}`);
       return { success: false, error: 'No push token found' };
+    }
+    
+    // Check if restaurant is online (socket connected)
+    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
+    const isOnline = isRestaurantOnline(restaurantId);
+    console.log(`🔍 Restaurant ${restaurantId} online status check for approval: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    
+    if (!isOnline) {
+      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery approval push notification...`);
+    } else if ((restaurantToken.platform || 'ios') === 'android') {
+      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending approval push anyway to ensure sound/alert`);
+    } else {
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping approval push (socket handles UI)`);
+      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
     }
     
     const title = '⏳ Sipariş Onay Bekliyor';
@@ -631,7 +840,8 @@ async function sendDeliveryApprovalNotification(notificationData) {
         type: 'delivery_needs_approval',
         courierName: courierName,
         restaurantId: restaurantId.toString()
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     const result = await sendExpoPushNotification(payload);
@@ -657,22 +867,7 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
     
     const { restaurantId, orderId, courierName, reason } = notificationData;
     
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline, getOnlineStats } = require('../sockets/handlers/roomHandlers');
-    const onlineStats = getOnlineStats();
-    console.log('📊 Current online restaurants:', Array.from(onlineStats.onlineRestaurants.keys()));
-    
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for cancellation: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (isOnline) {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE - skipping cancellation push notification (socket event will be sent instead)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
-    
-    console.log(`📴 Restaurant ${restaurantId} is OFFLINE - proceeding with push notification...`);
-    
-    // Get restaurant push token
+    // Get restaurant push token (platform bilgisini de al)
     console.log(`🔍 Searching for push token for restaurant ${restaurantId}...`);
     const [restaurantToken] = await sql`
       SELECT pt.token as expo_push_token, pt.platform, r.name as restaurant_name
@@ -703,6 +898,22 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
       token_preview: restaurantToken.expo_push_token.substring(0, 20) + '...'
     });
     
+    // Check if restaurant is online (socket connected)
+    const { isRestaurantOnline, getOnlineStats } = require('../sockets/handlers/roomHandlers');
+    const onlineStats = getOnlineStats();
+    console.log('📊 Current online restaurants:', Array.from(onlineStats.onlineRestaurants.keys()));
+    const isOnline = isRestaurantOnline(restaurantId);
+    console.log(`🔍 Restaurant ${restaurantId} online status check for cancellation: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
+    if (isOnline && (restaurantToken.platform || 'ios') !== 'android') {
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping cancellation push (socket handles UI)`);
+      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
+    } else if (isOnline && (restaurantToken.platform || 'ios') === 'android') {
+      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending cancellation push anyway to ensure sound/alert`);
+    } else {
+      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - proceeding with push notification...`);
+    }
+
     const title = '❌ Sipariş İptal Edildi!';
     const body = `${courierName} sipariş #${orderId} iptal etti. Sebep: ${reason}`;
     
@@ -718,7 +929,8 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
         courierName: courierName,
         restaurantId: restaurantId.toString(),
         reason: reason
-      }
+      },
+      restaurantToken.platform || 'ios' // Platform bilgisi
     );
     
     console.log(`🚀 Sending push notification to restaurant ${restaurantId}...`);
@@ -738,6 +950,8 @@ module.exports = {
   getSoundConfig,
   createPushNotificationPayload,
   sendExpoPushNotification,
+  sendFCMNotification,
+  sendPlatformSpecificNotification,
   getActiveCourierTokens,
   sendNewOrderNotificationToCouriers,
   sendOrderAcceptedNotification,
