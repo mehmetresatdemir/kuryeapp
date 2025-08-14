@@ -341,22 +341,26 @@
 
 
     <script>
-        // 🔐 Admin şifre kontrolü (JWT token tabanlı)
+        // 🔐 Token geçerlilik kontrolü (exp alanına göre)
+        function isTokenValid(token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload && typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // 🔐 Admin şifre kontrolü (sadece GEÇERLİ JWT kabul edilir)
         function checkAdminAuth() {
             const token = localStorage.getItem('token');
-            const oldAuth = localStorage.getItem('adminAuth');
-            
-            // JWT token varsa geçerli
-            if (token) {
+            if (token && isTokenValid(token)) {
                 return true;
             }
-            
-            // Eski adminAuth sistemi de kontrol et (geriye uyumluluk)
-            if (oldAuth === 'authenticated') {
-                return true;
-            }
-            
-            // Token yok, login sayfasına yönlendir
+
+            // Geçersiz/eksik token: tüm auth anahtarlarını temizle ve login'e yönlendir
+            localStorage.removeItem('token');
+            localStorage.removeItem('adminAuth');
             window.location.href = 'admin-login.html';
             return false;
         }
@@ -386,11 +390,11 @@
                     }
                 } else {
                     console.error('API_BASE backend tarafından sağlanamadı:', data.message || 'Bilinmeyen Hata');
-                    API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS
+                    API_BASE = 'https://kuryex1.enucuzal.com'; // Use production HTTPS
                 }
             } catch (error) {
                 console.error('API_BASE yüklenirken hata oluştu:', error);
-                API_BASE = 'https://kuryex.enucuzal.com'; // Use production HTTPS on error
+                API_BASE = 'https://kuryex1.enucuzal.com'; // Use production HTTPS on error
             }
         }
 
@@ -435,6 +439,19 @@
             return { 'Content-Type': 'application/json' }; // Sadece Content-Type gönder, token yoksa yetkisiz erişim hatası verme
         }
 
+        // Tüm korumalı istekler için güvenli fetch: 401 geldiğinde temizle ve login'e yönlendir
+        async function safeFetch(url, options = {}) {
+            const response = await fetch(url, { ...options, headers: getAuthHeaders() });
+            if (response.status === 401) {
+                // Oturum geçersiz; temizle ve yönlendir
+                localStorage.removeItem('token');
+                localStorage.removeItem('adminAuth');
+                window.location.href = 'admin-login.html';
+                throw new Error('Unauthorized');
+            }
+            return response;
+        }
+
         // Sayfa yüklendiğinde verileri çek
         let waitingForWebSocketData = true;
         let webSocketDataReceived = false;
@@ -468,10 +485,7 @@
                 return;
             }
             
-            fetch(`${API_BASE}/api/admin/online-stats`, {
-                headers: getAuthHeaders(),
-                mode: 'cors'
-            })
+            safeFetch(`${API_BASE}/api/admin/online-stats`, { mode: 'cors' })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -567,10 +581,7 @@
             }
             
             try {
-                const response = await fetch(`${API_BASE}/api/admin/analytics/order-status-counts`, {
-                    headers: getAuthHeaders(),
-                    mode: 'cors'
-                });
+                const response = await safeFetch(`${API_BASE}/api/admin/analytics/order-status-counts`, { mode: 'cors' });
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -631,9 +642,7 @@
             courierMarkers.forEach(marker => marker.setMap(null));
             courierMarkers = [];
             
-            fetch(`${API_BASE}/api/admin/couriers`, {
-                headers: getAuthHeaders()
-            })
+            safeFetch(`${API_BASE}/api/admin/couriers`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP hata! Durum: ${response.status}`);
@@ -714,6 +723,7 @@
         // 🚪 Admin çıkış fonksiyonu
         function adminLogout() {
             if (confirm('Admin panelinden çıkış yapmak istediğinizden emin misiniz?')) {
+                localStorage.removeItem('token');
                 localStorage.removeItem('adminAuth');
                 window.location.href = 'admin-login.html';
             }

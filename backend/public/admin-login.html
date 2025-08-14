@@ -109,9 +109,23 @@
     </div>
 
     <script>
-        // JWT token kontrolü - zaten giriş yapılmışsa dashboard'a yönlendir
-        if (localStorage.getItem('token')) {
+        // JWT token kontrolü - sadece GEÇERLİ token ile yönlendir
+        function isTokenValid(token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload && typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+            } catch (e) {
+                return false;
+            }
+        }
+
+        const existingToken = localStorage.getItem('token');
+        if (existingToken && isTokenValid(existingToken)) {
             window.location.href = 'admin-dashboard.html';
+        } else if (existingToken && !isTokenValid(existingToken)) {
+            // Geçersiz token'ı temizle
+            localStorage.removeItem('token');
+            localStorage.removeItem('adminAuth');
         }
 
         document.getElementById('loginForm').addEventListener('submit', async function(e) {

@@ -1215,7 +1215,7 @@ const RestaurantHome = () => {
     // Eğer tam URL ise doğrudan kullan
     if (imageUrl.startsWith('http')) {
       // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-      const DOMAIN = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com';
+      const DOMAIN = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex1.enucuzal.com';
       if (imageUrl.startsWith(`http://${DOMAIN}`)) {
         return imageUrl.replace(`https://${DOMAIN}`, `https://${DOMAIN}`);
       }

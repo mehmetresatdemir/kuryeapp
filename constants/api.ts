@@ -31,7 +31,7 @@ const getEnvOrExtra = (envKey: string, extraKey: string): string | undefined => 
 
 const ENV_API_HOST = sanitizeHost(getEnvOrExtra('EXPO_PUBLIC_API_HOST', 'API_HOST'));
 const ENV_API_PORT = getEnvOrExtra('EXPO_PUBLIC_API_PORT', 'API_PORT') || '4000';
-const ENV_REMOTE_API_HOST = sanitizeHost(getEnvOrExtra('EXPO_PUBLIC_REMOTE_API_HOST', 'REMOTE_API_HOST')) || 'kuryex.enucuzal.com';
+const ENV_REMOTE_API_HOST = sanitizeHost(getEnvOrExtra('EXPO_PUBLIC_REMOTE_API_HOST', 'REMOTE_API_HOST')) || 'kuryex1.enucuzal.com';
 const ENV_USE_REMOTE = ['true', '1', 'yes', 'y'].includes(String(getEnvOrExtra('EXPO_PUBLIC_USE_REMOTE', 'USE_REMOTE')).toLowerCase());
 
 const isAndroid = Platform.OS === 'android';

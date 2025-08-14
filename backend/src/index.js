@@ -110,14 +110,14 @@ function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';
   
   if (isProduction) {
-    return [process.env.API_BASE_URL || 'https://kuryex.enucuzal.com'];
+    return [process.env.API_BASE_URL || 'https://kuryex1.enucuzal.com'];
   } else {
     return [
       'http://localhost:4000', 
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:19006', // Expo development server
-      process.env.API_BASE_URL || 'https://kuryex.enucuzal.com', // Production server
+      process.env.API_BASE_URL || 'https://kuryex1.enucuzal.com', // Production server
       'capacitor://localhost',
       'ionic://localhost'
     ];

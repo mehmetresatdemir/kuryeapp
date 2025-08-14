@@ -197,7 +197,7 @@ router.get('/config/api-base-url', (req, res) => {
     // Eğer localhost değilse production kabul et
     const isProduction = !currentHost.includes('localhost');
     const localApiBase = process.env.LOCAL_API_BASE || 'http://localhost:4000';
-    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kuryex.enucuzal.com';
+    const remoteApiBase = process.env.REMOTE_API_BASE || 'https://kuryex1.enucuzal.com';
     
     // HTTPS support için - eğer request HTTPS'den geliyorsa production API kullan
     const isHTTPS = protocol === 'https' || req.get('x-forwarded-proto') === 'https';

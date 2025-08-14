@@ -69,12 +69,12 @@ function getAllowedOrigins() {
   
   if (isProduction) {
     return [
-      process.env.API_BASE_URL || 'https://kuryex.enucuzal.com',
-      'https://kuryex.enucuzal.com',
+      process.env.API_BASE_URL || 'https://kuryex1.enucuzal.com',
+      'https://kuryex1.enucuzal.com',
       // Allow same-origin requests in production
-      'https://kuryex.enucuzal.com',
+      'https://kuryex1.enucuzal.com',
       // Allow other possible production domains
-      'https://www.kuryex.enucuzal.com'
+      'https://www.kuryex1.enucuzal.com'
     ];
   } else {
     return [
@@ -82,8 +82,8 @@ function getAllowedOrigins() {
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:3000',
-      process.env.API_BASE_URL || 'https://kuryex.enucuzal.com',
-      'https://kuryex.enucuzal.com'
+      process.env.API_BASE_URL || 'https://kuryex1.enucuzal.com',
+      'https://kuryex1.enucuzal.com'
     ];
   }
 }
@@ -103,7 +103,7 @@ app.use(cors({
     // In production, be more flexible with same domain
     if (process.env.NODE_ENV === 'production' && origin) {
       const url = new URL(origin);
-      if (url.hostname === 'kuryex.enucuzal.com' || url.hostname.endsWith('.kuryex.enucuzal.com')) {
+      if (url.hostname === 'kuryex1.enucuzal.com' || url.hostname.endsWith('.kuryex1.enucuzal.com')) {
         return callback(null, true);
       }
     }
