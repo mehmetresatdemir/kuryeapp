@@ -101,14 +101,12 @@ const RestaurantLiveMap = () => {
   // Ses çalma fonksiyonu
   const playNotificationSound = useCallback(async () => {
     try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Sipariş Kabul Edildi",
-          body: "Siparişiniz kurye tarafından kabul edildi",
-          sound: 'ring_bell2', // Android raw resource name (no extension)
-          data: { local: true }
-        },
-        trigger: { seconds: 1, channelId: 'ring_bell2' },
+      await Notifications.dismissAllNotificationsAsync();
+      await Notifications.presentNotificationAsync({
+        title: "Sipariş Kabul Edildi",
+        body: "Siparişiniz kurye tarafından kabul edildi",
+        sound: 'ring_bell2',
+        data: { local: true, nonce: Date.now() }
       });
       console.log("🔔 RestaurantLiveMap: Local notification with sound played");
     } catch (error) {

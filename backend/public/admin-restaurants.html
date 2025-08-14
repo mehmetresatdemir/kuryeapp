@@ -789,6 +789,12 @@
                 is_delivery_available: document.getElementById('isDeliveryAvailable').checked
             };
 
+            // Ön doğrulama: Kurye ücreti restoran ücretinden yüksek olamaz
+            if (formData.courier_price > formData.restaurant_price) {
+                alert('⚠️ Kurye ücreti restoran ücretinden yüksek olamaz!');
+                return;
+            }
+
             console.log('Submitting delivery area form:', formData);
 
             fetch(`${API_BASE}/api/admin/restaurants/${currentRestaurantId}/delivery-areas`, {
@@ -917,6 +923,12 @@
                 courier_price: parseFloat(document.getElementById('editCourierPrice').value) || 0,
                 is_delivery_available: document.getElementById('editIsDeliveryAvailable').checked
             };
+
+            // Ön doğrulama: Kurye ücreti restoran ücretinden yüksek olamaz
+            if (formData.courier_price > formData.restaurant_price) {
+                alert(`⚠️ Kurye ücreti restoran fiyatından (₺${formData.restaurant_price.toFixed(2)}) yüksek olamaz!`);
+                return;
+            }
 
             console.log('🔄 Form güncelleme verisi:', formData);
             console.log('📝 Checkbox durumu:', document.getElementById('editIsDeliveryAvailable').checked);

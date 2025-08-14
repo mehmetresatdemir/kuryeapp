@@ -155,6 +155,16 @@ const addDeliveryArea = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Eksik bilgi: restoran ID, mahalle adı, restoran ve kurye ücretleri gereklidir.' });
     }
 
+    // İş kuralı: Kurye ücreti restoran ücretinden yüksek olamaz
+    const rPrice = Number(restaurant_price);
+    const cPrice = Number(courier_price);
+    if (!Number.isFinite(rPrice) || !Number.isFinite(cPrice)) {
+        return res.status(400).json({ success: false, message: 'Geçersiz fiyat değeri' });
+    }
+    if (cPrice > rPrice) {
+        return res.status(400).json({ success: false, message: 'Kurye ücreti restoran ücretinden yüksek olamaz.' });
+    }
+
     try {
         const newArea = await sql`
             INSERT INTO restaurant_delivery_prices (
@@ -189,6 +199,15 @@ const updateDeliveryArea = async (req, res) => {
     }
 
     try {
+        // İş kuralı: Kurye ücreti restoran ücretinden yüksek olamaz
+        const rPrice = Number(restaurant_price);
+        const cPrice = Number(courier_price);
+        if (!Number.isFinite(rPrice) || !Number.isFinite(cPrice)) {
+            return res.status(400).json({ success: false, message: 'Geçersiz fiyat değeri' });
+        }
+        if (cPrice > rPrice) {
+            return res.status(400).json({ success: false, message: 'Kurye ücreti restoran ücretinden yüksek olamaz.' });
+        }
 
 
         const updatedArea = await sql`

@@ -77,14 +77,12 @@ const RestaurantOrders = () => {
   // Ses çalma fonksiyonu
   const playNotificationSound = useCallback(async () => {
     try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Sipariş Kabul Edildi",
-          body: "Siparişiniz kurye tarafından kabul edildi",
-          sound: 'ring_bell2.wav',
-          data: { local: true }
-        },
-        trigger: { seconds: 1, channelId: 'ring_bell2' },
+      await Notifications.dismissAllNotificationsAsync();
+      await Notifications.presentNotificationAsync({
+        title: "Sipariş Kabul Edildi",
+        body: "Siparişiniz kurye tarafından kabul edildi",
+        sound: 'ring_bell2',
+        data: { local: true, nonce: Date.now() }
       });
       console.log("🔔 RestaurantOrders: Local notification with sound played");
     } catch (error) {
