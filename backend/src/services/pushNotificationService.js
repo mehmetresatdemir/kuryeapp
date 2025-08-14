@@ -497,20 +497,8 @@ async function sendOrderAcceptedNotification(notificationData) {
       return { success: false, error: 'No push token found' };
     }
     
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    // Android için: Uygulama online olsa bile push gönder (bazı cihazlarda socket foreground olsa bile OS sesi çalmayabilir)
-    if (!isOnline) {
-      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending push notification...`);
-    } else if ((restaurantToken.platform || 'ios') === 'android') {
-      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending push anyway to ensure sound/alert`);
-    } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
+    // Her iki platformda da push gönder (online durumuna bakmadan)
+    console.log(`📤 Sending order accepted push to restaurant ${restaurantId} on platform ${restaurantToken.platform || 'unknown'}`);
     
     const title = '✅ Sipariş Kabul Edildi!';
     const body = `${courierName} sipariş #${orderId} kabul etti.`;
@@ -620,19 +608,8 @@ async function sendOrderDeliveredNotification(notificationData) {
       return { success: false, error: 'No push token found' };
     }
     
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for delivery: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (!isOnline) {
-      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery push notification...`);
-    } else if ((restaurantToken.platform || 'ios') === 'android') {
-      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending delivery push anyway to ensure sound/alert`);
-    } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping delivery push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
+    // Her iki platformda da push gönder (online durumuna bakmadan)
+    console.log(`📤 Sending delivery push to restaurant ${restaurantId} on platform ${restaurantToken.platform || 'unknown'}`);
     
     const title = '✅ Sipariş Teslim Edildi!';
     const body = `${courierName} sipariş #${orderId} başarıyla teslim etti. Online/hediye çeki ödemesi tamamlandı.`;
@@ -813,19 +790,8 @@ async function sendDeliveryApprovalNotification(notificationData) {
       return { success: false, error: 'No push token found' };
     }
     
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline } = require('../sockets/handlers/roomHandlers');
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for approval: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-    
-    if (!isOnline) {
-      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery approval push notification...`);
-    } else if ((restaurantToken.platform || 'ios') === 'android') {
-      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending approval push anyway to ensure sound/alert`);
-    } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping approval push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    }
+    // Her iki platformda da push gönder (online durumuna bakmadan)
+    console.log(`📤 Sending delivery approval push to restaurant ${restaurantId} on platform ${restaurantToken.platform || 'unknown'}`);
     
     const title = '⏳ Sipariş Onay Bekliyor';
     const body = `${courierName} sipariş #${orderId} teslim etti. Nakit/kredi kartı ödemesi - onayınız bekleniyor.`;
@@ -898,21 +864,8 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
       token_preview: restaurantToken.expo_push_token.substring(0, 20) + '...'
     });
     
-    // Check if restaurant is online (socket connected)
-    const { isRestaurantOnline, getOnlineStats } = require('../sockets/handlers/roomHandlers');
-    const onlineStats = getOnlineStats();
-    console.log('📊 Current online restaurants:', Array.from(onlineStats.onlineRestaurants.keys()));
-    const isOnline = isRestaurantOnline(restaurantId);
-    console.log(`🔍 Restaurant ${restaurantId} online status check for cancellation: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
-
-    if (isOnline && (restaurantToken.platform || 'ios') !== 'android') {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping cancellation push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    } else if (isOnline && (restaurantToken.platform || 'ios') === 'android') {
-      console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending cancellation push anyway to ensure sound/alert`);
-    } else {
-      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - proceeding with push notification...`);
-    }
+    // Her iki platformda da push gönder (online durumuna bakmadan)
+    console.log(`📤 Sending cancellation push to restaurant ${restaurantId} on platform ${restaurantToken.platform || 'unknown'}`);
 
     const title = '❌ Sipariş İptal Edildi!';
     const body = `${courierName} sipariş #${orderId} iptal etti. Sebep: ${reason}`;
