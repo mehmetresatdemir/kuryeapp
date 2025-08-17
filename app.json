@@ -34,6 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kuryex.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -102,9 +103,9 @@
         "NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED"
       ],
-
+      "versionCode": 1,
       "package": "com.kuryex.app"
- },
+    },
     "plugins": [
       "expo-dev-client",
       "expo-router",

@@ -484,8 +484,24 @@
         let editingId = null;
         let quill;
 
+        // Special password protection for sensitive pages
+        function checkSpecialPassword() {
+            const savedPassword = sessionStorage.getItem('specialAdminPassword');
+            if (savedPassword !== '466840') {
+                const password = prompt('Bu sayfa için özel şifre gerekli:');
+                if (password !== '466840') {
+                    alert('Yanlış şifre! Ana sayfaya yönlendiriliyorsunuz.');
+                    window.location.href = 'admin-dashboard.html';
+                    return false;
+                }
+                sessionStorage.setItem('specialAdminPassword', password);
+            }
+            return true;
+        }
+
         // Quill editor'ı başlat
         document.addEventListener('DOMContentLoaded', function() {
+            if (!checkSpecialPassword()) return;
             quill = new Quill('#editor', {
                 theme: 'snow',
                 modules: {

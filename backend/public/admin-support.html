@@ -262,8 +262,25 @@
         let API_BASE = 'https://kuryex.enucuzal.com';
         let supportTickets = [];
 
+        // Special password protection for sensitive pages
+        function checkSpecialPassword() {
+            const savedPassword = sessionStorage.getItem('specialAdminPassword');
+            if (savedPassword !== '466840') {
+                const password = prompt('Bu sayfa için özel şifre gerekli:');
+                if (password !== '466840') {
+                    alert('Yanlış şifre! Ana sayfaya yönlendiriliyorsunuz.');
+                    window.location.href = 'admin-dashboard.html';
+                    return false;
+                }
+                sessionStorage.setItem('specialAdminPassword', password);
+            }
+            return true;
+        }
+
         // Sayfa yüklendiğinde
         document.addEventListener('DOMContentLoaded', function() {
+            if (!checkSpecialPassword()) return;
+            
             checkAdminAuth();
             fetchApiBase().then(() => {
                 loadSupportTickets();
