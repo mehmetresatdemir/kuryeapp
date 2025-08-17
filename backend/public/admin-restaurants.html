@@ -960,8 +960,20 @@
             });
         });
 
+        // Special password check for delete operations
+        function checkDeletePassword() {
+            const password = prompt('Silme işlemi için özel şifre gerekli:');
+            if (password !== '466840') {
+                alert('Yanlış şifre! Silme işlemi iptal edildi.');
+                return false;
+            }
+            return true;
+        }
+
         // Teslimat alanı sil
         function deleteDeliveryArea(areaId) {
+            if (!checkDeletePassword()) return;
+            
             if (confirm('Bu teslimat alanını silmek istediğinizden emin misiniz?')) {
                 fetch(`${API_BASE}/api/admin/restaurants/delivery-areas/${areaId}`, {
                     method: 'DELETE',
@@ -1478,6 +1490,8 @@
 
         // Restoran sil
         function deleteRestaurant(restaurantId) {
+            if (!checkDeletePassword()) return;
+            
             if (confirm('Bu restoranı silmek istediğinizden emin misiniz?')) {
                 // Not implemented yet (admin rotası kullanılacak)
                 fetch(`${API_BASE}/api/admin/restaurants/${restaurantId}`, {

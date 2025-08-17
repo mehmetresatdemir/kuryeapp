@@ -717,8 +717,20 @@
             }
         }
 
+        // Special password check for delete operations
+        function checkDeletePassword() {
+            const password = prompt('Silme işlemi için özel şifre gerekli:');
+            if (password !== '466840') {
+                alert('Yanlış şifre! Silme işlemi iptal edildi.');
+                return false;
+            }
+            return true;
+        }
+
         // Sil
         async function deleteContent(id) {
+            if (!checkDeletePassword()) return;
+            
             const page = contentPages.find(p => p.id === id);
             if (!page) return;
 

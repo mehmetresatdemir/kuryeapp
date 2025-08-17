@@ -599,8 +599,20 @@
             }
         });
 
+        // Special password check for delete operations
+        function checkDeletePassword() {
+            const password = prompt('Silme işlemi için özel şifre gerekli:');
+            if (password !== '466840') {
+                alert('Yanlış şifre! Silme işlemi iptal edildi.');
+                return false;
+            }
+            return true;
+        }
+
         // Kurye sil
         async function deleteCourier(courierId) {
+            if (!checkDeletePassword()) return;
+            
             if (!confirm('Bu kuryeyi silmek istediğinizden emin misiniz?')) {
                 return;
             }
