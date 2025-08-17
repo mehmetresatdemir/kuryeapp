@@ -11,6 +11,9 @@ router.get('/', courierController.getAllCouriers);
 // Tek kurye getir (ID ile)
 router.get('/:id', courierController.getCourierById);
 
+// Kurye kayıt (mobil uygulama için)
+router.post('/register', courierController.addCourier);
+
 // Kurye girişi (mobil uygulama için)
 router.post('/login', courierController.login);
 

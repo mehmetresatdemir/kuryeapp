@@ -40,7 +40,7 @@ function getSoundConfig(soundId, platform = 'ios') {
   
   // iOS'ta HER ZAMAN ring_bell2 özel sesi kullan - sistem sesi asla
   if (platform === 'ios') {
-    return 'ring_bell2'; // iOS için her zaman özel ses
+    return 'ring_bell2.wav'; // iOS için .wav uzantısı ile özel ses
   }
   
   // Android için normal logic
@@ -91,25 +91,12 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
     },
   };
 
-  // iOS için özelleştirmeler - sistem sesini devre dışı bırak, sadece özel ses
+  // iOS için özelleştirmeler - Expo push notification format
   if (platform === 'ios') {
     payload.priority = 'high';
     payload.badge = 1;
     payload.subtitle = 'KuryeX';
-    // iOS'ta kritik bildirim özelliklerini ekle - sadece özel ses çalacak
-    payload.aps = {
-      alert: {
-        title: title,
-        subtitle: 'KuryeX',
-        body: body
-      },
-      sound: soundConfig,
-      badge: 1,
-      'mutable-content': 1,
-      'content-available': 1,
-      'thread-id': 'kuryex-notifications'
-    };
-    // Expo specific iOS configuration
+    // Expo için sadece temel alanlar
     payload._displayInForeground = true;
     payload._category = 'kuryex';
   } else {
@@ -232,7 +219,7 @@ async function sendPlatformSpecificNotification(token, platform, title, body, so
       return await sendFCMNotification(token, title, body, soundId, customData);
     } else {
       // iOS ve diğer platformlar için Expo Push kullan
-      const payload = createPushNotificationPayload(token, title, body, soundId, customData);
+      const payload = createPushNotificationPayload(token, title, body, soundId, customData, platform);
       const result = await sendExpoPushNotification(payload);
       return { success: true, result };
     }
@@ -416,8 +403,7 @@ async function sendNewOrderNotificationToCouriers(orderData) {
           courierPrice: orderData.courier_price || 0,
           restaurantId: orderData.firmaid,
           paymentMethod: orderData.odeme_yontemi
-        },
-        courier.platform || 'ios' // Platform bilgisi
+        }
       );
     });
     
@@ -502,14 +488,14 @@ async function sendOrderAcceptedNotification(notificationData) {
     const isOnline = isRestaurantOnline(restaurantId);
     console.log(`🔍 Restaurant ${restaurantId} online status check: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
     
-    // Android için: Uygulama online olsa bile push gönder (bazı cihazlarda socket foreground olsa bile OS sesi çalmayabilir)
+    // Her platform için push notification gönder - iOS'ta ses çıkması için kritik
     if (!isOnline) {
       console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending push notification...`);
     } else if ((restaurantToken.platform || 'ios') === 'android') {
       console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending push anyway to ensure sound/alert`);
     } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - sending push for iOS sound/alert even when online`);
+      // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
     const title = '✅ Sipariş Kabul Edildi!';
@@ -625,13 +611,14 @@ async function sendOrderDeliveredNotification(notificationData) {
     const isOnline = isRestaurantOnline(restaurantId);
     console.log(`🔍 Restaurant ${restaurantId} online status check for delivery: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
     
+    // Her platform için push notification gönder - iOS'ta ses çıkması için kritik
     if (!isOnline) {
       console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery push notification...`);
     } else if ((restaurantToken.platform || 'ios') === 'android') {
       console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending delivery push anyway to ensure sound/alert`);
     } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping delivery push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - sending delivery push for iOS sound/alert even when online`);
+      // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
     const title = '✅ Sipariş Teslim Edildi!';
@@ -818,13 +805,14 @@ async function sendDeliveryApprovalNotification(notificationData) {
     const isOnline = isRestaurantOnline(restaurantId);
     console.log(`🔍 Restaurant ${restaurantId} online status check for approval: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
     
+    // Her platform için push notification gönder - iOS'ta ses çıkması için kritik
     if (!isOnline) {
       console.log(`📴 Restaurant ${restaurantId} is OFFLINE - sending delivery approval push notification...`);
     } else if ((restaurantToken.platform || 'ios') === 'android') {
       console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending approval push anyway to ensure sound/alert`);
     } else {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping approval push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - sending approval push for iOS sound/alert even when online`);
+      // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
     const title = '⏳ Sipariş Onay Bekliyor';
@@ -905,13 +893,14 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
     const isOnline = isRestaurantOnline(restaurantId);
     console.log(`🔍 Restaurant ${restaurantId} online status check for cancellation: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
 
-    if (isOnline && (restaurantToken.platform || 'ios') !== 'android') {
-      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - skipping cancellation push (socket handles UI)`);
-      return { success: true, skipped: true, reason: 'Restaurant is online, socket event preferred' };
-    } else if (isOnline && (restaurantToken.platform || 'ios') === 'android') {
+    // Her platform için push notification gönder - iOS'ta ses çıkması için kritik
+    if (!isOnline) {
+      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - proceeding with push notification...`);
+    } else if ((restaurantToken.platform || 'ios') === 'android') {
       console.log(`🤖 Restaurant ${restaurantId} is ONLINE on Android - sending cancellation push anyway to ensure sound/alert`);
     } else {
-      console.log(`📴 Restaurant ${restaurantId} is OFFLINE - proceeding with push notification...`);
+      console.log(`📱 Restaurant ${restaurantId} is ONLINE on ${restaurantToken.platform} - sending cancellation push for iOS sound/alert even when online`);
+      // iOS'ta ses çıkması için online olsa bile push gönder
     }
 
     const title = '❌ Sipariş İptal Edildi!';

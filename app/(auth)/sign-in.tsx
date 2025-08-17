@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, StatusBar } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_ENDPOINTS, getFullUrl } from "../../constants/api";
+import { API_ENDPOINTS, getFullUrl, resetAuthGuards } from "../../constants/api";
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 
@@ -23,6 +23,24 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<'email' | 'password' | null>(null);
+  const [logoutBanner, setLogoutBanner] = useState<string | null>(null);
+
+  // 3 saniyelik logout mesajı banner'ı
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    (async () => {
+      try {
+        const msg = await AsyncStorage.getItem('logoutMessage');
+        if (msg) {
+          setLogoutBanner(msg);
+          // Gösterildi, bir daha göstermemek için temizle
+          await AsyncStorage.removeItem('logoutMessage');
+          timer = setTimeout(() => setLogoutBanner(null), 3000);
+        }
+      } catch {}
+    })();
+    return () => { if (timer) clearTimeout(timer); };
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -93,6 +111,8 @@ const SignIn = () => {
               
               // Bildirim sistemi kaldırıldı
               
+              // Yeni oturum başladığı için global logout guard'ları sıfırla
+              try { resetAuthGuards(); } catch {}
               router.replace("/");
   
             } catch (storageError) {
@@ -295,6 +315,13 @@ const SignIn = () => {
                 >
                   <Text style={styles.forgotPasswordText}>Şifremi Unuttum?</Text>
                 </TouchableOpacity>
+
+                {/* Logout banner under Forgot Password */}
+                {logoutBanner && (
+                  <View style={styles.bannerContainer}>
+                    <Text style={styles.bannerText}>{logoutBanner}</Text>
+                  </View>
+                )}
                 
                 {/* Sign In Button */}
                 <TouchableOpacity 
@@ -387,6 +414,25 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  bannerContainer: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: -16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bannerText: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   keyboardAvoidingView: {
     flex: 1,

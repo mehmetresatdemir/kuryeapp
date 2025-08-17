@@ -78,11 +78,15 @@ const RestaurantOrders = () => {
   const playNotificationSound = useCallback(async () => {
     try {
       await Notifications.dismissAllNotificationsAsync();
-      await Notifications.presentNotificationAsync({
-        title: "Sipariş Kabul Edildi",
-        body: "Siparişiniz kurye tarafından kabul edildi",
-        sound: 'ring_bell2',
-        data: { local: true, nonce: Date.now() }
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2',
+          data: { local: true, nonce: Date.now() },
+          ...(Platform.OS === 'android' ? { channelId: 'ring_bell2' } : {})
+        },
+        trigger: null
       });
       console.log("🔔 RestaurantOrders: Local notification with sound played");
     } catch (error) {
@@ -90,6 +94,36 @@ const RestaurantOrders = () => {
     }
   }, []);
   
+  // Resim URL'sini düzelten helper fonksiyon - APK production build için optimize edildi
+  const fixImageUrl = (imageUrl: string | null): string | null => {
+    if (!imageUrl) return null;
+    
+    let finalUrl = imageUrl;
+    
+    // Eğer göreceli yol ise tam URL'ye çevir
+    if (!imageUrl.startsWith('http')) {
+      finalUrl = `${API_CONFIG.BASE_URL}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
+    }
+    
+    // URL'yi encode et (özel karakterler için)
+    try {
+      // Sadece path kısmını encode et, domain'i değil
+      const url = new URL(finalUrl);
+      url.pathname = encodeURI(decodeURI(url.pathname));
+      finalUrl = url.toString();
+    } catch (error) {
+      console.log('URL parsing error:', error);
+    }
+    
+    // HTTPS zorla (APK'da HTTP bazen bloklanabilir)
+    if (finalUrl.startsWith('http://')) {
+      finalUrl = finalUrl.replace('http://', 'https://');
+    }
+    
+    console.log(`📸 RestaurantOrders Image URL fixed: ${imageUrl} -> ${finalUrl}`);
+    return finalUrl;
+  };
+
   // Görünüm modları
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
@@ -1154,9 +1188,30 @@ const RestaurantOrders = () => {
                       <Text style={styles.detailSectionTitle}>Sipariş Resmi</Text>
                       {selectedOrder.resim ? (
                         <Image 
-                          source={{ uri: selectedOrder.resim }} 
+                          source={{ 
+                            uri: fixImageUrl(selectedOrder.resim) || selectedOrder.resim,
+                            ...(Platform.OS === 'android' && {
+                              cache: 'default',
+                              headers: {
+                                'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                                'User-Agent': 'KuryeX/1.0.0 (Android)',
+                                'Pragma': 'no-cache',
+                                'Cache-Control': 'no-cache'
+                              }
+                            })
+                          }}
                           style={styles.orderImage}
                           resizeMode="cover"
+                          defaultSource={require('../../assets/icon.png')}
+                          onError={(error) => {
+                            console.error('🚨 RestaurantOrders: Image load error:', error.nativeEvent);
+                            console.error('🚨 RestaurantOrders: Image URI:', fixImageUrl(selectedOrder.resim) || selectedOrder.resim);
+                          }}
+                          onLoad={() => {
+                            console.log('✅ RestaurantOrders: Image loaded successfully');
+                          }}
+                          onLoadStart={() => console.log('🔄 RestaurantOrders: Image loading started')}
+                          onLoadEnd={() => console.log('🏁 RestaurantOrders: Image loading ended')}
                         />
                       ) : (
                         <View style={styles.noImageContainer}>

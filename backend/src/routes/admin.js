@@ -2644,5 +2644,483 @@ router.put('/support-tickets/:id', async (req, res) => {
     }
 });
 
+// Admin Bildirim Gönderme Endpoint'i
+router.post('/send-notification', adminProtect, async (req, res) => {
+    try {
+        const { type, scope, title, message, priority, withSound, recipients } = req.body;
+        const normalizedPriority = ['normal', 'high', 'urgent'].includes((priority || '').toLowerCase())
+            ? (priority || '').toLowerCase()
+            : 'normal';
+
+        if (!title || !message) {
+            return res.status(400).json({
+                success: false,
+                message: 'Başlık ve mesaj gereklidir'
+            });
+        }
+
+        // Push notification service'ini require edelim
+        const { 
+            sendExpoPushNotification, 
+            createPushNotificationPayload 
+        } = require('../services/pushNotificationService');
+
+        let targetTokens = [];
+        let sentCount = 0;
+
+        // Alıcıları belirle
+        if (scope === 'all') {
+            // Tüm kullanıcılara gönder
+            const tokens = await sql`
+                SELECT pt.token, pt.user_id, pt.user_type, pt.platform
+                FROM push_tokens pt
+                WHERE pt.is_active = true 
+                AND pt.user_type = ${type === 'couriers' ? 'courier' : 'restaurant'}
+            `;
+            targetTokens = tokens;
+        } else if (scope === 'specific' && recipients && recipients.length > 0) {
+            // Belirli kullanıcılara gönder
+            const tokens = await sql`
+                SELECT pt.token, pt.user_id, pt.user_type, pt.platform
+                FROM push_tokens pt
+                WHERE pt.is_active = true 
+                AND pt.user_type = ${type === 'couriers' ? 'courier' : 'restaurant'}
+                AND pt.user_id = ANY(${recipients})
+            `;
+            targetTokens = tokens;
+        }
+
+        // Bildirimleri gönder
+        for (const tokenRecord of targetTokens) {
+            try {
+                const payload = createPushNotificationPayload(
+                    tokenRecord.token,
+                    title,
+                    message,
+                    withSound ? 'ring_bell2' : null,
+                    {
+                        type: 'admin_notification',
+                        priority: normalizedPriority,
+                        userId: tokenRecord.user_id.toString(),
+                        userType: tokenRecord.user_type,
+                        timestamp: new Date().toISOString()
+                    }
+                );
+
+                await sendExpoPushNotification(payload);
+                sentCount++;
+                
+                console.log(`📢 Admin bildirimi gönderildi: ${tokenRecord.user_type} ${tokenRecord.user_id}`);
+            } catch (notifError) {
+                console.error(`❌ Bildirim gönderim hatası (${tokenRecord.user_type} ${tokenRecord.user_id}):`, notifError);
+            }
+        }
+
+        // Bildirim geçmişine kaydet
+        try {
+            const adminUserType = type === 'couriers' ? 'courier' : 'restaurant';
+            await sql`
+                INSERT INTO admin_notifications (
+                    title, message, target_type, target_scope, user_type,
+                    priority, with_sound, sent_count, created_at
+                ) VALUES (
+                    ${title}, ${message}, ${type}, ${scope}, ${adminUserType},
+                    ${normalizedPriority}, ${withSound || false}, ${sentCount}, NOW()
+                )
+            `;
+        } catch (logError) {
+            console.error('❌ Bildirim log kayıt hatası:', logError);
+            // Log hatası önemli değil, devam et
+        }
+
+        res.json({
+            success: true,
+            message: `Bildirim başarıyla gönderildi`,
+            sentCount,
+            totalTargets: targetTokens.length
+        });
+
+    } catch (error) {
+        console.error('❌ Admin bildirim gönderme hatası:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Bildirim gönderilirken bir hata oluştu',
+            error: error.message
+        });
+    }
+});
+
+// Admin Bildirim Geçmişi
+router.get('/notifications/history', adminProtect, async (req, res) => {
+    try {
+        const notifications = await sql`
+            SELECT * FROM admin_notifications 
+            ORDER BY created_at DESC 
+            LIMIT 50
+        `;
+
+        res.json({
+            success: true,
+            data: notifications
+        });
+    } catch (error) {
+        console.error('❌ Bildirim geçmişi alınamadı:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Bildirim geçmişi alınamadı'
+        });
+    }
+});
+
+// Gelişmiş Log Sistemi
+router.get('/logs/comprehensive', adminProtect, async (req, res) => {
+    try {
+        const { limit = 100, type = 'all', level = 'all', startDate, endDate } = req.query;
+        
+        let logData = {
+            applicationLogs: [],
+            errorLogs: [],
+            databaseLogs: [],
+            systemStats: {},
+            recentErrors: [],
+            errorSummary: {}
+        };
+
+        // Application logs (console.log'lardan)
+        try {
+            const logFilePath = path.join(__dirname, '../../logs');
+            
+            // Log dosyalarını oku
+            if (fs.existsSync(logFilePath)) {
+                const logFiles = fs.readdirSync(logFilePath).filter(file => file.endsWith('.log'));
+                
+                for (const file of logFiles.slice(-5)) { // Son 5 log dosyası
+                    try {
+                        const content = fs.readFileSync(path.join(logFilePath, file), 'utf8');
+                        const lines = content.split('\n').filter(line => line.trim()).slice(-50);
+                        
+                        logData.applicationLogs.push({
+                            file,
+                            lines: lines.map(line => ({
+                                timestamp: new Date().toISOString(),
+                                message: line,
+                                level: line.includes('ERROR') ? 'error' : line.includes('WARN') ? 'warn' : 'info'
+                            }))
+                        });
+                    } catch (fileError) {
+                        console.error(`Log dosyası okuma hatası (${file}):`, fileError);
+                    }
+                }
+            }
+        } catch (logError) {
+            console.error('Log dosyaları okunamadı:', logError);
+        }
+
+        // Database logs ve istatistikler
+        try {
+            // Son veritabanı işlemleri
+            const recentDbActivity = await sql`
+                SELECT 
+                    'order' as table_name,
+                    COUNT(*) as recent_count,
+                    MAX(created_at) as last_activity
+                FROM app.orders 
+                WHERE created_at > NOW() - INTERVAL '1 hour'
+                UNION ALL
+                SELECT 
+                    'courier' as table_name,
+                    COUNT(*) as recent_count,
+                    MAX(last_seen) as last_activity
+                FROM app.couriers 
+                WHERE last_seen > NOW() - INTERVAL '1 hour'
+                UNION ALL
+                SELECT 
+                    'restaurant' as table_name,
+                    COUNT(*) as recent_count,
+                    MAX(created_at) as last_activity
+                FROM app.restaurants 
+                WHERE created_at > NOW() - INTERVAL '1 hour'
+            `;
+
+            logData.databaseLogs = recentDbActivity;
+
+            // Sistem istatistikleri
+            const systemStats = await sql`
+                SELECT 
+                    (SELECT COUNT(*) FROM app.orders WHERE status = 'pending') as pending_orders,
+                    (SELECT COUNT(*) FROM app.orders WHERE status = 'in_progress') as active_orders,
+                    (SELECT COUNT(*) FROM app.couriers WHERE is_blocked = false) as active_couriers,
+                    (SELECT COUNT(*) FROM app.restaurants WHERE COALESCE(is_blocked, 0) = 0) as active_restaurants,
+                    (SELECT COUNT(*) FROM app.push_tokens WHERE is_active = true) as active_push_tokens
+            `;
+
+            logData.systemStats = systemStats[0] || {};
+
+        } catch (dbError) {
+            console.error('Veritabanı log hatası:', dbError);
+            logData.errorLogs.push({
+                timestamp: new Date().toISOString(),
+                level: 'error',
+                message: `Database log error: ${dbError.message}`,
+                type: 'database'
+            });
+        }
+
+        // Son 24 saatteki hata logları
+        try {
+            const errorLogs = await sql`
+                SELECT 
+                    'support_ticket' as source,
+                    title as message,
+                    priority as level,
+                    created_at as timestamp
+                FROM app.support_tickets 
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
+                LIMIT 20
+            `;
+
+            logData.recentErrors = errorLogs;
+
+            // Hata özeti
+            const errorSummary = await sql`
+                SELECT 
+                    priority as error_type,
+                    COUNT(*) as count
+                FROM app.support_tickets 
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY priority
+            `;
+
+            logData.errorSummary = errorSummary.reduce((acc, item) => {
+                acc[item.error_type] = item.count;
+                return acc;
+            }, {});
+
+        } catch (errorLogError) {
+            console.error('Error log alma hatası:', errorLogError);
+        }
+
+        // Performance metrics
+        try {
+            logData.performance = {
+                uptime: process.uptime(),
+                memory: process.memoryUsage(),
+                cpuUsage: process.cpuUsage(),
+                nodeVersion: process.version,
+                timestamp: new Date().toISOString()
+            };
+        } catch (perfError) {
+            console.error('Performance metrics hatası:', perfError);
+        }
+
+        // Console logs (gerçek zamanlı)
+        const recentConsoleLogs = global.adminLogs || [];
+        logData.consoleLogs = recentConsoleLogs.slice(-50);
+
+        res.json({
+            success: true,
+            data: logData,
+            meta: {
+                totalApplicationLogs: logData.applicationLogs.reduce((acc, file) => acc + file.lines.length, 0),
+                totalErrorLogs: logData.errorLogs.length,
+                totalRecentErrors: logData.recentErrors.length,
+                lastUpdated: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Kapsamlı log alma hatası:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Log sistemi hatası',
+            error: error.message
+        });
+    }
+});
+
+// Error Tracking Endpoint
+router.get('/logs/errors', adminProtect, async (req, res) => {
+    try {
+        const { hours = 24, severity = 'all' } = req.query;
+        
+        let errorData = {
+            criticalErrors: [],
+            systemErrors: [],
+            userErrors: [],
+            summary: {}
+        };
+
+        // Sistem hatalarını al
+        try {
+            const systemErrors = await sql`
+                SELECT 
+                    id,
+                    title,
+                    description,
+                    priority,
+                    user_role,
+                    created_at,
+                    'support_ticket' as error_type
+                FROM app.support_tickets 
+                WHERE created_at > NOW() - INTERVAL '1 hour' * ${hours}
+                ORDER BY 
+                    CASE priority 
+                        WHEN 'high' THEN 1 
+                        WHEN 'medium' THEN 2 
+                        WHEN 'low' THEN 3 
+                    END,
+                    created_at DESC
+                LIMIT 50
+            `;
+
+            errorData.userErrors = systemErrors;
+
+            // Hata özeti
+            const errorCounts = await sql`
+                SELECT 
+                    priority,
+                    user_role,
+                    COUNT(*) as count
+                FROM app.support_tickets 
+                WHERE created_at > NOW() - INTERVAL '1 hour' * ${hours}
+                GROUP BY priority, user_role
+            `;
+
+            errorData.summary = errorCounts.reduce((acc, item) => {
+                const key = `${item.user_role}_${item.priority}`;
+                acc[key] = item.count;
+                return acc;
+            }, {});
+
+        } catch (errorQueryError) {
+            console.error('Error query hatası:', errorQueryError);
+            errorData.systemErrors.push({
+                timestamp: new Date().toISOString(),
+                level: 'critical',
+                message: `Error tracking query failed: ${errorQueryError.message}`,
+                type: 'system'
+            });
+        }
+
+        // Performans hatalarını ekle
+        try {
+            const memoryUsage = process.memoryUsage();
+            const memoryIssues = [];
+
+            if (memoryUsage.heapUsed > 500 * 1024 * 1024) { // 500MB
+                memoryIssues.push({
+                    timestamp: new Date().toISOString(),
+                    level: 'warning',
+                    message: `High memory usage: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+                    type: 'performance'
+                });
+            }
+
+            if (process.uptime() > 7 * 24 * 60 * 60) { // 7 gün
+                memoryIssues.push({
+                    timestamp: new Date().toISOString(),
+                    level: 'info',
+                    message: `Server uptime: ${Math.round(process.uptime() / 60 / 60 / 24)} days`,
+                    type: 'performance'
+                });
+            }
+
+            errorData.systemErrors.push(...memoryIssues);
+
+        } catch (perfError) {
+            console.error('Performance check hatası:', perfError);
+        }
+
+        res.json({
+            success: true,
+            data: errorData,
+            meta: {
+                timeRange: `${hours} hours`,
+                totalErrors: errorData.userErrors.length + errorData.systemErrors.length,
+                lastUpdated: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error tracking hatası:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error tracking sistemi hatası',
+            error: error.message
+        });
+    }
+});
+
+// Real-time log streaming endpoint
+router.get('/logs/stream', adminProtect, (req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Global log buffer oluştur
+    if (!global.adminLogs) {
+        global.adminLogs = [];
+    }
+
+    // Son 10 log'u gönder
+    const recentLogs = global.adminLogs.slice(-10);
+    recentLogs.forEach(log => {
+        res.write(`data: ${JSON.stringify(log)}\n\n`);
+    });
+
+    // Console.log intercept
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    const logInterceptor = (level, ...args) => {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            level: level,
+            message: args.join(' '),
+            type: 'console'
+        };
+
+        // Global log buffer'a ekle
+        global.adminLogs.push(logEntry);
+        if (global.adminLogs.length > 200) {
+            global.adminLogs = global.adminLogs.slice(-100); // Buffer boyutunu kontrol et
+        }
+
+        // Stream'e gönder
+        res.write(`data: ${JSON.stringify(logEntry)}\n\n`);
+        
+        // Orijinal fonksiyonu çağır
+        if (level === 'error') originalError(...args);
+        else if (level === 'warn') originalWarn(...args);
+        else originalLog(...args);
+    };
+
+    // Console'u intercept et
+    console.log = (...args) => logInterceptor('info', ...args);
+    console.error = (...args) => logInterceptor('error', ...args);
+    console.warn = (...args) => logInterceptor('warn', ...args);
+
+    // Bağlantı kesildiğinde cleanup
+    req.on('close', () => {
+        console.log = originalLog;
+        console.error = originalError;
+        console.warn = originalWarn;
+    });
+
+    // Keep-alive
+    const keepAlive = setInterval(() => {
+        res.write(`data: ${JSON.stringify({type: 'ping', timestamp: new Date().toISOString()})}\n\n`);
+    }, 30000);
+
+    req.on('close', () => {
+        clearInterval(keepAlive);
+    });
+});
 
 module.exports = router; 

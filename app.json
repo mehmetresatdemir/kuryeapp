@@ -92,7 +92,6 @@
           "apiKey": "AIzaSyDp_lLu5U3bFyMt1ggWM1p2OpblYKMQyQc"
         }
       },
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -120,7 +119,15 @@
           "sounds": [
             "./assets/sounds/ring_bell2.wav"
           ],
-          "iosDisplayInForeground": false,
+          "iosDisplayInForeground": true,
+          "ios": {
+            "icon": "./assets/icon.png",
+            "color": "#3B82F6",
+            "sounds": [
+              "ring_bell2.wav"
+            ],
+            "requestPermissionsOnStartup": true
+          },
           "android": {
             "icon": "./assets/icon.png",
             "color": "#3B82F6",

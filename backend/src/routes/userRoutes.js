@@ -28,4 +28,9 @@ router.post('/forgot-password', userController.requestPasswordReset);
 // @access  Public
 router.post('/reset-password', userController.resetPassword);
 
+// @desc    Delete current user's account
+// @route   DELETE /api/account
+// @access  Private
+router.delete('/account', protect, userController.deleteAccount);
+
 module.exports = router; 

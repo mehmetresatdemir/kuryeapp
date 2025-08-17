@@ -10,59 +10,187 @@ document.addEventListener('DOMContentLoaded', function() {
                 top: 0;
                 left: 0;
                 width: 100%;
-                background: #2d3748;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
                 display: flex;
                 justify-content: space-around;
                 align-items: center;
-                padding: 8px 10px;
-                font-size: 12px;
+                padding: 12px 15px;
+                font-size: 13px;
                 z-index: 1001;
                 flex-wrap: wrap;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                backdrop-filter: blur(10px);
             }
             .status-item {
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                padding: 2px 8px;
+                gap: 8px;
+                padding: 6px 12px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 20px;
+                backdrop-filter: blur(5px);
+                transition: all 0.3s ease;
+                font-weight: 500;
+            }
+            .status-item:hover {
+                background: rgba(255, 255, 255, 0.15);
+                transform: translateY(-1px);
             }
             .status-indicator {
-                width: 10px;
-                height: 10px;
+                width: 12px;
+                height: 12px;
                 border-radius: 50%;
-                background-color: #f56565; /* Default: Red */
+                background-color: #f56565;
                 animation: pulse 2s infinite;
+                box-shadow: 0 0 0 3px rgba(245, 101, 101, 0.3);
             }
-            .status-indicator.green { background-color: #48bb78; }
-            .status-indicator.yellow { background-color: #ecc94b; }
-            .status-indicator.red { background-color: #f56565; }
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(245, 101, 101, 0.7); }
+                70% { box-shadow: 0 0 0 6px rgba(245, 101, 101, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(245, 101, 101, 0); }
+            }
+            .status-indicator.green { 
+                background-color: #48bb78; 
+                box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.3);
+            }
+            .status-indicator.yellow { 
+                background-color: #ecc94b; 
+                box-shadow: 0 0 0 3px rgba(236, 201, 75, 0.3);
+            }
+            .status-indicator.red { 
+                background-color: #f56565; 
+                box-shadow: 0 0 0 3px rgba(245, 101, 101, 0.3);
+            }
             .main-content-header {
-                padding: 1rem 2rem;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(10px);
-                border-radius: 15px;
-                margin-bottom: 2rem;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-                margin-top: 50px; /* To avoid overlap with fixed status bar */
+                padding: 2rem 2.5rem;
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+                backdrop-filter: blur(20px);
+                border-radius: 20px;
+                margin-bottom: 2.5rem;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+                margin-top: 70px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            .main-content-header h1 {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-size: 2.2rem;
+                font-weight: 700;
+                margin: 0 0 1rem 0;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             .nav-links {
                 display: flex;
-                gap: 1rem;
-                margin-top: 1rem;
+                gap: 0.8rem;
+                margin-top: 1.5rem;
                 flex-wrap: wrap;
             }
             .nav-link {
-                padding: 0.5rem 1rem;
-                background: #667eea;
+                padding: 0.75rem 1.5rem;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
                 text-decoration: none;
-                border-radius: 8px;
-                transition: all 0.3s;
-                font-size: 0.9rem;
+                border-radius: 12px;
+                transition: all 0.3s ease;
+                font-size: 0.95rem;
+                font-weight: 500;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                position: relative;
+                overflow: hidden;
             }
-            .nav-link:hover { background: #5a67d8; }
-            .nav-link.active { background: #4c51bf; font-weight: bold; }
+            .nav-link::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                transition: left 0.5s;
+            }
+            .nav-link:hover::before {
+                left: 100%;
+            }
+            .nav-link:hover { 
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            }
+            .nav-link.active { 
+                background: linear-gradient(135deg, #4c51bf 0%, #553c9a 100%);
+                font-weight: 600;
+                box-shadow: 0 6px 20px rgba(76, 81, 191, 0.4);
+            }
+            
+            /* Mobile Responsive Styles */
+            @media (max-width: 768px) {
+                .status-bar {
+                    padding: 8px 10px;
+                    font-size: 11px;
+                    gap: 8px;
+                }
+                .status-item {
+                    padding: 4px 8px;
+                    font-size: 10px;
+                    min-width: auto;
+                }
+                .main-content-header {
+                    padding: 1.5rem 1rem;
+                    margin-top: 60px;
+                    margin-bottom: 2rem;
+                }
+                .main-content-header h1 {
+                    font-size: 1.8rem;
+                    margin-bottom: 0.5rem;
+                }
+                .nav-links {
+                    gap: 0.5rem;
+                    justify-content: center;
+                }
+                .nav-link {
+                    padding: 0.6rem 1rem;
+                    font-size: 0.85rem;
+                    flex: 1;
+                    text-align: center;
+                    min-width: auto;
+                }
+            }
+            
+            @media (max-width: 576px) {
+                .status-bar {
+                    padding: 6px 8px;
+                    font-size: 10px;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                }
+                .status-item {
+                    padding: 3px 6px;
+                    font-size: 9px;
+                    flex: 1;
+                    min-width: 80px;
+                    justify-content: center;
+                }
+                .main-content-header {
+                    padding: 1rem 0.8rem;
+                    margin-top: 80px;
+                }
+                .main-content-header h1 {
+                    font-size: 1.5rem;
+                }
+                .nav-links {
+                    flex-wrap: wrap;
+                    gap: 0.3rem;
+                }
+                .nav-link {
+                    padding: 0.5rem 0.8rem;
+                    font-size: 0.8rem;
+                    flex: 1 1 calc(50% - 0.15rem);
+                    min-width: calc(50% - 0.15rem);
+                }
+            }
         </style>
 
         <div class="status-bar" id="status-bar">
@@ -93,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
 
         <div class="main-content-header">
-            <h1>🚚 Kurye App - ${pageName}</h1>
+            <h1>🚀 KuryeX - ${pageName}</h1>
             <div class="nav-links">
                 <a href="admin-dashboard.html" class="nav-link ${pageName === 'Dashboard' ? 'active' : ''}">Dashboard</a>
                 <a href="admin-orders.html" class="nav-link ${pageName === 'Orders' ? 'active' : ''}">Siparişler</a>
@@ -103,6 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <a href="admin-analytics.html" class="nav-link ${pageName === 'Analytics' ? 'active' : ''}">Analiz</a>
                 <a href="admin-settings.html" class="nav-link ${pageName === 'Settings' ? 'active' : ''}">Ayarlar</a>
                 <a href="admin-support.html" class="nav-link ${pageName === 'Support' ? 'active' : ''}">🎧 Destek</a>
+                <a href="admin-content.html" class="nav-link ${pageName === 'Content' ? 'active' : ''}">📄 İçerik</a>
                 <a href="admin-db-management.html" class="nav-link ${pageName === 'DB Management' ? 'active' : ''}">Veritabanı</a>
                 <button onclick="adminLogout()" class="nav-link" style="background: #dc2626; border: none; cursor: pointer;">🚪 Çıkış</button>
             </div>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚚 Kurye App - Settings</title>
+    <title>🚚 KuryeX - Settings</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -156,23 +156,118 @@
         input:checked + .slider:before {
             transform: translateX(26px);
         }
-        .log-container {
-            background: #f8fafc;
-            border: 1px solid #e5e7eb;
+        .log-container, .error-list-container {
+            background: #1a1a1a;
+            border: 1px solid #374151;
             border-radius: 8px;
             padding: 1rem;
-            height: 300px;
+            height: 400px;
             overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.8rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            color: #e2e8f0;
         }
-        .log-entry {
+        
+        .error-list-container {
+            background: #2a2a2a;
+            color: #ffffff;
+        }
+        
+        .log-entry, .error-entry {
             margin-bottom: 0.5rem;
-            color: #374151;
+            color: #e2e8f0;
+            padding: 4px 0;
         }
-        .log-error { color: #ef4444; }
-        .log-warning { color: #f59e0b; }
-        .log-success { color: #10b981; }
+        
+        .log-error { color: #f56565; }
+        .log-warning { color: #ed8936; }
+        .log-success { color: #48bb78; }
+        .log-info { color: #4299e1; }
+        
+        .log-stats, .log-performance {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .log-stats h4, .log-performance h4 {
+            color: #4299e1;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+        
+        .error-summary {
+            background: #2d3748;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #f56565;
+        }
+        
+        .error-summary h4 {
+            color: #f56565;
+            margin-bottom: 8px;
+        }
+        
+        .error-summary-item {
+            display: inline-block;
+            margin: 2px 5px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .error-summary-item.priority-high {
+            background: #fc8181;
+            color: #742a2a;
+        }
+        
+        .error-summary-item.priority-medium {
+            background: #f6ad55;
+            color: #7b341e;
+        }
+        
+        .error-summary-item.priority-low {
+            background: #68d391;
+            color: #22543d;
+        }
+        
+        .error-item {
+            background: #1a202c;
+            border-left: 4px solid #4a5568;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        
+        .error-item.level-error, .error-item.priority-high {
+            border-left-color: #f56565;
+            background: #2d1b1b;
+        }
+        
+        .error-item.level-warning, .error-item.priority-medium {
+            border-left-color: #ed8936;
+            background: #2d2617;
+        }
+        
+        .error-item.level-info, .error-item.priority-low {
+            border-left-color: #4299e1;
+            background: #1a202c;
+        }
+        
+        .error-item strong {
+            color: #e2e8f0;
+        }
+        
+        .error-item small {
+            color: #a0aec0;
+            display: block;
+            margin-top: 5px;
+        }
 
         /* Bildirim gönderme stilleri */
         .status-display {
@@ -773,7 +868,6 @@
                             <label>Alıcı Kapsamı</label>
                             <select id="recipientScope" onchange="updateSpecificRecipients()" class="form-control">
                                 <option value="all">📡 Hepsine</option>
-                                <option value="online">🟢 Sadece Çevrimiçi Olanlara</option>
                                 <option value="specific">🎯 Belirli Kişilere</option>
                             </select>
                         </div>
@@ -889,6 +983,17 @@
                 </div>
             </div>
         </div>
+
+        <!-- Error Tracking Section -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">🚨 Error Listesi</h3>
+                <button class="btn btn-warning" onclick="loadErrorList()">🔄 Error'ları Yenile</button>
+            </div>
+            <div class="error-list-container" id="errorListContainer">
+                <div class="error-entry">Error listesi yükleniyor...</div>
+            </div>
+        </div>
     </div>
     <script>
         // 🔐 Admin şifre kontrolü (JWT token tabanlı)
@@ -961,13 +1066,29 @@
             loadMapSettings();
             loadCourierSettings();
             updateSpecificRecipients(); // Initial load for notification recipients
+            updateRecipientOptions(); // Load courier/restaurant list
             // loadNotificationSounds(); // Load notification sounds - REMOVED
+            
+            // Load error list and logs
+            loadErrorList();
+            refreshLogs();
             
             // Auto refresh time every 5 seconds
             setInterval(testTimeSettings, 5000);
             
+            // Auto refresh error list every 30 seconds
+            setInterval(loadErrorList, 30000);
+            
+            // Auto refresh logs every 60 seconds
+            setInterval(refreshLogs, 60000);
+            
             // Initial status check
             checkSystemStatus();
+            
+            // Event listener for specificRecipients selection change
+            document.getElementById('specificRecipients').addEventListener('change', () => {
+                updateSpecificRecipients();
+            });
             
             // Auto refresh system status every 30 seconds
             setInterval(checkSystemStatus, 30000);
@@ -1285,25 +1406,59 @@
         async function updateRecipientOptions() {
             const notificationType = document.getElementById('notificationType').value;
             const specificRecipientsSelect = document.getElementById('specificRecipients');
-            specificRecipientsSelect.innerHTML = ''; // Clear existing options
+            specificRecipientsSelect.innerHTML = '<option value="">Yükleniyor...</option>';
 
             try {
+                console.log(`Loading ${notificationType} from API...`);
                 const endpoint = notificationType === 'couriers' ? `${API_BASE}/api/admin/couriers` : `${API_BASE}/api/admin/restaurants-for-admin`;
-                const response = await fetch(endpoint, { headers: getAuthHeaders() });
+                console.log(`API Endpoint: ${endpoint}`);
+                
+                const response = await fetch(endpoint, { 
+                    headers: getAuthHeaders(),
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('API Response:', data);
 
-                if (data.success) {
+                specificRecipientsSelect.innerHTML = ''; // Clear loading message
+
+                if (data.success && data.data && data.data.length > 0) {
                     data.data.forEach(item => {
                         const option = document.createElement('option');
                         option.value = item.id;
-                        option.textContent = item.name || item.firma_adi; // Adjust based on data structure
+                        
+                        // Kuryeler için name, restoranlar için firma_adi kullan
+                        let displayName;
+                        if (notificationType === 'couriers') {
+                            displayName = `${item.name} (${item.email || 'Email yok'})`;
+                        } else {
+                            displayName = `${item.firma_adi || item.name} ${item.email ? '(' + item.email + ')' : ''}`;
+                        }
+                        
+                        option.textContent = displayName;
                         specificRecipientsSelect.appendChild(option);
                     });
+                    
+                    console.log(`${notificationType} listesi yüklendi: ${data.data.length} kayıt`);
                 } else {
-                    console.error('Alıcılar yüklenirken hata:', data.message);
+                    const noOption = document.createElement('option');
+                    noOption.value = '';
+                    noOption.textContent = `Henüz ${notificationType === 'couriers' ? 'kurye' : 'restoran'} bulunamadı`;
+                    specificRecipientsSelect.appendChild(noOption);
+                    console.warn('Veri bulunamadı:', data);
                 }
             } catch (error) {
-                console.error('Alıcılar yüklenirken ağ hatası:', error);
+                console.error('Alıcılar yüklenirken hata:', error);
+                specificRecipientsSelect.innerHTML = '';
+                const errorOption = document.createElement('option');
+                errorOption.value = '';
+                errorOption.textContent = `Hata: ${error.message}`;
+                specificRecipientsSelect.appendChild(errorOption);
             }
             updateSpecificRecipients(); // Update visibility and count
         }
@@ -1317,17 +1472,19 @@
 
             if (scope === 'specific') {
                 specificGroup.style.display = 'block';
-                selectedCountSpan.textContent = specificRecipientsSelect.selectedOptions.length;
+                if (selectedCountSpan) {
+                    selectedCountSpan.textContent = specificRecipientsSelect.selectedOptions.length;
+                }
+                console.log(`Specific recipients selected: ${specificRecipientsSelect.selectedOptions.length}`);
             } else {
                 specificGroup.style.display = 'none';
-                selectedCountSpan.textContent = 'Tümü';
+                if (selectedCountSpan) {
+                    selectedCountSpan.textContent = 'Tümü';
+                }
             }
         }
 
-        // Event listener for specificRecipients selection change
-        document.getElementById('specificRecipients').addEventListener('change', () => {
-            updateSpecificRecipients();
-        });
+        // Event listener for specificRecipients selection change (moved to DOMContentLoaded)
 
         // Önbellek temizle
         async function clearCache() {
@@ -1408,24 +1565,80 @@
             }
         }
 
-        // Logları yenile
+        // Gelişmiş logları yenile
         async function refreshLogs() {
             try {
-                const response = await fetch(`${API_BASE}/api/admin/logs`, {
+                const response = await fetch(`${API_BASE}/api/admin/logs/comprehensive`, {
                     headers: getAuthHeaders()
                 });
                 const data = await response.json();
                 
                 const logContainer = document.getElementById('systemLogs');
-                if (data.success && data.logs) {
+                if (data.success) {
                     logContainer.innerHTML = '';
-                    data.logs.forEach(log => {
-                        const logEntry = document.createElement('div');
-                        logEntry.className = `log-entry ${log.type || ''}`;
-                        logEntry.textContent = `[${log.timestamp}] ${log.level || 'INFO'}: ${log.message}`;
-                        logContainer.appendChild(logEntry);
-                    });
-                    logContainer.scrollTop = logContainer.scrollHeight; // Scroll to bottom
+                    
+                    // Sistem istatistikleri
+                    if (data.data.systemStats) {
+                        const statsDiv = document.createElement('div');
+                        statsDiv.className = 'log-stats';
+                        statsDiv.innerHTML = `
+                            <h4>📊 Sistem İstatistikleri</h4>
+                            <p>🔄 Bekleyen Siparişler: ${data.data.systemStats.pending_orders || 0}</p>
+                            <p>🚚 Aktif Kuryeler: ${data.data.systemStats.active_couriers || 0}</p>
+                            <p>🏪 Aktif Restoranlar: ${data.data.systemStats.active_restaurants || 0}</p>
+                            <p>📱 Push Token'ları: ${data.data.systemStats.active_push_tokens || 0}</p>
+                        `;
+                        logContainer.appendChild(statsDiv);
+                    }
+
+                    // Performans metrikleri
+                    if (data.data.performance) {
+                        const perfDiv = document.createElement('div');
+                        perfDiv.className = 'log-performance';
+                        perfDiv.innerHTML = `
+                            <h4>⚡ Performans</h4>
+                            <p>🕐 Uptime: ${Math.round(data.data.performance.uptime / 60)} dakika</p>
+                            <p>💾 Memory: ${Math.round(data.data.performance.memory.heapUsed / 1024 / 1024)} MB</p>
+                            <p>🔗 Node: ${data.data.performance.nodeVersion}</p>
+                        `;
+                        logContainer.appendChild(perfDiv);
+                    }
+
+                    // Console logları
+                    if (data.data.consoleLogs && data.data.consoleLogs.length > 0) {
+                        const consoleDiv = document.createElement('div');
+                        consoleDiv.innerHTML = '<h4>🖥️ Console Logları</h4>';
+                        logContainer.appendChild(consoleDiv);
+                        
+                        data.data.consoleLogs.forEach(log => {
+                            const logEntry = document.createElement('div');
+                            logEntry.className = `log-entry log-${log.level}`;
+                            logEntry.textContent = `[${new Date(log.timestamp).toLocaleString('tr-TR')}] ${log.level.toUpperCase()}: ${log.message}`;
+                            logContainer.appendChild(logEntry);
+                        });
+                    }
+
+                    // Application logları
+                    if (data.data.applicationLogs && data.data.applicationLogs.length > 0) {
+                        const appDiv = document.createElement('div');
+                        appDiv.innerHTML = '<h4>📄 Application Logları</h4>';
+                        logContainer.appendChild(appDiv);
+                        
+                        data.data.applicationLogs.forEach(fileLog => {
+                            const fileDiv = document.createElement('div');
+                            fileDiv.innerHTML = `<h5>📁 ${fileLog.file}</h5>`;
+                            logContainer.appendChild(fileDiv);
+                            
+                            fileLog.lines.forEach(line => {
+                                const logEntry = document.createElement('div');
+                                logEntry.className = `log-entry log-${line.level}`;
+                                logEntry.textContent = line.message;
+                                logContainer.appendChild(logEntry);
+                            });
+                        });
+                    }
+
+                    logContainer.scrollTop = logContainer.scrollHeight;
                 } else {
                     logContainer.innerHTML = '<div class="log-entry log-error">Loglar yüklenemedi: ' + (data.message || 'Bilinmeyen hata') + '</div>';
                 }
@@ -1433,6 +1646,85 @@
                 console.error('Loglar yüklenirken ağ hatası:', error);
                 const logContainer = document.getElementById('systemLogs');
                 logContainer.innerHTML = '<div class="log-entry log-error">Loglar yüklenirken ağ hatası oluştu.</div>';
+            }
+        }
+
+        // Error listesini yükle
+        async function loadErrorList() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/logs/errors?hours=24`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateErrorDisplay(data.data);
+                }
+            } catch (error) {
+                console.error('Error list yüklenirken hata:', error);
+            }
+        }
+
+        // Error listesini ekranda göster
+        function updateErrorDisplay(errorData) {
+            const container = document.getElementById('errorListContainer');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            // Error özeti
+            if (errorData.summary && Object.keys(errorData.summary).length > 0) {
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'error-summary';
+                summaryDiv.innerHTML = '<h4>📊 Hata Özeti (24 saat)</h4>';
+                
+                Object.keys(errorData.summary).forEach(key => {
+                    const [role, priority] = key.split('_');
+                    const count = errorData.summary[key];
+                    const summaryItem = document.createElement('div');
+                    summaryItem.className = `error-summary-item priority-${priority}`;
+                    summaryItem.innerHTML = `${role} ${priority}: ${count} hata`;
+                    summaryDiv.appendChild(summaryItem);
+                });
+                
+                container.appendChild(summaryDiv);
+            }
+
+            // Sistem hataları
+            if (errorData.systemErrors && errorData.systemErrors.length > 0) {
+                const systemDiv = document.createElement('div');
+                systemDiv.innerHTML = '<h4>🔧 Sistem Hataları</h4>';
+                container.appendChild(systemDiv);
+                
+                errorData.systemErrors.forEach(error => {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = `error-item level-${error.level}`;
+                    errorDiv.innerHTML = `
+                        <strong>[${error.level.toUpperCase()}]</strong> 
+                        ${error.message}
+                        <small>${new Date(error.timestamp).toLocaleString('tr-TR')}</small>
+                    `;
+                    container.appendChild(errorDiv);
+                });
+            }
+
+            // Kullanıcı hataları
+            if (errorData.userErrors && errorData.userErrors.length > 0) {
+                const userDiv = document.createElement('div');
+                userDiv.innerHTML = '<h4>👥 Kullanıcı Hataları</h4>';
+                container.appendChild(userDiv);
+                
+                errorData.userErrors.forEach(error => {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = `error-item priority-${error.priority}`;
+                    errorDiv.innerHTML = `
+                        <strong>[${error.priority.toUpperCase()}]</strong> 
+                        ${error.title}
+                        <p>${error.description}</p>
+                        <small>${error.user_role} - ${new Date(error.created_at).toLocaleString('tr-TR')}</small>
+                    `;
+                    container.appendChild(errorDiv);
+                });
             }
         }
 

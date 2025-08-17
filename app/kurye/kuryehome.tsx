@@ -288,11 +288,43 @@ const KuryeHome = () => {
   const [fullScreenModalVisible, setFullScreenModalVisible] = useState(false);
   const [fullScreenImageUri, setFullScreenImageUri] = useState<string | null>(null);
   
+  // Resim URL'sini düzelten helper fonksiyon - APK production build için optimize edildi
+  const fixImageUrl = (imageUrl: string | null): string | null => {
+    if (!imageUrl) return null;
+    
+    let finalUrl = imageUrl;
+    
+    // Eğer göreceli yol ise tam URL'ye çevir
+    if (!imageUrl.startsWith('http')) {
+      const baseUrl = 'https://kuryex.enucuzal.com';
+      finalUrl = `${baseUrl}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
+    }
+    
+    // URL'yi encode et (özel karakterler için)
+    try {
+      // Sadece path kısmını encode et, domain'i değil
+      const url = new URL(finalUrl);
+      url.pathname = encodeURI(decodeURI(url.pathname));
+      finalUrl = url.toString();
+    } catch (error) {
+      console.log('URL parsing error:', error);
+    }
+    
+    // HTTPS zorla (APK'da HTTP bazen bloklanabilir)
+    if (finalUrl.startsWith('http://')) {
+      finalUrl = finalUrl.replace('http://', 'https://');
+    }
+    
+    console.log(`📸 KuryeHome Image URL fixed: ${imageUrl} -> ${finalUrl}`);
+    return finalUrl;
+  };
+
   // Tam ekran resim modalını açan fonksiyon
   const openFullScreenImage = (uri: string) => {
     console.log("Image pressed, URI:", uri);
+    const fixedUri = fixImageUrl(uri) || uri;
     setOrderDetailModalVisible(false);
-    setFullScreenImageUri(uri);
+    setFullScreenImageUri(fixedUri);
     setFullScreenModalVisible(true);
   };
   
@@ -679,8 +711,9 @@ const KuryeHome = () => {
         }, 500);
       }
       
-      // Initial fetch after connection (reduced delay)
+      // Initial fetch after connection (reduced delay) - sadece socket bağlantısından sonra bir kez
       setTimeout(() => {
+        console.log("🔄 Socket bağlantısı kuruldu, siparişler yenileniyor...");
         fetchOrders();
         fetchAcceptedOrders();
         fetchPendingApprovalOrders();
@@ -1192,7 +1225,7 @@ const KuryeHome = () => {
         socketRef.current = null;
       }
     };
-  }, [user]); // showOrderNotification dependency'si kaldırıldı
+  }, [user?.id]); // Sadece user.id değiştiğinde socket'i yeniden bağla
 
   // Tüm async fonksiyonları burada tanımlıyorum (hook'lardan önce)
   const fetchAcceptedOrders = useCallback(async () => {
@@ -1210,13 +1243,15 @@ const KuryeHome = () => {
         setAcceptedOrders(data.data || []);
         setCurrentActiveOrders((data.data || []).length);
       } else {
-        console.error(`❌ KuryeHome: Failed to fetch accepted orders, status: ${response.status}`);
-        
-        // 401 hatası durumunda sadece logla, otomatik logout yapma
+        // 401 hatası durumunda görünür error log yazmadan sessizce çık
         if (response.status === 401) {
           console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
+          setAcceptedOrders([]);
+          setCurrentActiveOrders(0);
+          return;
         }
-        
+
+        console.error(`❌ KuryeHome: Failed to fetch accepted orders, status: ${response.status}`);
         setAcceptedOrders([]);
         setCurrentActiveOrders(0);
       }
@@ -1229,7 +1264,7 @@ const KuryeHome = () => {
       setAcceptedOrders([]);
       setCurrentActiveOrders(0);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Kurye bilgilerini çeken fonksiyon
   const fetchCourierInfo = useCallback(async () => {
@@ -1244,7 +1279,7 @@ const KuryeHome = () => {
     } catch {
       // Sessizce hata yakala
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Hesaplaşma verilerini çeken fonksiyon
 
@@ -1274,6 +1309,9 @@ const KuryeHome = () => {
         // 401 hatası durumunda sadece logla, otomatik logout yapma
         if (response.status === 401) {
           console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
+          // Hata göstermeden sessizce state'i temizle ve çık
+          setOrders([]);
+          return;
         }
         
         if (response.status >= 500) {
@@ -1296,13 +1334,19 @@ const KuryeHome = () => {
       
       // Orders fetched successfully
       setOrders(sortedOrders);
-    } catch {
-      setError("Bilinmeyen bir hata oluştu.");
+    } catch (e: any) {
+      // Zorunlu logout sürecinde veya 401 kaynaklı hatalarda ekrana görünür hata basma
+      const msg = typeof e?.message === 'string' ? e.message : '';
+      if (msg === 'FORCED_LOGOUT_IN_PROGRESS' || msg.includes('401')) {
+        setOrders([]);
+      } else {
+        setError("Bilinmeyen bir hata oluştu.");
+      }
       setOrders([]);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchPendingApprovalOrders = useCallback(async () => {
     if (!user) return;
@@ -1318,14 +1362,15 @@ const KuryeHome = () => {
       }
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("fetchPendingApprovalOrders: HTTP error response:", errorText);
-        
-        // 401 hatası durumunda sadece logla, otomatik logout yapma
+        // 401 hatasını önce yakala ve görünür error loglamadan sessizce dön
         if (response.status === 401) {
           console.warn('⚠️ Kurye: Token geçersiz - otomatik logout devre dışı');
+          setPendingApprovalOrders([]);
+          return;
         }
-        
+
+        const errorText = await response.text();
+        console.error("fetchPendingApprovalOrders: HTTP error response:", errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -1349,7 +1394,7 @@ const KuryeHome = () => {
       console.error("fetchPendingApprovalOrders: Error fetching pending approval orders:", err);
       setPendingApprovalOrders([]);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const toggleSelectOrder = useCallback((orderId: string) => {
     setSelectedOrders((prev) =>
@@ -1374,7 +1419,7 @@ const KuryeHome = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [fetchOrders, fetchPendingApprovalOrders, fetchAcceptedOrders, fetchCourierInfo]);
+  }, [user?.id]); // Sadece user.id değiştiğinde yenile
 
   const acceptSelectedOrders = useCallback(async () => {
     if (!user || selectedOrders.length === 0) {
@@ -1656,7 +1701,7 @@ const KuryeHome = () => {
     } catch {
       Alert.alert("Sipariş kabul edilirken hata oluştu.");
     }
-  }, [user, selectedOrders, fetchOrders, fetchAcceptedOrders, orders, isOnline, currentActiveOrders, packageLimit]);
+  }, [user?.id, selectedOrders, orders, isOnline, currentActiveOrders, packageLimit]);
 
 
 
@@ -1875,7 +1920,7 @@ const KuryeHome = () => {
       console.error("Sipariş kabul hatası:", error);
       Alert.alert("Hata", "Sipariş kabul edilirken bir hata oluştu.");
     }
-  }, [user, isOnline, currentActiveOrders, packageLimit, fetchOrders, fetchAcceptedOrders]);
+  }, [user?.id, isOnline, currentActiveOrders, packageLimit]);
 
   // Push token registration for courier
   const registerPushToken = useCallback(async (userData: any) => {
@@ -2136,7 +2181,7 @@ const KuryeHome = () => {
         },
       ]
     );
-  }, [openOrderDetail, user, fetchOrders]);
+  }, [openOrderDetail, user?.id]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -2267,7 +2312,7 @@ const KuryeHome = () => {
       // Hemen çevrimiçi durumu kontrol et
       checkAndSetOnlineStatus(user.id);
     }
-  }, [user, fetchOrders, fetchPendingApprovalOrders, fetchCourierInfo]);
+  }, [user?.id]); // Sadece user.id'ye bağlı olarak tetikle
   
   // Çevrimiçi durumu kontrol eden yardımcı fonksiyon
   const checkAndSetOnlineStatus = useCallback(async (userId: string) => {
@@ -2336,15 +2381,17 @@ const KuryeHome = () => {
           console.log("🔄 Screen focused: Only courier info refreshed (socket connected)");
         }
       }
-    }, [user, socketConnected, fetchOrders, fetchPendingApprovalOrders, fetchAcceptedOrders, fetchCourierInfo])
+    }, [user?.id, socketConnected])
   );
 
   useEffect(() => {
+    if (!user?.id) return; // User yoksa interval başlatma
+    
     const intervalId = setInterval(() => {
       fetchAcceptedOrders();
     }, 5000);
     return () => clearInterval(intervalId);
-  }, [fetchAcceptedOrders]);
+  }, [user?.id]); // User.id'ye bağlı olarak interval'ı başlat
 
   // Yeni konum güncelleme useEffect'i: acceptedOrders varsa her 15 saniyede bir güncelleme yapar.
   useEffect(() => {
@@ -2383,7 +2430,7 @@ const KuryeHome = () => {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [acceptedOrders, user]);
+  }, [acceptedOrders, user?.id]);
 
   // Koşullu return, tüm hook'lardan sonra
   if (!isLoaded || !user) {
@@ -2467,8 +2514,23 @@ const KuryeHome = () => {
                   <View style={styles.restaurantLogoContainer}>
                     {item.logo_url ? (
                       <Image
-                        source={{ uri: item.logo_url }}
+                        source={{ 
+                          uri: item.logo_url,
+                          ...(Platform.OS === 'android' && {
+                            cache: 'default',
+                            headers: {
+                              'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                              'User-Agent': 'KuryeX/1.0.0 (Android)'
+                            }
+                          })
+                        }}
                         style={styles.restaurantLogo}
+                        defaultSource={require('../../assets/icon.png')}
+                        onError={(error) => {
+                          console.error('🚨 Restaurant logo load error:', error.nativeEvent);
+                          console.error('🚨 Failed Logo URI:', item.logo_url);
+                        }}
+                        onLoad={() => console.log('✅ Restaurant logo loaded successfully:', item.logo_url)}
                       />
                     ) : (
                       <View style={styles.defaultLogoContainer}>
@@ -2857,9 +2919,28 @@ const KuryeHome = () => {
                       style={styles.modalImageTouchable}
                     >
                       <Image
-                        source={{ uri: selectedOrder.resim }}
+                        source={{ 
+                          uri: fixImageUrl(selectedOrder.resim) || selectedOrder.resim,
+                          ...(Platform.OS === 'android' && {
+                            cache: 'default',
+                            headers: {
+                              'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                              'User-Agent': 'KuryeX/1.0.0 (Android)',
+                              'Pragma': 'no-cache',
+                              'Cache-Control': 'no-cache'
+                            }
+                          })
+                        }}
                         style={styles.modalImage}
                         resizeMode="cover"
+                        defaultSource={require('../../assets/icon.png')}
+                        onError={(error) => {
+                          console.error('🚨 KuryeHome Image load error:', error.nativeEvent);
+                          console.error('🚨 Failed Image URI:', fixImageUrl(selectedOrder.resim) || selectedOrder.resim);
+                        }}
+                        onLoad={() => console.log('✅ KuryeHome Image loaded successfully:', selectedOrder.resim)}
+                        onLoadStart={() => console.log('🔄 KuryeHome Image loading started:', selectedOrder.resim)}
+                        onLoadEnd={() => console.log('🏁 KuryeHome Image loading ended:', selectedOrder.resim)}
                       />
                       <View style={styles.modalImageOverlay}>
                         <Ionicons name="expand" size={32} color="#FFFFFF" />
@@ -2976,9 +3057,28 @@ const KuryeHome = () => {
         >
           {fullScreenImageUri && (
             <Image
-              source={{ uri: fullScreenImageUri }}
+              source={{ 
+                uri: fullScreenImageUri,
+                ...(Platform.OS === 'android' && {
+                  cache: 'default',
+                  headers: {
+                    'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'User-Agent': 'KuryeX/1.0.0 (Android)',
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache'
+                  }
+                })
+              }}
               style={styles.fullScreenImage}
               resizeMode="contain"
+              defaultSource={require('../../assets/icon.png')}
+              onError={(error) => {
+                console.error('🚨 Full screen image load error:', error.nativeEvent);
+                console.error('🚨 Full screen image URI:', fullScreenImageUri);
+              }}
+              onLoad={() => console.log('✅ Full screen image loaded successfully:', fullScreenImageUri)}
+              onLoadStart={() => console.log('🔄 Full screen image loading started:', fullScreenImageUri)}
+              onLoadEnd={() => console.log('🏁 Full screen image loading ended:', fullScreenImageUri)}
             />
           )}
         </TouchableOpacity>

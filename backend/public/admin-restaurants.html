@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚚 Kurye App - Restaurants</title>
+    <title>🚚 KuryeX - Restaurants</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1321,12 +1321,13 @@
             currentEditingRestaurantId = null;
             currentRestaurantId = null;
             
+            // Konum bilgisini sıfırla
+            selectedLocation = null;
+            updateCurrentLocationInfo(null);
+            
             // Şifre alanını tekrar zorunlu yap (ekleme için)
             document.getElementById('restaurantPassword').required = true;
             document.getElementById('restaurantPassword').placeholder = '';
-            
-            // Konum bilgisini sıfırla
-            updateCurrentLocationInfo(null);
         }
 
         // Konum bilgisini güncelle
@@ -1411,6 +1412,16 @@
                     alert('Yeni restoran için şifre gereklidir');
                     return;
                 }
+                
+                // Konum kontrolü
+                if (!selectedLocation) {
+                    alert('🗺️ Restoran konumu zorunludur!\n\nLütfen "📍 Konum Seç" butonuna tıklayarak restoranın konumunu belirleyin.');
+                    return;
+                }
+                
+                // Konum verilerini ekle
+                formData.latitude = selectedLocation.lat;
+                formData.longitude = selectedLocation.lng;
                 
                 fetch(`${API_BASE}/api/admin/restaurants`, {
                     method: 'POST',

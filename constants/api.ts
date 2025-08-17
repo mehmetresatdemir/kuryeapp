@@ -3,6 +3,44 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
+// Global auth flow guards to prevent duplicated alerts/navigation on concurrent 401s
+let GLOBAL_LOGOUT_IN_PROGRESS = false;
+let GLOBAL_LOGOUT_ALERT_SHOWN = false;
+
+const performForcedLogoutOnce = async (message?: string) => {
+  if (GLOBAL_LOGOUT_IN_PROGRESS) {
+    return;
+  }
+  GLOBAL_LOGOUT_IN_PROGRESS = true;
+
+  try {
+    await AsyncStorage.multiRemove([
+      'userData',
+      'userToken',
+      'pushToken',
+      'pushTokenUserId',
+      'pushTokenUserType',
+      'expoPushToken'
+    ]);
+    console.log('✅ AsyncStorage temizlendi (forced logout)');
+  } catch (e) {
+    console.warn('AsyncStorage temizleme hatası:', (e as any)?.message || e);
+  }
+
+  // Kullanıcı etkileşimi olmadan direkt giriş ekranına yönlendir + 3 sn'lik banner mesajını sakla
+  const alertMessage = message || 'Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.';
+  try { await AsyncStorage.setItem('logoutMessage', alertMessage); } catch {}
+  if (!GLOBAL_LOGOUT_ALERT_SHOWN) {
+    GLOBAL_LOGOUT_ALERT_SHOWN = true;
+  }
+  try { router.replace('/(auth)/sign-in'); } catch {}
+};
+
+export const resetAuthGuards = () => {
+  GLOBAL_LOGOUT_IN_PROGRESS = false;
+  GLOBAL_LOGOUT_ALERT_SHOWN = false;
+};
+
 // Get environment variables - USE LOCAL BACKEND
 const sanitizeHost = (value?: string): string => {
   if (!value) return '';
@@ -102,6 +140,8 @@ export const API_ENDPOINTS = {
   REFRESH_TOKEN: "/api/refresh-token",
   FORGOT_PASSWORD: "/api/forgot-password",
   RESET_PASSWORD: "/api/reset-password",
+  // Account
+  DELETE_ACCOUNT: "/api/account",
   
   // Users
   GET_USER: (id: string | number) => `/api/user/${id}`,
@@ -183,6 +223,10 @@ export const API_ENDPOINTS = {
   GET_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
   UPDATE_RESTAURANT_PREFERENCES: (restaurantId: string | number) => `/api/preferences/restaurant/${restaurantId}`,
   
+  // Content Management
+  GET_CONTENT_PAGES: "/api/content/active",
+  GET_CONTENT_PAGE: (pageType: string) => `/api/content/page/${pageType}`,
+  
   // Notification Sounds (Kaldırıldı - Artık sadece local assets kullanılıyor)
 };
 
@@ -238,10 +282,16 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
   console.log('🚀 API Request:', url);
   console.log('📋 Request options:', JSON.stringify(options, null, 2));
   
+  if (GLOBAL_LOGOUT_IN_PROGRESS) {
+    console.warn('⏳ Logout süreci devam ediyor, istek iptal edildi:', url);
+    return Promise.reject(new Error('FORCED_LOGOUT_IN_PROGRESS'));
+  }
+
   const token = await AsyncStorage.getItem('userToken');
 
   if (!token) {
     console.warn('🔴 Authentication token not found. User might be logged out.');
+    await performForcedLogoutOnce('Oturum bilginiz bulunamadı, lütfen tekrar giriş yapın.');
     return Promise.reject(new Error('Authentication token not found.'));
   }
 
@@ -270,88 +320,44 @@ export const authedFetch = async (url: string, options: RequestInit = {}): Promi
     
     // 401 hatası durumunda dikkatli logout handling
     if (response.status === 401) {
-    console.warn('⚠️ 401 hatası alındı - kontrol ediliyor...');
-    
-    try {
-      // Response body'yi kontrol et
-      const responseData = await response.clone().json();
-      
-      // Sadece kesin logout gereken durumlar için logout yap
-      const shouldForceLogout = responseData.shouldLogout || 
-                               responseData.message?.includes('session') || 
-                               responseData.message?.includes('expire') ||
-                               responseData.message?.includes('geçersiz') ||
-                               responseData.message?.includes('invalid');
-      
-      if (shouldForceLogout) {
-        console.log('🔄 Kesin logout gerekiyor, işlem başlatılıyor...');
-        
-        // AsyncStorage'ı temizle
-        await AsyncStorage.multiRemove([
-          'userData', 
-          'userToken', 
-          'pushToken', 
-          'pushTokenUserId', 
-          'pushTokenUserType',
-          'expoPushToken'
-        ]);
-        
-        console.log('✅ AsyncStorage temizlendi');
-        
-        // Anasayfaya yönlendir ve uyarı göster
-        setTimeout(() => {
-          Alert.alert(
-            '🔐 Oturum Süresi Doldu',
-            'Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-            [
-              {
-                text: 'Giriş Yap',
-                onPress: () => {
-                  router.replace('/(auth)/sign-in');
-                }
-              }
-            ],
-            { cancelable: false }
-          );
-        }, 500);
-        
-        // Biraz bekleyip sign-in sayfasına yönlendir
-        setTimeout(() => {
-          router.replace('/(auth)/sign-in');
-        }, 100);
-      } else {
-        // Token refresh deneyebiliriz
-        console.log('🔄 Token refresh deneniyor...');
-        const newToken = await refreshUserToken();
-        
-        if (newToken) {
-          // Yeni token ile request'i tekrar dene
-          console.log('✅ Token yenilendi, request tekrarlanıyor...');
-          const retryHeaders = {
-            ...finalOptions.headers,
-            'Authorization': `Bearer ${newToken}`
-          };
-          
-          try {
-            const retryResponse = await fetch(url, {
-              ...finalOptions,
-              headers: retryHeaders
-            });
-            return retryResponse;
-          } catch (retryError) {
-            console.error('❌ Retry request failed:', retryError);
-            // Retry da başarısız olursa orijinal response'u döndür
-          }
+      console.warn('⚠️ 401 hatası alındı - kontrol ediliyor...');
+      try {
+        const responseData = await response.clone().json();
+        const shouldForceLogout = responseData.shouldLogout || 
+                                  responseData.message?.includes('session') || 
+                                  responseData.message?.includes('expire') ||
+                                  responseData.message?.includes('geçersiz') ||
+                                  responseData.message?.includes('invalid');
+        if (shouldForceLogout) {
+          console.log('🔄 Kesin logout gerekiyor, tekilleştirilmiş akış başlatılıyor...');
+          await performForcedLogoutOnce(responseData.message);
         } else {
-          console.log('❌ Token refresh başarısız, logout gerekebilir');
+          console.log('🔄 Token refresh deneniyor...');
+          const newToken = await refreshUserToken();
+          if (newToken) {
+            console.log('✅ Token yenilendi, request tekrarlanıyor...');
+            const retryHeaders = {
+              ...finalOptions.headers,
+              'Authorization': `Bearer ${newToken}`
+            };
+            try {
+              const retryResponse = await fetch(url, {
+                ...finalOptions,
+                headers: retryHeaders
+              });
+              return retryResponse;
+            } catch (retryError) {
+              console.error('❌ Retry request failed:', retryError);
+            }
+          } else {
+            console.log('❌ Token refresh başarısız, logout gerekebilir');
+          }
         }
+      } catch (error) {
+        console.error('❌ 401 response parsing error:', error);
+        console.log('🔄 Response parse edilemedi, network hatası olabilir');
       }
-    } catch (error) {
-      console.error('❌ 401 response parsing error:', error);
-      // Parse hatası varsa, muhtemelen ağ sorunu, logout yapma
-      console.log('🔄 Response parse edilemedi, network hatası olabilir');
     }
-  }
 
     return response;
   } catch (error) {

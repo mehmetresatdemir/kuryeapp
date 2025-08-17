@@ -17,7 +17,6 @@ const Page = () => {
       
       if (!userData) {
         // Kullanıcı giriş yapmamış, giriş sayfasına yönlendir
-        console.log('📱 Kullanıcı data bulunamadı, giriş sayfasına yönlendiriliyor');
         router.replace("/(auth)/sign-in");
         return;
       }

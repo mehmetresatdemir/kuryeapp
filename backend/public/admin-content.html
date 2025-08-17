@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KuryeX Admin - Content</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+    <style>
+        .content-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 0;
+            margin-bottom: 3rem;
+            border-radius: 25px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .content-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            border: none;
+            border-radius: 10px;
+            font-weight: 500;
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+        }
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            border: none;
+            border-radius: 10px;
+            font-weight: 500;
+            box-shadow: 0 3px 10px rgba(245, 158, 11, 0.3);
+        }
+        .btn-warning:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border: none;
+            border-radius: 10px;
+            font-weight: 500;
+            box-shadow: 0 3px 10px rgba(239, 68, 68, 0.3);
+        }
+        .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+        
+        .table {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .table thead th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .table tbody tr {
+            transition: all 0.3s ease;
+        }
+        .table tbody tr:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+            transform: scale(1.01);
+        }
+        
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+            padding: 1.5rem 2rem;
+            position: relative;
+        }
+        .modal-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        }
+        .modal-title {
+            font-weight: 700;
+            font-size: 1.4rem;
+        }
+        
+        .page-type-badge {
+            font-size: 0.8rem;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .active-badge {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+        }
+        
+        .inactive-badge {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(239, 68, 68, 0.3);
+        }
+        
+        #editor {
+            height: 300px;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .stats-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.35);
+        }
+        
+        .content-preview {
+            max-height: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 15px;
+            }
+            .content-header {
+                padding: 2rem 1rem;
+                margin-bottom: 2rem;
+                border-radius: 15px;
+            }
+            .content-header h1 {
+                font-size: 2rem !important;
+            }
+            .content-header p {
+                font-size: 1rem !important;
+            }
+            .stats-card .card-body {
+                padding: 1rem;
+            }
+            .stats-card h4 {
+                font-size: 1.2rem;
+            }
+            .stats-card p {
+                font-size: 0.85rem;
+            }
+            .table-responsive {
+                border-radius: 10px;
+            }
+            .table th, .table td {
+                padding: 0.5rem;
+                font-size: 0.85rem;
+            }
+            .btn-group .btn {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.8rem;
+            }
+            .modal-dialog {
+                margin: 0.5rem;
+                max-width: calc(100% - 1rem);
+            }
+            .modal-content {
+                border-radius: 15px;
+            }
+            .modal-header {
+                padding: 1rem 1.5rem;
+            }
+            .modal-body {
+                padding: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .content-header {
+                padding: 1.5rem 0.8rem;
+                margin-bottom: 1.5rem;
+            }
+            .content-header h1 {
+                font-size: 1.8rem !important;
+            }
+            .content-header p {
+                font-size: 0.9rem !important;
+            }
+            .row .col-md-3 {
+                margin-bottom: 1rem;
+            }
+            .stats-card {
+                margin-bottom: 1rem;
+            }
+            .table th, .table td {
+                padding: 0.4rem;
+                font-size: 0.8rem;
+            }
+            .page-type-badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.6rem;
+            }
+            .btn {
+                font-size: 0.8rem;
+                padding: 0.5rem 1rem;
+            }
+            .btn-group .btn {
+                padding: 0.2rem 0.4rem;
+                font-size: 0.7rem;
+            }
+            .modal-dialog {
+                margin: 0.25rem;
+                max-width: calc(100% - 0.5rem);
+            }
+            .modal-header {
+                padding: 1rem;
+            }
+            .modal-body {
+                padding: 1rem;
+            }
+            .form-control {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+                <!-- Header -->
+                <div class="content-header text-center">
+                    <h1 style="position: relative; z-index: 1; font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">
+                        <i class="fas fa-file-alt me-3" style="color: rgba(255,255,255,0.9);"></i>
+                        İçerik Yönetimi
+                    </h1>
+                    <p class="mb-0" style="position: relative; z-index: 1; font-size: 1.1rem; opacity: 0.9;">
+                        Gizlilik politikası, kullanım koşulları ve diğer sayfaları yönetin
+                    </p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                                <h4 id="totalPages">-</h4>
+                                <p class="mb-0">Toplam Sayfa</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-eye fa-2x mb-2"></i>
+                                <h4 id="activePages">-</h4>
+                                <p class="mb-0">Aktif Sayfa</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-clock fa-2x mb-2"></i>
+                                <h4 id="lastUpdate">-</h4>
+                                <p class="mb-0">Son Güncelleme</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-shield-alt fa-2x mb-2"></i>
+                                <h4>Güvenli</h4>
+                                <p class="mb-0">İçerik Sistemi</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Management -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>İçerik Sayfaları
+                        </h5>
+                        <button class="btn btn-primary" onclick="showCreateModal()">
+                            <i class="fas fa-plus me-1"></i>Yeni Sayfa
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Sayfa Tipi</th>
+                                        <th>Başlık</th>
+                                        <th>İçerik Önizleme</th>
+                                        <th>Durum</th>
+                                        <th>Son Güncelleme</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contentTable">
+                                    <tr>
+                                        <td colspan="6" class="text-center">
+                                            <i class="fas fa-spinner fa-spin me-2"></i>Yükleniyor...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal fade" id="contentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">
+                        <i class="fas fa-edit me-2"></i>İçerik Düzenle
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contentForm">
+                        <input type="hidden" id="pageId" name="pageId">
+                        
+                        <div class="mb-3">
+                            <label for="pageType" class="form-label">
+                                <i class="fas fa-tag me-1"></i>Sayfa Tipi
+                            </label>
+                            <select class="form-select" id="pageType" name="pageType" required>
+                                <option value="">Seçiniz...</option>
+                                <option value="privacy">Gizlilik Politikası</option>
+                                <option value="terms">Kullanım Koşulları</option>
+                                <option value="support">Destek</option>
+                                <option value="about">Hakkında</option>
+                                <option value="contact">İletişim</option>
+                                <option value="faq">Sık Sorulan Sorular</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="pageTitle" class="form-label">
+                                <i class="fas fa-heading me-1"></i>Başlık
+                            </label>
+                            <input type="text" class="form-control" id="pageTitle" name="pageTitle" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="pageContent" class="form-label">
+                                <i class="fas fa-edit me-1"></i>İçerik
+                            </label>
+                            <div id="editor"></div>
+                            <textarea id="pageContent" name="pageContent" style="display: none;"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isActive" name="isActive" checked>
+                                <label class="form-check-label" for="isActive">
+                                    <i class="fas fa-eye me-1"></i>Aktif
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>İptal
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="saveContent()">
+                        <i class="fas fa-save me-1"></i>Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i>İçerik Önizleme
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h3 id="previewTitle"></h3>
+                    <hr>
+                    <div id="previewContent" style="white-space: pre-wrap; line-height: 1.6;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/main-layout.js"></script>
+    <script>
+        let contentPages = [];
+        let editingId = null;
+        let quill;
+
+        // Quill editor'ı başlat
+        document.addEventListener('DOMContentLoaded', function() {
+            quill = new Quill('#editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        ['link'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['clean']
+                    ]
+                }
+            });
+            
+            loadContentPages();
+        });
+
+        // İçerik sayfalarını yükle
+        async function loadContentPages() {
+            try {
+                const response = await fetch('/api/content/admin/all');
+                const data = await response.json();
+                
+                if (data.success) {
+                    contentPages = data.data;
+                    updateStats();
+                    renderContentTable();
+                }
+            } catch (error) {
+                console.error('Error loading content pages:', error);
+                showAlert('İçerik sayfaları yüklenemedi', 'danger');
+            }
+        }
+
+        // İstatistikleri güncelle
+        function updateStats() {
+            const totalPages = contentPages.length;
+            const activePages = contentPages.filter(page => page.is_active).length;
+            const lastUpdate = contentPages.length > 0 ? 
+                new Date(Math.max(...contentPages.map(p => new Date(p.updated_at)))).toLocaleDateString('tr-TR') : 
+                'Henüz yok';
+
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('activePages').textContent = activePages;
+            document.getElementById('lastUpdate').textContent = lastUpdate;
+        }
+
+        // Tablo render
+        function renderContentTable() {
+            const tbody = document.getElementById('contentTable');
+            
+            if (contentPages.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            <i class="fas fa-info-circle me-2"></i>Henüz içerik sayfası bulunmuyor.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = contentPages.map(page => `
+                <tr>
+                    <td>
+                        <span class="page-type-badge ${getPageTypeBadgeClass(page.page_type)}">
+                            ${getPageTypeLabel(page.page_type)}
+                        </span>
+                    </td>
+                    <td>${page.title}</td>
+                    <td>
+                        <div class="content-preview">
+                            ${page.content.substring(0, 100)}...
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge ${page.is_active ? 'active-badge' : 'inactive-badge'}">
+                            ${page.is_active ? 'Aktif' : 'Pasif'}
+                        </span>
+                    </td>
+                    <td>${new Date(page.updated_at).toLocaleDateString('tr-TR')}</td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-success" onclick="previewContent(${page.id})" title="Önizle">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="editContent(${page.id})" title="Düzenle">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteContent(${page.id})" title="Sil">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Sayfa tipi etiketleri
+        function getPageTypeLabel(type) {
+            const labels = {
+                'privacy': 'Gizlilik',
+                'terms': 'Koşullar',
+                'support': 'Destek',
+                'about': 'Hakkında',
+                'contact': 'İletişim',
+                'faq': 'SSS'
+            };
+            return labels[type] || type;
+        }
+
+        function getPageTypeBadgeClass(type) {
+            const classes = {
+                'privacy': 'bg-primary',
+                'terms': 'bg-warning',
+                'support': 'bg-success',
+                'about': 'bg-info',
+                'contact': 'bg-secondary',
+                'faq': 'bg-dark'
+            };
+            return classes[type] || 'bg-primary';
+        }
+
+        // Yeni sayfa modal
+        function showCreateModal() {
+            editingId = null;
+            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Yeni Sayfa Oluştur';
+            document.getElementById('pageId').value = '';
+            document.getElementById('pageType').value = '';
+            document.getElementById('pageTitle').value = '';
+            document.getElementById('isActive').checked = true;
+            quill.setContents([]);
+            
+            const modal = new bootstrap.Modal(document.getElementById('contentModal'));
+            modal.show();
+        }
+
+        // Düzenleme modal
+        function editContent(id) {
+            const page = contentPages.find(p => p.id === id);
+            if (!page) return;
+
+            editingId = id;
+            document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>İçerik Düzenle';
+            document.getElementById('pageId').value = page.id;
+            document.getElementById('pageType').value = page.page_type;
+            document.getElementById('pageTitle').value = page.title;
+            document.getElementById('isActive').checked = page.is_active;
+            quill.setText(page.content);
+            
+            const modal = new bootstrap.Modal(document.getElementById('contentModal'));
+            modal.show();
+        }
+
+        // Önizleme
+        function previewContent(id) {
+            const page = contentPages.find(p => p.id === id);
+            if (!page) return;
+
+            document.getElementById('previewTitle').textContent = page.title;
+            document.getElementById('previewContent').textContent = page.content;
+            
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            modal.show();
+        }
+
+        // Kaydet
+        async function saveContent() {
+            const pageType = document.getElementById('pageType').value;
+            const pageTitle = document.getElementById('pageTitle').value;
+            const pageContent = quill.getText();
+            const isActive = document.getElementById('isActive').checked;
+
+            if (!pageType || !pageTitle || !pageContent.trim()) {
+                showAlert('Lütfen tüm alanları doldurun', 'warning');
+                return;
+            }
+
+            try {
+                let response;
+                const data = {
+                    page_type: pageType,
+                    title: pageTitle,
+                    content: pageContent,
+                    is_active: isActive
+                };
+
+                if (editingId) {
+                    response = await fetch(`/api/content/admin/update/${editingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch('/api/content/admin/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('contentModal')).hide();
+                    loadContentPages();
+                } else {
+                    showAlert(result.message, 'danger');
+                }
+            } catch (error) {
+                console.error('Error saving content:', error);
+                showAlert('Kaydetme işlemi başarısız', 'danger');
+            }
+        }
+
+        // Sil
+        async function deleteContent(id) {
+            const page = contentPages.find(p => p.id === id);
+            if (!page) return;
+
+            if (!confirm(`"${page.title}" sayfasını silmek istediğinizden emin misiniz?`)) return;
+
+            try {
+                const response = await fetch(`/api/content/admin/delete/${id}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    loadContentPages();
+                } else {
+                    showAlert(result.message, 'danger');
+                }
+            } catch (error) {
+                console.error('Error deleting content:', error);
+                showAlert('Silme işlemi başarısız', 'danger');
+            }
+        }
+
+        // Alert göster
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            alertDiv.style.zIndex = '9999';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

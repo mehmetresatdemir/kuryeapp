@@ -52,6 +52,18 @@ const getAllRestaurants = async (req, res) => {
     }
 };
 
+// Ensure delivery_radius_km column exists on restaurants (self-healing)
+async function ensureRestaurantRadiusColumn() {
+    try {
+        await sql`
+            ALTER TABLE restaurants
+            ADD COLUMN IF NOT EXISTS delivery_radius_km INTEGER DEFAULT 0
+        `;
+    } catch (e) {
+        // non-fatal
+    }
+}
+
 // Helper function for authenticating a restaurant
 const authenticateRestaurant = async (email, password) => {
     const user = await verifyUser(email, password, 'restaurant');
@@ -297,10 +309,21 @@ const toggleDeliveryAvailability = async (req, res) => {
 };
 
 const addRestaurant = async (req, res) => {
-    const { name, yetkili_name, phone, email, password } = req.body;
+    const { name, yetkili_name, phone, email, password, latitude, longitude } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ success: false, message: 'Restoran adı, e-posta ve şifre gereklidir.' });
+    }
+
+    // Konum kontrolü
+    if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ success: false, message: 'Restoran konumu (latitude, longitude) zorunludur.' });
+    }
+
+    // Latitude ve longitude sınır kontrolü
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+        latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        return res.status(400).json({ success: false, message: 'Geçersiz konum bilgisi.' });
     }
 
     try {
@@ -327,6 +350,8 @@ const addRestaurant = async (req, res) => {
                 phone,
                 email,
                 password,
+                latitude,
+                longitude,
                 courier_visibility_mode,
                 created_at
             ) VALUES (
@@ -335,9 +360,11 @@ const addRestaurant = async (req, res) => {
                 ${phone},
                 ${email},
                 ${password},
+                ${latitude},
+                ${longitude},
                 'all_couriers',
                 NOW()
-            ) RETURNING id, name, email;
+            ) RETURNING id, name, email, latitude, longitude;
         `;
         res.status(201).json({ success: true, message: 'Restoran başarıyla eklendi.', restaurant: newRestaurant[0] });
     } catch (error) {
@@ -458,22 +485,25 @@ const deleteRestaurant = async (req, res) => {
     }
 };
 
+// Admin panel için restoran konumu güncelleme (basit versiyon)
 const updateRestaurantLocation = async (req, res) => {
     const { restaurantId } = req.params;
-    const { latitude, longitude } = req.body;
+    const { latitude, longitude, delivery_radius_km } = req.body;
 
     if (!restaurantId || latitude === undefined || longitude === undefined) {
         return res.status(400).json({ success: false, message: 'Restoran ID, enlem ve boylam gereklidir.' });
     }
 
     try {
+        await ensureRestaurantRadiusColumn();
         const updatedLocation = await sql`
             UPDATE restaurants
             SET 
                 latitude = ${latitude},
-                longitude = ${longitude}
+                longitude = ${longitude},
+                delivery_radius_km = ${delivery_radius_km !== undefined ? delivery_radius_km : sql.unsafe('delivery_radius_km')}
             WHERE id = ${restaurantId}
-            RETURNING id, latitude, longitude;
+            RETURNING id, latitude, longitude, delivery_radius_km;
         `;
 
         if (updatedLocation.length === 0) {
@@ -534,10 +564,11 @@ const getRestaurantProfile = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Bu bilgilere erişim yetkiniz yok.' });
         }
 
+        await ensureRestaurantRadiusColumn();
         const [restaurant] = await sql`
             SELECT 
                 id, name, email, phone, yetkili_name, address,
-                logo, created_at, role
+                logo, created_at, role, latitude, longitude, delivery_radius_km
             FROM restaurants 
             WHERE id = ${restaurantId}
         `;
@@ -784,6 +815,58 @@ const deleteRestaurantLogo = async (req, res) => {
     }
 };
 
+// Mobil app için restoran konumu güncelleme (yetki kontrolü ile)
+const updateRestaurantLocationMobile = async (req, res) => {
+    const { restaurantId } = req.params;
+    const { latitude, longitude, delivery_radius_km } = req.body;
+    const { id: userId, role } = req.user;
+
+    try {
+        // Yetki kontrolü - sadece kendi profilini güncelleyebilir
+        if (role !== 'admin' && parseInt(restaurantId) !== userId) {
+            return res.status(403).json({ success: false, message: 'Bu bilgileri güncelleme yetkiniz yok.' });
+        }
+
+        // Konum verileri kontrolü
+        if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+            return res.status(400).json({ success: false, message: 'Geçersiz konum bilgisi.' });
+        }
+
+        // Latitude ve longitude sınır kontrolü
+        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            return res.status(400).json({ success: false, message: 'Konum değerleri geçersiz.' });
+        }
+
+        // Restoran varlığını kontrol et
+        const [restaurant] = await sql`SELECT id FROM restaurants WHERE id = ${restaurantId}`;
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: 'Restoran bulunamadı.' });
+        }
+
+        await ensureRestaurantRadiusColumn();
+        // Konum bilgisini güncelle
+        await sql`
+            UPDATE restaurants 
+            SET 
+                latitude = ${latitude},
+                longitude = ${longitude},
+                delivery_radius_km = ${delivery_radius_km !== undefined ? delivery_radius_km : sql.unsafe('delivery_radius_km')},
+                updated_at = NOW()
+            WHERE id = ${restaurantId}
+        `;
+
+        res.json({
+            success: true,
+            message: 'Restoran konumu başarıyla güncellendi.',
+            data: { latitude, longitude }
+        });
+
+    } catch (error) {
+        console.error('Restoran konum güncelleme hatası:', error);
+        res.status(500).json({ success: false, message: 'Konum güncellenirken sunucu hatası oluştu.' });
+    }
+};
+
 module.exports = {
     getAllRestaurants,
     getRestaurant,
@@ -796,11 +879,12 @@ module.exports = {
     addRestaurant,
     updateRestaurant,
     deleteRestaurant,
-    updateRestaurantLocation,
     authenticateRestaurant,
     getRestaurantProfile,
     updateRestaurantProfile,
     changeRestaurantPassword,
     uploadRestaurantLogo,
-    deleteRestaurantLogo
+    deleteRestaurantLogo,
+    updateRestaurantLocation,
+    updateRestaurantLocationMobile
 }; 

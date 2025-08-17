@@ -330,11 +330,15 @@ const RestaurantHome = () => {
       // Önce bekleyen local bildirim varsa sessiz güncellenmeyi önlemek için temizle
       await Notifications.dismissAllNotificationsAsync();
 
-      await Notifications.presentNotificationAsync({
-        title: "Sipariş Kabul Edildi",
-        body: "Siparişiniz kurye tarafından kabul edildi",
-        sound: 'ring_bell2',
-        data: { local: true, nonce: Date.now() }
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2',
+          data: { local: true, nonce: Date.now() },
+          ...(Platform.OS === 'android' ? { channelId: 'ring_bell2' } : {})
+        },
+        trigger: null
       });
       console.log("🔔 Restaurant: Local notification with sound played");
     } catch (error) {
@@ -790,7 +794,7 @@ const RestaurantHome = () => {
       // Clear socket ref
       socketRef.current = null;
     };
-  }, [user]);
+  }, [user?.id]); // Sadece user.id değiştiğinde socket'i yeniden bağla
 
   useEffect(() => {
     const loadUser = async () => {
@@ -932,19 +936,19 @@ const RestaurantHome = () => {
   // Ekran odaklandığında verileri yenile
   useFocusEffect(
     useCallback(() => {
-      if (isLoaded && user) {
+      if (isLoaded && user?.id) {
         fetchOrders();
         fetchPendingApprovalOrders();
       }
-    }, [isLoaded, user, fetchOrders, fetchPendingApprovalOrders])
+    }, [isLoaded, user?.id])
   );
 
   useEffect(() => {
-    if (isLoaded && user) {
+    if (isLoaded && user?.id) {
       fetchOrders();
       fetchPendingApprovalOrders();
     }
-  }, [isLoaded, user, fetchOrders, fetchPendingApprovalOrders]);
+  }, [isLoaded, user?.id]); // Sadece user.id'ye bağlı olarak tetikle
 
   // Mahalleler için yeni useEffect - sayfa açıldığında mahalleleri yükle
   useEffect(() => {
@@ -1209,21 +1213,34 @@ const RestaurantHome = () => {
   };
 
   // Resim URL'sini düzelten helper fonksiyon
+  // Resim URL'sini düzelten helper fonksiyon - APK production build için optimize edildi
   const fixImageUrl = (imageUrl: string | null): string | null => {
     if (!imageUrl) return null;
     
-    // Eğer tam URL ise doğrudan kullan
-    if (imageUrl.startsWith('http')) {
-      // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-      const DOMAIN = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com';
-      if (imageUrl.startsWith(`http://${DOMAIN}`)) {
-        return imageUrl.replace(`https://${DOMAIN}`, `https://${DOMAIN}`);
-      }
-      return imageUrl;
+    let finalUrl = imageUrl;
+    
+    // Eğer göreceli yol ise tam URL'ye çevir
+    if (!imageUrl.startsWith('http')) {
+      finalUrl = `${API_CONFIG.BASE_URL}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
     }
     
-    // Göreceli yolları API_CONFIG'den base URL ile tam URL'ye çevir
-    return `${API_CONFIG.BASE_URL}${imageUrl}`;
+    // URL'yi encode et (özel karakterler için)
+    try {
+      // Sadece path kısmını encode et, domain'i değil
+      const url = new URL(finalUrl);
+      url.pathname = encodeURI(decodeURI(url.pathname));
+      finalUrl = url.toString();
+    } catch (error) {
+      console.log('URL parsing error:', error);
+    }
+    
+    // HTTPS zorla (APK'da HTTP bazen bloklanabilir)
+    if (finalUrl.startsWith('http://')) {
+      finalUrl = finalUrl.replace('http://', 'https://');
+    }
+    
+    console.log(`📸 RestaurantHome Image URL fixed: ${imageUrl} -> ${finalUrl}`);
+    return finalUrl;
   };
 
   // Hesaplama fonksiyonları
@@ -2402,9 +2419,30 @@ const RestaurantHome = () => {
                         </Text>
                         <View style={styles.detailImageContainer}>
                           <Image
-                            source={{ uri: fixImageUrl(selectedOrder.resim) || selectedOrder.resim }}
+                            source={{ 
+                              uri: fixImageUrl(selectedOrder.resim) || selectedOrder.resim,
+                              ...(Platform.OS === 'android' && {
+                                cache: 'default',
+                                headers: {
+                                  'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                                  'User-Agent': 'KuryeX/1.0.0 (Android)',
+                                  'Pragma': 'no-cache',
+                                  'Cache-Control': 'no-cache'
+                                }
+                              })
+                            }}
                             style={styles.detailImage}
                             resizeMode="cover"
+                            defaultSource={require('../../assets/icon.png')}
+                            onError={(error) => {
+                              console.error('🚨 RestaurantHome: Image load error:', error.nativeEvent);
+                              console.error('🚨 RestaurantHome: Image URI:', fixImageUrl(selectedOrder.resim) || selectedOrder.resim);
+                            }}
+                            onLoad={() => {
+                              console.log('✅ RestaurantHome: Image loaded successfully');
+                            }}
+                            onLoadStart={() => console.log('🔄 RestaurantHome: Image loading started')}
+                            onLoadEnd={() => console.log('🏁 RestaurantHome: Image loading ended')}
                           />
                         </View>
                         <TouchableOpacity

@@ -22,6 +22,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from "expo-router";
 import { API_ENDPOINTS, getFullUrl, authedFetch } from "../../constants/api";
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import MapView, { Marker, Circle } from 'react-native-maps';
+import Slider from '@react-native-community/slider';
 import Constants from 'expo-constants';
 
 
@@ -35,7 +38,10 @@ interface RestaurantData {
   logo: string | null;
   created_at: string;
   updated_at: string;
+  latitude?: number;
+  longitude?: number;
   role: string;
+  delivery_radius_km?: number;
 }
 
 const RestaurantProfile = () => {
@@ -50,6 +56,8 @@ const RestaurantProfile = () => {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [preferencesModalVisible, setPreferencesModalVisible] = useState(false);
   const [reportIssueModalVisible, setReportIssueModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   
   // Profile form states
   const [editName, setEditName] = useState("");
@@ -73,17 +81,46 @@ const RestaurantProfile = () => {
   const [reportDescription, setReportDescription] = useState("");
   const [reportPriority, setReportPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
+  // Content pages state
+  const [contentPages, setContentPages] = useState<any>({});
+
   // Neighborhood request states
   const [neighborhoodModalVisible, setNeighborhoodModalVisible] = useState(false);
   const [neighborhoodName, setNeighborhoodName] = useState("");
+  
+  // Location states
+  const [updatingLocation, setUpdatingLocation] = useState(false);
   const [neighborhoodPrice, setNeighborhoodPrice] = useState("");
   const [neighborhoodRequests, setNeighborhoodRequests] = useState<any[]>([]);
   const [neighborhoodRequestsLoading, setNeighborhoodRequestsLoading] = useState(false);
 
+  // Location modal states (restaurant - similar to courier UX)
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [mapRef, setMapRef] = useState<any>(null);
+  const [currentZoom, setCurrentZoom] = useState(0.05);
+  const [tempKmRadius, setTempKmRadius] = useState(5);
+
   // Kullanıcı bilgilerini yükle
   useEffect(() => {
     loadUserData();
+    loadContentPages();
   }, []);
+
+  // Content pages yükleme fonksiyonu
+  const loadContentPages = async () => {
+    try {
+      const response = await authedFetch(getFullUrl(API_ENDPOINTS.GET_CONTENT_PAGES));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setContentPages(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Content pages yükleme hatası:', error);
+    }
+  };
 
   const loadUserData = useCallback(async () => {
     try {
@@ -212,6 +249,198 @@ const RestaurantProfile = () => {
     } catch (error) {
       console.error("Password change error:", error);
       Alert.alert("Hata", "Sunucu bağlantı hatası");
+    }
+  };
+
+  // Konum güncelleme fonksiyonu
+  const handleUpdateLocation = async () => {
+    if (!user?.id) return;
+
+    try {
+      setUpdatingLocation(true);
+      
+      // Konum izni iste
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Konum bilgisini almak için konum izni gereklidir.');
+        return;
+      }
+
+      // Mevcut konumu al
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+
+      // Backend'e konum bilgisini gönder
+      const response = await authedFetch(getFullUrl(`/api/restaurants/${user.id}/location`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          latitude,
+          longitude,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        Alert.alert('Başarılı', 'Restoran konumu başarıyla güncellendi');
+        // Restoran verilerini yenile
+        await fetchRestaurantProfile(user.id);
+      } else {
+        Alert.alert('Hata', data.message || 'Konum güncellenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Location update error:', error);
+      Alert.alert('Hata', 'Konum alınırken veya güncellenirken bir hata oluştu');
+    } finally {
+      setUpdatingLocation(false);
+    }
+  };
+
+  // Open interactive location modal (instead of immediate GPS update)
+  const openLocationEditModal = () => {
+    if (Number.isFinite(Number(restaurantData?.latitude)) && Number.isFinite(Number(restaurantData?.longitude))) {
+      setSelectedLocation({
+        latitude: Number(restaurantData?.latitude),
+        longitude: Number(restaurantData?.longitude),
+      });
+    } else {
+      setSelectedLocation(null);
+    }
+    // Varsayılan slider değerini mevcut radius'a ayarla
+    const existingRadius = (restaurantData as any)?.delivery_radius_km;
+    if (existingRadius !== undefined && existingRadius !== null && !isNaN(Number(existingRadius))) {
+      setTempKmRadius(Number(existingRadius));
+    } else {
+      setTempKmRadius(5);
+    }
+    setLocationModalVisible(true);
+    // Focus map after opening
+    setTimeout(() => {
+      if (mapRef && selectedLocation) {
+        mapRef.animateToRegion({
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          latitudeDelta: currentZoom,
+          longitudeDelta: currentZoom,
+        }, 800);
+      }
+    }, 400);
+  };
+
+  // Map tap handler
+  const handleMapPress = (event: any) => {
+    const { coordinate } = event.nativeEvent;
+    setSelectedLocation({ latitude: coordinate.latitude, longitude: coordinate.longitude });
+  };
+
+  // Adjust zoom dynamically when radius changes (if a location is selected)
+  useEffect(() => {
+    if (mapRef && selectedLocation && tempKmRadius >= 0) {
+      const dynamicZoom = Math.max(tempKmRadius * 0.01 * 4, 0.02);
+      const newZoom = Math.min(dynamicZoom, 3.0);
+      setCurrentZoom(newZoom);
+      setTimeout(() => {
+        mapRef.animateToRegion({
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          latitudeDelta: newZoom,
+          longitudeDelta: newZoom,
+        }, 600);
+      }, 100);
+    }
+  }, [tempKmRadius, selectedLocation, mapRef]);
+
+  // Get current GPS location
+  const getCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Konum izni gerekli');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const newLocation = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setSelectedLocation(newLocation);
+      if (mapRef) {
+        mapRef.animateToRegion({
+          ...newLocation,
+          latitudeDelta: currentZoom,
+          longitudeDelta: currentZoom,
+        }, 800);
+      }
+    } catch (error) {
+      console.error('GPS error:', error);
+      Alert.alert('Hata', 'GPS konumu alınamadı');
+    }
+  };
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (mapRef && selectedLocation) {
+      const newZoom = Math.max(currentZoom * 0.5, 0.005);
+      setCurrentZoom(newZoom);
+      mapRef.animateToRegion({
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        latitudeDelta: newZoom,
+        longitudeDelta: newZoom,
+      }, 500);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapRef && selectedLocation) {
+      const newZoom = Math.min(currentZoom * 2, 1.5);
+      setCurrentZoom(newZoom);
+      mapRef.animateToRegion({
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        latitudeDelta: newZoom,
+        longitudeDelta: newZoom,
+      }, 500);
+    }
+  };
+
+  // Save selected location to backend
+  const saveSelectedLocation = async () => {
+    if (!user?.id || !selectedLocation) return;
+    try {
+      setUpdatingLocation(true);
+      const response = await authedFetch(getFullUrl(`/api/restaurants/${user.id}/location`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          delivery_radius_km: tempKmRadius,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        Alert.alert('Başarılı', 'Restoran konumu başarıyla güncellendi');
+        setLocationModalVisible(false);
+        await fetchRestaurantProfile(user.id);
+      } else {
+        Alert.alert('Hata', data.message || 'Konum güncellenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Konum kaydetme hatası:', error);
+      Alert.alert('Hata', 'Konum kaydedilirken bir hata oluştu');
+    } finally {
+      setUpdatingLocation(false);
     }
   };
 
@@ -406,6 +635,8 @@ const RestaurantProfile = () => {
     fetchPreferences();
   };
 
+
+
   // Çıkış yapma fonksiyonu
   const handleLogout = () => {
     Alert.alert(
@@ -430,6 +661,28 @@ const RestaurantProfile = () => {
       ],
       { cancelable: false }
     );
+  };
+
+  // Hesabı sil
+  const handleDeleteAccount = async () => {
+    try {
+      const response = await authedFetch(getFullUrl(API_ENDPOINTS.DELETE_ACCOUNT), {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        await AsyncStorage.multiRemove(['userData', 'userToken', 'pushToken', 'pushTokenUserId', 'pushTokenUserType', 'expoPushToken']);
+        Alert.alert('Hesap Silindi', 'Hesabınız başarıyla silindi.');
+        router.replace('/(auth)/sign-in');
+      } else {
+        Alert.alert('Hata', data.message || 'Hesap silinemedi.');
+      }
+    } catch (error) {
+      console.error('Hesap silme hatası:', error);
+      Alert.alert('Hata', 'Hesap silinirken bir hata oluştu.');
+    } finally {
+      setDeleteConfirmVisible(false);
+    }
   };
 
   // Sorun bildir fonksiyonu
@@ -679,6 +932,69 @@ const RestaurantProfile = () => {
                 />
               </View>
               
+              <View style={styles.locationSection}>
+                <Text style={styles.locationSectionTitle}>Konum Bilgisi</Text>
+                
+                <TouchableOpacity
+                  style={[styles.smallLocationButton, { opacity: updatingLocation ? 0.7 : 1 }]}
+                  onPress={openLocationEditModal}
+                  disabled={updatingLocation}
+                >
+                  <Ionicons 
+                    name={updatingLocation ? "hourglass-outline" : "location-outline"} 
+                    size={16} 
+                    color="#059669" 
+                  />
+                  <Text style={styles.smallLocationButtonText}>
+                    {updatingLocation ? 'Güncelleniyor...' : 'Konumu Düzenle'}
+                  </Text>
+                </TouchableOpacity>
+
+                {Number.isFinite(Number(restaurantData?.latitude)) && Number.isFinite(Number(restaurantData?.longitude)) ? (
+                  <View style={styles.miniMapContainer}>
+                    <MapView
+                      style={styles.miniMap}
+                      initialRegion={{
+                        latitude: Number(restaurantData.latitude),
+                        longitude: Number(restaurantData.longitude),
+                        latitudeDelta: 0.005,
+                        longitudeDelta: 0.005,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}
+                      rotateEnabled={false}
+                      pitchEnabled={false}
+                    >
+                      <Marker
+                        coordinate={{
+                          latitude: Number(restaurantData.latitude),
+                          longitude: Number(restaurantData.longitude),
+                        }}
+                        title={restaurantData.name}
+                        description="Restoran Konumu"
+                      >
+                        <View style={styles.customMarker}>
+                          <Ionicons name="restaurant" size={20} color="#FFFFFF" />
+                        </View>
+                      </Marker>
+                    </MapView>
+                    <Text style={styles.coordinatesText}>
+                      {Number(restaurantData.latitude).toFixed(6)}, {Number(restaurantData.longitude).toFixed(6)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.miniMapContainer}>
+                    <View style={styles.miniMapPlaceholder}>
+                      <Ionicons name="map-outline" size={24} color="#6B7280" />
+                      <Text style={styles.noLocationText}>
+                        Henüz konum bilgisi eklenmemiş
+                      </Text>
+                      <Text style={styles.mapNote}>Konumu güncelleyerek harita görünümü aktif edilir</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+              
               <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={handleUpdateProfile}
@@ -854,6 +1170,47 @@ const RestaurantProfile = () => {
                 onPress={() => setReportIssueModalVisible(false)}
               >
                 <Text style={styles.secondaryButtonText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Hesap Silme Onayı */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Hesabı Sil</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setDeleteConfirmVisible(false)}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={{ color: '#111827', marginBottom: 16 }}>
+                Bu işlem geri alınamaz. Hesabınızı ve tüm verilerinizi silmek istediğinize emin misiniz?
+              </Text>
+              <Text style={{ color: '#374151', marginBottom: 8, fontWeight: '600' }}>
+                Onaylamak için kutuya EVET yazın
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="EVET"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+              />
+              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#DC2626' }]} onPress={async () => { await handleDeleteAccount(); setDeleteConfirmText(""); }} disabled={deleteConfirmText.trim().toUpperCase() !== 'EVET'}>
+                <Text style={styles.primaryButtonText}>Evet, Hesabımı Sil</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => setDeleteConfirmVisible(false)}>
+                <Text style={styles.secondaryButtonText}>Vazgeç</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1250,6 +1607,42 @@ const RestaurantProfile = () => {
 
             </View>
 
+                         {/* Konum Ayarları */}
+             <View style={[styles.card, styles.disabledCard]}>
+               <Text style={[styles.cardTitle, styles.disabledText]}>Konum Ayarları</Text>
+
+               <View style={styles.infoItem}>
+                 <View style={styles.infoItemLeft}>
+                   <View style={[styles.infoIcon, { backgroundColor: '#F3F4F6' }]}>
+                     <Ionicons name="radio-outline" size={20} color="#9CA3AF" />
+                   </View>
+                   <View>
+                     <Text style={[styles.infoLabel, styles.disabledText]}>Teslimat Mesafesi</Text>
+                     <Text style={[styles.infoValue, styles.disabledText]}>
+                       {typeof restaurantData.delivery_radius_km === 'number' && restaurantData.delivery_radius_km >= 0
+                         ? `${restaurantData.delivery_radius_km} km`
+                         : 'Belirtilmemiş'}
+                     </Text>
+                   </View>
+                 </View>
+               </View>
+
+               <View
+                 style={[styles.infoItem, { borderBottomWidth: 0 }]}
+               >
+                 <View style={styles.infoItemLeft}>
+                   <View style={[styles.infoIcon, { backgroundColor: '#F3F4F6' }]}>
+                     <Ionicons name="settings-outline" size={20} color="#9CA3AF" />
+                   </View>
+                   <View>
+                     <Text style={[styles.infoValue, styles.disabledText]}>Konumu Düzenle</Text>
+                     <Text style={[styles.infoLabel, styles.disabledText]}>Bu özellik şu anda devre dışıdır</Text>
+                   </View>
+                 </View>
+                 <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+               </View>
+             </View>
+
             {/* Preferences Section */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Kurye Tercihleri</Text>
@@ -1364,6 +1757,7 @@ const RestaurantProfile = () => {
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
+              
             </View>
 
             {/* Logout Button */}
@@ -1390,7 +1784,10 @@ const RestaurantProfile = () => {
               <Text style={styles.footerTitle}>KuryeX</Text>
               <View style={styles.footerLinksContainer}>
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('Gizlilik Politikası', 'Kişisel verilerinizin güvenliği bizim için çok önemlidir. Gizlilik politikamız yakında güncellenecektir.')}
+                  onPress={() => Alert.alert(
+                    contentPages.privacy?.title || 'Gizlilik Politikası', 
+                    contentPages.privacy?.content || 'Gizlilik politikası yakında güncellenecektir.'
+                  )}
                 >
                   <Text style={styles.footerLinkText}>Gizlilik Politikası</Text>
                 </TouchableOpacity>
@@ -1398,7 +1795,10 @@ const RestaurantProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('Kullanım Koşulları', 'Uygulamamızı kullanarak hizmet koşullarımızı kabul etmiş olursunuz. Detaylı bilgi için yakında güncelleme yapılacaktır.')}
+                  onPress={() => Alert.alert(
+                    contentPages.terms?.title || 'Kullanım Koşulları', 
+                    contentPages.terms?.content || 'Kullanım koşulları yakında güncellenecektir.'
+                  )}
                 >
                   <Text style={styles.footerLinkText}>Kullanım Koşulları</Text>
                 </TouchableOpacity>
@@ -1406,7 +1806,10 @@ const RestaurantProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('Destek', 'Herhangi bir sorunuz için bizimle iletişime geçebilirsiniz.\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05')}
+                  onPress={() => Alert.alert(
+                    contentPages.support?.title || 'Destek', 
+                    contentPages.support?.content || 'Destek bilgileri yakında güncellenecektir.'
+                  )}
                 >
                   <Text style={styles.footerLinkText}>Destek</Text>
                 </TouchableOpacity>
@@ -1422,7 +1825,10 @@ const RestaurantProfile = () => {
               
               <View style={styles.footerLinksContainer}>
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('Hakkında', `KuryeX v${Constants.expoConfig?.version || '1.0.0'}\n\nRestoranlar ve kuryeler için geliştirilmiş modern teslimat platformu. Güvenli, hızlı ve kolay kullanım.`)}
+                  onPress={() => Alert.alert(
+                    contentPages.about?.title || 'Hakkında', 
+                    contentPages.about?.content || `KuryeX v${Constants.expoConfig?.version || '1.0.0'}\n\nRestoranlar ve kuryeler için geliştirilmiş modern teslimat platformu.`
+                  )}
                 >
                   <Text style={styles.footerLinkText}>Hakkında</Text>
                 </TouchableOpacity>
@@ -1430,7 +1836,10 @@ const RestaurantProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('İletişim', 'Bizimle iletişime geçin:\n\nE-posta: cresat26@gmail.com\nTelefon: 0531 881 39 05\nAdres: Gaziantep, Türkiye')}
+                  onPress={() => Alert.alert(
+                    contentPages.contact?.title || 'İletişim', 
+                    contentPages.contact?.content || 'İletişim bilgileri yakında güncellenecektir.'
+                  )}
                 >
                   <Text style={styles.footerLinkText}>İletişim</Text>
                 </TouchableOpacity>
@@ -1438,9 +1847,33 @@ const RestaurantProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert('SSS', 'Sık Sorulan Sorular:\n\n• Hesabımı nasıl güncellerim?\n• Şifremi nasıl değiştiririm?\n• Kurye seçimlerimi nasıl ayarlarım?\n\nDaha fazla bilgi için destek ile iletişime geçin.')}
+                  onPress={() => Alert.alert(
+                    contentPages.faq?.title || 'SSS', 
+                    contentPages.faq?.content || 'Sık sorulan sorular yakında güncellenecektir.'
+                  )}
                 >
                   <Text style={styles.footerLinkText}>SSS</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.footerSeparator}>•</Text>
+                
+                <TouchableOpacity 
+                  onPress={() => {
+                    Alert.alert(
+                      'Hesabı Sil',
+                      'Hesabınızı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+                      [
+                        { text: 'İptal', style: 'cancel' },
+                        { 
+                          text: 'Sil', 
+                          style: 'destructive',
+                          onPress: () => setDeleteConfirmVisible(true)
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={[styles.footerLinkText, { color: '#EF4444' }]}>Hesabımı Sil</Text>
                 </TouchableOpacity>
               </View>
               
@@ -1456,6 +1889,190 @@ const RestaurantProfile = () => {
           </View>
         </SafeAreaView>
       </LinearGradient>
+
+      {/* Konum Düzenleme Modalı (Restaurant) */}
+      <Modal
+        visible={locationModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setLocationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Konumu Düzenle</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setLocationModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.mapContainer}>
+                <MapView
+                  ref={setMapRef}
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: selectedLocation ? selectedLocation.latitude : 37.0662,
+                    longitude: selectedLocation ? selectedLocation.longitude : 37.3833,
+                    latitudeDelta: currentZoom,
+                    longitudeDelta: currentZoom,
+                  }}
+                  onPress={handleMapPress}
+                  showsUserLocation={true}
+                  showsMyLocationButton={false}
+                >
+                  {/* KM Radius Circle */}
+                  {selectedLocation && tempKmRadius > 0 && (
+                    <Circle
+                      center={selectedLocation}
+                      radius={tempKmRadius * 1000}
+                      strokeColor="rgba(16, 185, 129, 0.8)"
+                      fillColor="rgba(16, 185, 129, 0.15)"
+                      strokeWidth={3}
+                    />
+                  )}
+                  
+                  {selectedLocation && (
+                    <Marker
+                      coordinate={selectedLocation}
+                      draggable={true}
+                      onDragEnd={(e) => setSelectedLocation(e.nativeEvent.coordinate)}
+                    >
+                      <View style={styles.modalCustomMarker}>
+                        <Ionicons name="restaurant" size={20} color="#FFFFFF" />
+                      </View>
+                    </Marker>
+                  )}
+                </MapView>
+
+                {/* Zoom Controls */}
+                <View style={styles.zoomControls}>
+                  <TouchableOpacity style={styles.zoomButton} onPress={handleZoomIn} activeOpacity={0.7}>
+                    <Ionicons name="add" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.zoomButton} onPress={handleZoomOut} activeOpacity={0.7}>
+                    <Ionicons name="remove" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* GPS Button */}
+                <View style={styles.locationControls}>
+                  <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation} activeOpacity={0.7}>
+                    <Ionicons name="locate" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* KM Radius Slider */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Teslimat Mesafesi</Text>
+                <View style={styles.sliderContainer}>
+                  <Text style={styles.sliderLabel}>0km</Text>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={0}
+                    maximumValue={100}
+                    value={tempKmRadius}
+                    step={1}
+                    onValueChange={setTempKmRadius}
+                    minimumTrackTintColor="#10B981"
+                    maximumTrackTintColor="#E5E7EB"
+                  />
+                  <Text style={styles.sliderLabel}>100km</Text>
+                </View>
+                <Text style={styles.sliderValue}>{tempKmRadius}km</Text>
+              </View>
+
+              <Text style={styles.mapInstructions}>
+                📍 Haritaya dokunarak işaretçiyi bırakın ya da sürükleyerek konumu ayarlayın
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { marginTop: 16 }]}
+                onPress={saveSelectedLocation}
+                disabled={updatingLocation || !selectedLocation}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {updatingLocation ? 'Kaydediliyor...' : 'Kaydet'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setLocationModalVisible(false)}
+              >
+                <Text style={styles.secondaryButtonText}>İptal</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Hesap Silme Onay Modalı */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '50%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: '#EF4444' }]}>Hesabı Sil</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setDeleteConfirmVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.warningText}>
+                ⚠️ Bu işlem geri alınamaz. Hesabınızı silmek istediğinizden emin misiniz?
+              </Text>
+              
+              <Text style={styles.deleteConfirmInstruction}>
+                Devam etmek için aşağıya "EVET" yazın:
+              </Text>
+              
+              <TextInput
+                style={styles.deleteConfirmInput}
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder="EVET yazın"
+                autoCapitalize="characters"
+              />
+              
+              <TouchableOpacity
+                style={[
+                  styles.deleteButton,
+                  deleteConfirmText !== 'EVET' && styles.deleteButtonDisabled
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'EVET'}
+              >
+                <Text style={styles.deleteButtonText}>
+                  Hesabımı Kalıcı Olarak Sil
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setDeleteConfirmVisible(false);
+                  setDeleteConfirmText("");
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -1793,6 +2410,188 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  slider: {
+    flex: 1,
+    marginHorizontal: 12,
+    height: 40,
+  },
+  sliderLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  sliderValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+
+  // Map modal styles (restaurant)
+  mapContainer: {
+    height: 400,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginVertical: 15,
+    backgroundColor: '#F3F4F6',
+  },
+  map: {
+    flex: 1,
+  },
+  // modalCustomMarker defined below
+  zoomControls: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    flexDirection: 'column',
+    gap: 10,
+  },
+  zoomButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.9)',
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  locationControls: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+  },
+  locationButton: {
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  mapInstructions: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginVertical: 6,
+    lineHeight: 16,
+  },
+
+  // Location section styles
+  locationSection: {
+    marginBottom: 20,
+  },
+  locationSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  smallLocationButton: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#059669',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  smallLocationButtonText: {
+    color: '#059669',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  miniMapContainer: {
+    marginTop: 8,
+  },
+  miniMap: {
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  miniMapPlaceholder: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 120,
+  },
+  customMarker: {
+    backgroundColor: '#059669',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalCustomMarker: {
+    backgroundColor: '#10B981',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  noLocationText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  mapNote: {
+    fontSize: 11,
+    color: '#059669',
+    marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
 
   // Logout button styles
   logoutButton: {
@@ -2063,6 +2862,57 @@ const styles = StyleSheet.create({
   footer: {
     height: 20,
   },
-});
+
+  // Delete Account Modal Styles
+  warningText: {
+    fontSize: 16,
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  deleteConfirmInstruction: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 15,
+    fontWeight: '500',
+  },
+  deleteConfirmInput: {
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+    backgroundColor: '#FEF2F2',
+  },
+  deleteButton: {
+    backgroundColor: '#EF4444',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+  deleteButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+     deleteButtonText: {
+     color: '#FFFFFF',
+     fontSize: 16,
+     fontWeight: '600',
+     textAlign: 'center',
+   },
+
+   // Disabled styles
+   disabledCard: {
+     opacity: 0.6,
+     backgroundColor: '#F9FAFB',
+   },
+   disabledText: {
+     color: '#9CA3AF',
+   },
+ });
 
 export default RestaurantProfile;

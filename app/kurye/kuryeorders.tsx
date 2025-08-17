@@ -327,23 +327,35 @@ const DeliveryCountdown: React.FC<{ order: Order }> = ({ order }) => {
   );
 };
 
-// Resim URL'sini düzelten helper fonksiyon
+// Resim URL'sini düzelten helper fonksiyon - APK production build için optimize edildi
 const fixImageUrl = (imageUrl: string | null): string | null => {
   if (!imageUrl) return null;
   
-  // Eğer tam URL ise doğrudan kullan
-  if (imageUrl.startsWith('http')) {
-    // HTTPS URL'lerini HTTP'ye çevir - React Native HTTP resim yükleyemiyor
-          const DOMAIN = process.env.EXPO_PUBLIC_API_BASE_URL || 'kuryex.enucuzal.com';
-      if (imageUrl.startsWith(`https://${DOMAIN}`)) {
-        return imageUrl.replace(`https://${DOMAIN}`, `https://${DOMAIN}`);
-    }
-    return imageUrl;
+  let finalUrl = imageUrl;
+  
+  // Eğer göreceli yol ise tam URL'ye çevir
+  if (!imageUrl.startsWith('http')) {
+    const baseUrl = 'https://kuryex.enucuzal.com';
+    finalUrl = `${baseUrl}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
   }
   
-  // Göreceli yolları tam URL'ye çevir
-  const baseUrl = 'https://kuryex.enucuzal.com';
-  return `${baseUrl}${imageUrl}`;
+  // URL'yi encode et (özel karakterler için)
+  try {
+    // Sadece path kısmını encode et, domain'i değil
+    const url = new URL(finalUrl);
+    url.pathname = encodeURI(decodeURI(url.pathname));
+    finalUrl = url.toString();
+  } catch (error) {
+    console.log('URL parsing error:', error);
+  }
+  
+  // HTTPS zorla (APK'da HTTP bazen bloklanabilir)
+  if (finalUrl.startsWith('http://')) {
+    finalUrl = finalUrl.replace('http://', 'https://');
+  }
+  
+  console.log(`📸 Image URL fixed: ${imageUrl} -> ${finalUrl}`);
+  return finalUrl;
 };
 
 const KuryeOrders = () => {
@@ -1714,9 +1726,28 @@ const KuryeOrders = () => {
                         <Text style={styles.detailTitle}>Sipariş Resmi</Text>
                       </View>
                       <Image
-                        source={{ uri: fixImageUrl(selectedImage) || '' }}
+                        source={{ 
+                          uri: fixImageUrl(selectedImage) || '',
+                          ...(Platform.OS === 'android' && {
+                            cache: 'default',
+                            headers: {
+                              'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                              'User-Agent': 'KuryeX/1.0.0 (Android)',
+                              'Pragma': 'no-cache',
+                              'Cache-Control': 'no-cache'
+                            }
+                          })
+                        }}
                         style={styles.modalImage}
                         resizeMode="contain"
+                        defaultSource={require('../../assets/icon.png')}
+                        onError={(error) => {
+                          console.error('🚨 KuryeOrders Image load error:', error.nativeEvent);
+                          console.error('🚨 Failed Image URI:', fixImageUrl(selectedImage));
+                        }}
+                        onLoad={() => console.log('✅ KuryeOrders Image loaded successfully:', fixImageUrl(selectedImage))}
+                        onLoadStart={() => console.log('🔄 KuryeOrders Image loading started:', fixImageUrl(selectedImage))}
+                        onLoadEnd={() => console.log('🏁 KuryeOrders Image loading ended:', fixImageUrl(selectedImage))}
                       />
                     </View>
                   )}

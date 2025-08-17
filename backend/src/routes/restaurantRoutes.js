@@ -43,6 +43,9 @@ router.get('/neighborhoods', protect, restaurantController.getRestaurantNeighbor
 // Restoran girişi (mobil uygulama için)
 router.post('/login', restaurantController.loginRestaurant);
 
+// Restoran kayıt (mobil uygulama için - public)
+router.post('/register', restaurantController.addRestaurant);
+
 // Tek bir restoranı getir (kurye navigasyon için)
 // Bu rota en sona konulmalı çünkü catch-all route
 router.get('/:restaurantId', restaurantController.getRestaurant);
@@ -57,5 +60,8 @@ router.put('/:restaurantId/change-password', protect, restaurantController.chang
 // Logo upload routes
 router.post('/:restaurantId/logo', protect, upload.single('logo'), restaurantController.uploadRestaurantLogo);
 router.delete('/:restaurantId/logo', protect, restaurantController.deleteRestaurantLogo);
+
+// Location update route for mobile app
+router.put('/:restaurantId/location', protect, restaurantController.updateRestaurantLocationMobile);
 
 module.exports = router; 

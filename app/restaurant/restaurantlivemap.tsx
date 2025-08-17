@@ -102,11 +102,15 @@ const RestaurantLiveMap = () => {
   const playNotificationSound = useCallback(async () => {
     try {
       await Notifications.dismissAllNotificationsAsync();
-      await Notifications.presentNotificationAsync({
-        title: "Sipariş Kabul Edildi",
-        body: "Siparişiniz kurye tarafından kabul edildi",
-        sound: 'ring_bell2',
-        data: { local: true, nonce: Date.now() }
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Sipariş Kabul Edildi",
+          body: "Siparişiniz kurye tarafından kabul edildi",
+          sound: 'ring_bell2',
+          data: { local: true, nonce: Date.now() },
+          ...(Platform.OS === 'android' ? { channelId: 'ring_bell2' } : {})
+        },
+        trigger: null
       });
       console.log("🔔 RestaurantLiveMap: Local notification with sound played");
     } catch (error) {

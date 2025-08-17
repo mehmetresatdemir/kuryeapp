@@ -12,6 +12,7 @@ const preferenceRoutes = require('./preferenceRoutes');
 const pushNotificationRoutes = require('./pushNotificationRoutes');
 
 const supportRoutes = require('./supportRoutes');
+const contentRoutes = require('./contentRoutes');
 
 // Admin routes
 router.use('/admin', adminRoutes);
@@ -26,6 +27,7 @@ router.use('/', userRoutes);
 router.use('/', imageRoutes);
 
 router.use('/', supportRoutes);
+router.use('/content', contentRoutes);
 
 
 

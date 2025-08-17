@@ -1,9 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, StatusBar } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, StatusBar, Modal } from "react-native";
 import { router } from "expo-router";
 import { getFullUrl } from "../../constants/api";
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 
 import { 
   Storefront, 
@@ -28,6 +31,11 @@ const RestaurantRegister = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  
+  // Location states
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   const handleAutoLogin = async (userEmail: string, userPassword: string) => {
     try {
@@ -127,9 +135,52 @@ const RestaurantRegister = () => {
     return phoneRegex.test(cleanPhone);
   };
 
+  const handleGetLocation = async () => {
+    try {
+      setGettingLocation(true);
+      
+      // Konum izni iste
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('İzin Gerekli', 'Konum bilgisini almak için konum izni gereklidir.');
+        return;
+      }
+
+      // Mevcut konumu al
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const { latitude, longitude } = location.coords;
+      setSelectedLocation({ latitude, longitude });
+      
+      Alert.alert(
+        'Konum Alındı', 
+        `Restoran konumunuz belirlendi.\nLatitude: ${latitude.toFixed(6)}\nLongitude: ${longitude.toFixed(6)}`,
+        [{ text: 'Tamam', onPress: () => setLocationModalVisible(false) }]
+      );
+    } catch (error) {
+      console.error('Location error:', error);
+      Alert.alert('Hata', 'Konum alınırken bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  const openLocationModal = () => {
+    setLocationModalVisible(true);
+  };
+
   const handleRegister = async () => {
     if (!name || !yetkilName || !email || !password || !phone) {
       Alert.alert("Hata", "Lütfen tüm alanları doldurun");
+      return;
+    }
+
+    if (!selectedLocation) {
+      Alert.alert("Konum Gerekli", "Lütfen restoran konumunu belirleyin", [
+        { text: 'Konumu Belirle', onPress: openLocationModal }
+      ]);
       return;
     }
 
@@ -162,7 +213,7 @@ const RestaurantRegister = () => {
     try {
       console.log("Attempting restaurant registration...");
       
-      const response = await fetch(getFullUrl("/api/admin/restaurants"), {
+      const response = await fetch(getFullUrl("/api/restaurants/register"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -173,8 +224,8 @@ const RestaurantRegister = () => {
           email: email,
           password: password,
           phone: phone,
-          latitude: 40.1826, // Default Bursa coordinates
-          longitude: 29.0665,
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
         }),
       });
 
@@ -447,6 +498,36 @@ const RestaurantRegister = () => {
                   )}
                 </View>
 
+                {/* Location Section */}
+                <View style={styles.locationSection}>
+                  <Text style={styles.locationSectionTitle}>Restoran Konumu</Text>
+                  <Text style={styles.locationSectionSubtitle}>
+                    Kuryelerin sizi kolayca bulabilmesi için restoran konumunuzu belirleyin
+                  </Text>
+                  
+                  <TouchableOpacity
+                    style={[styles.locationButton, selectedLocation && styles.locationButtonSelected]}
+                    onPress={openLocationModal}
+                  >
+                    <Ionicons 
+                      name={selectedLocation ? "checkmark-circle" : "location-outline"} 
+                      size={20} 
+                      color={selectedLocation ? "#10B981" : "#6B7280"} 
+                    />
+                    <Text style={[styles.locationButtonText, selectedLocation && styles.locationButtonTextSelected]}>
+                      {selectedLocation ? 'Konum Belirlendi' : 'Konumu Belirle'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {selectedLocation && (
+                    <View style={styles.selectedLocationInfo}>
+                      <Text style={styles.coordinatesText}>
+                        📍 {selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
                 {/* Register Button */}
                 <TouchableOpacity 
                   style={[styles.registerButton, loading && styles.buttonDisabled]} 
@@ -482,6 +563,93 @@ const RestaurantRegister = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
+
+      {/* Location Modal */}
+      <Modal
+        visible={locationModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setLocationModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Restoran Konumu</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setLocationModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalDescription}>
+                Restoranınızın bulunduğu konumu belirleyin. Bu bilgi kuryelerin sizi kolayca bulması için kullanılacaktır.
+              </Text>
+
+              {selectedLocation ? (
+                <View style={styles.selectedLocationContainer}>
+                  <View style={styles.miniMapContainer}>
+                    <MapView
+                      style={styles.miniMap}
+                      initialRegion={{
+                        latitude: selectedLocation.latitude,
+                        longitude: selectedLocation.longitude,
+                        latitudeDelta: 0.005,
+                        longitudeDelta: 0.005,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}
+                      rotateEnabled={false}
+                      pitchEnabled={false}
+                    >
+                      <Marker
+                        coordinate={selectedLocation}
+                        title="Restoran Konumu"
+                      >
+                        <View style={styles.customMarker}>
+                          <Ionicons name="restaurant" size={20} color="#FFFFFF" />
+                        </View>
+                      </Marker>
+                    </MapView>
+                  </View>
+                  <Text style={styles.coordinatesTextModal}>
+                    📍 Konum: {selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.noLocationContainer}>
+                  <Ionicons name="map-outline" size={48} color="#6B7280" />
+                  <Text style={styles.noLocationText}>Henüz konum belirlenmedi</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.getLocationButton, { opacity: gettingLocation ? 0.7 : 1 }]}
+                onPress={handleGetLocation}
+                disabled={gettingLocation}
+              >
+                <Ionicons 
+                  name={gettingLocation ? "hourglass-outline" : "location"} 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.getLocationButtonText}>
+                  {gettingLocation ? 'Konum Alınıyor...' : 'Mevcut Konumumu Al'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setLocationModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -664,6 +832,184 @@ const styles = StyleSheet.create({
   loginLinkText: {
     color: '#3B82F6',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Location styles
+  locationSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  locationSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  locationSectionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  locationButtonSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  locationButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  locationButtonTextSelected: {
+    color: '#10B981',
+  },
+  selectedLocationInfo: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  selectedLocationContainer: {
+    marginBottom: 20,
+  },
+  miniMapContainer: {
+    marginBottom: 12,
+  },
+  miniMap: {
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  customMarker: {
+    backgroundColor: '#10B981',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  coordinatesTextModal: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  noLocationContainer: {
+    alignItems: 'center',
+    padding: 32,
+    marginBottom: 20,
+  },
+  noLocationText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  getLocationButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  getLocationButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#6B7280',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

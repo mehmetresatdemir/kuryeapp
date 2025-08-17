@@ -68,11 +68,14 @@ const getCourierById = async (req, res) => {
                 c.created_at,
                 COALESCE(c.updated_at, c.created_at) as updated_at,
                 c.latitude,
-                c.longitude
+                c.longitude,
+                c.home_latitude,
+                c.home_longitude,
+                COALESCE(c.km_radius, 10) as km_radius
             FROM couriers c
             LEFT JOIN orders o ON c.id = o.kuryeid
             WHERE c.id = ${id}
-            GROUP BY c.id, c.name, c.email, c.phone, c.is_blocked, c.is_online, c.package_limit, c.last_seen, c.created_at, c.updated_at, c.latitude, c.longitude
+            GROUP BY c.id, c.name, c.email, c.phone, c.is_blocked, c.is_online, c.package_limit, c.last_seen, c.created_at, c.updated_at, c.latitude, c.longitude, c.home_latitude, c.home_longitude, c.km_radius
         `;
         
         if (!courier) {
@@ -242,10 +245,23 @@ const getCourierDeliveryStats = async (req, res) => {
 
 // Add new courier function - this was not in the original file, but useful for admin panel
 const addCourier = async (req, res) => {
-    const { name, email, password, phone, package_limit } = req.body;
+    const { name, email, password, phone, package_limit, home_latitude, home_longitude, km_radius } = req.body;
 
     if (!name || !email || !password) {
         return res.status(400).json({ success: false, message: 'Kurye adı, e-posta ve şifre gereklidir.' });
+    }
+
+    // Konum kontrolü (opsiyonel)
+    if (home_latitude !== undefined && home_longitude !== undefined) {
+        if (typeof home_latitude !== 'number' || typeof home_longitude !== 'number' ||
+            home_latitude < -90 || home_latitude > 90 || home_longitude < -180 || home_longitude > 180) {
+            return res.status(400).json({ success: false, message: 'Geçersiz ev konumu bilgisi.' });
+        }
+    }
+
+    // KM radius kontrolü
+    if (km_radius !== undefined && (typeof km_radius !== 'number' || km_radius < 0 || km_radius > 100)) {
+        return res.status(400).json({ success: false, message: 'KM radius 0-100 arasında olmalıdır.' });
     }
 
     try {
@@ -264,9 +280,6 @@ const addCourier = async (req, res) => {
         }
 
         // Düz şifre kullanıyoruz, bcrypt yok
-
-        // Türkiye saati SQL ifadesini al
-        
         
         const newCourier = await sql`
             INSERT INTO couriers (
@@ -276,6 +289,9 @@ const addCourier = async (req, res) => {
                 phone,
                 package_limit,
                 notification_mode,
+                home_latitude,
+                home_longitude,
+                km_radius,
                 created_at
             ) VALUES (
                 ${name},
@@ -284,8 +300,11 @@ const addCourier = async (req, res) => {
                 ${phone || null},
                 ${package_limit || 5}, -- Default package limit
                 'all_restaurants', -- Default notification mode
-${new Date()}
-            ) RETURNING id, name, email;
+                ${home_latitude || null},
+                ${home_longitude || null},
+                ${km_radius || 10}, -- Default 10km radius
+                ${new Date()}
+            ) RETURNING id, name, email, home_latitude, home_longitude, km_radius;
         `;
         res.status(201).json({ success: true, message: 'Kurye başarıyla eklendi.', courier: newCourier[0] });
     } catch (error) {
