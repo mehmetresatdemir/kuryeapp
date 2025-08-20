@@ -1421,6 +1421,17 @@ router.delete('/orders/:orderId', async (req, res) => {
         // Socket ile silme bildirimini gönder (req.io socket.io instance'ı varsa)
         if (req.io) {
             req.io.emit('orderDeleted', { orderId: orderId });
+            
+            // Restoran live map için tracking durdurma event'i
+            if (order.firmaid) {
+                req.io.to(`restaurant_${order.firmaid}`).emit('trackingEnded', {
+                    orderId: orderId.toString(),
+                    reason: 'admin_deleted',
+                    message: `Sipariş #${orderId} admin tarafından silindi`,
+                    timestamp: Date.now()
+                });
+                console.log(`🛑 Admin: Tracking ended event sent to restaurant ${order.firmaid} for deleted order ${orderId}`);
+            }
         }
 
         res.status(200).json({ 

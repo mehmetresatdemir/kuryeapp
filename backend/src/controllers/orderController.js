@@ -1278,6 +1278,15 @@ const deleteOrder = async (req, res) => {
                 message: 'Sipariş silindi',
                 timestamp: Date.now()
             });
+            
+            // Özel olarak restoran live map için tracking durdurma event'i
+            req.io.to(`restaurant_${order.firmaid}`).emit('trackingEnded', {
+                orderId: orderId.toString(),
+                reason: 'order_deleted',
+                message: `Sipariş #${orderId} silindi - takip durduruldu`,
+                timestamp: Date.now()
+            });
+            console.log(`🛑 Tracking ended event sent to restaurant ${order.firmaid} for deleted order ${orderId}`);
         }
 
         res.status(200).json({ 

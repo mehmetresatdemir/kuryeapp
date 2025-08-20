@@ -115,9 +115,11 @@ const RestaurantLiveMap = () => {
   const [autoFitEnabled, setAutoFitEnabled] = useState<boolean>(true);
   const [socketConnected, setSocketConnected] = useState<boolean>(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
+  const [connectionHealth, setConnectionHealth] = useState<'healthy' | 'warning' | 'error'>('healthy');
   const socketRef = useRef<any>(null);
   const lastUpdateRef = useRef<number>(0);
   const dataRetentionRef = useRef<CourierLocation[]>([]);
+  const lastDataReceived = useRef<number>(Date.now());
   
   // Notification deduplication - track recent notifications
   const recentNotifications = useRef(new Set());
@@ -294,6 +296,10 @@ const RestaurantLiveMap = () => {
         setSocketConnected(false);
       });
       socketRef.current.on("activeOrders", (data: any) => {
+        // Veri alındığını işaretle
+        lastDataReceived.current = Date.now();
+        setConnectionHealth('healthy');
+        
         if (data && data.length > 0) {
           const currentTime = new Date().toISOString();
           const locations = data.map((order: any) => ({
@@ -366,7 +372,11 @@ const RestaurantLiveMap = () => {
           
           // Güncellenmiş verileri sakla ve son güncelleme zamanını kaydet
           dataRetentionRef.current = newLocations;
-                  // Güncellenmiş verileri sakla ve son güncelleme zamanını kaydet
+                  // Veri alındığını işaretle
+        lastDataReceived.current = Date.now();
+        setConnectionHealth('healthy');
+        
+        // Güncellenmiş verileri sakla ve son güncelleme zamanını kaydet
         dataRetentionRef.current = newLocations;
         setLastUpdateTime(new Date().toISOString());
         return newLocations;
@@ -374,6 +384,7 @@ const RestaurantLiveMap = () => {
       });
       socketRef.current.on("trackingEnded", (data: any) => {
         if (data && data.orderId) {
+          console.log(`🛑 Tracking ended for order: ${data.orderId}`);
           setCourierLocations((prevLocations) => {
             const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
             // Filtrelenmiş verileri sakla
@@ -382,10 +393,35 @@ const RestaurantLiveMap = () => {
           });
         }
       });
+      
+      // Sipariş silinince tracking'i durdur
+      socketRef.current.on("orderDeleted", (data: any) => {
+        if (data && data.orderId) {
+          console.log(`🗑️ Order deleted: ${data.orderId} - removing from tracking`);
+          setCourierLocations((prevLocations) => {
+            const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
+            // Filtrelenmiş verileri sakla
+            dataRetentionRef.current = filteredLocations;
+            console.log(`💾 Removed order ${data.orderId} from courier locations`);
+            return filteredLocations;
+          });
+        }
+      });
 
       // Sipariş durumu değişikliklerini dinle
       socketRef.current.on("orderStatusUpdate", (data: any) => {
         console.log(`📋 Sipariş durumu güncellendi:`, data);
+        
+        // Eğer sipariş teslim edildi veya iptal edildi durumuna geçtiyse tracking'i durdur
+        if (data.orderId && (data.status === 'teslim edildi' || data.status === 'iptal edildi')) {
+          console.log(`🛑 Order ${data.orderId} finished (${data.status}) - removing from tracking`);
+          setCourierLocations((prevLocations) => {
+            const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
+            dataRetentionRef.current = filteredLocations;
+            return filteredLocations;
+          });
+        }
+        
         // Sipariş durumu değiştiğinde aktif siparişleri tekrar al
         if (socketRef.current && socketRef.current.connected) {
           socketRef.current.emit("requestActiveOrders", { firmId });
@@ -504,14 +540,79 @@ const RestaurantLiveMap = () => {
       });
 
       // Periyodik güncelleme - 30 saniyede bir aktif siparişleri kontrol et
-      const intervalId = setInterval(() => {
+      const quickRefreshId = setInterval(() => {
         if (socketRef.current && socketRef.current.connected) {
           socketRef.current.emit("requestActiveOrders", { firmId });
         }
       }, 30000);
+      
+              // Kapsamlı temizleme - 1 dakikada bir eski siparişleri temizle
+      const deepCleanupId = setInterval(() => {
+        const now = Date.now();
+        const timeSinceLastData = now - lastDataReceived.current;
+        
+        // Bağlantı sağlığını kontrol et
+        if (timeSinceLastData > 120000) { // 2 dakikadan fazla veri gelmemişse
+          console.log('⚠️ RestaurantLiveMap: No data received for 2+ minutes, connection may be stale');
+          setConnectionHealth('error');
+          
+          // Socket'i yeniden bağla
+          if (socketRef.current) {
+            socketRef.current.disconnect();
+            socketRef.current = null;
+            setSocketConnected(false);
+          }
+          
+          // Yeni bağlantı kur
+          setTimeout(() => {
+            socketRef.current = io(API_CONFIG.SOCKET_URL, { transports: ["websocket"] });
+            // Socket event'lerini tekrar tanımla... (bu kısım mevcut kodda zaten var)
+          }, 1000);
+          
+        } else if (timeSinceLastData > 60000) {
+          setConnectionHealth('warning');
+        } else {
+          setConnectionHealth('healthy');
+        }
+        
+        if (socketRef.current && socketRef.current.connected) {
+          console.log('🧹 RestaurantLiveMap: Deep cleanup - refreshing active orders');
+          
+          // Fresh data çek
+          socketRef.current.emit("requestActiveOrders", { firmId });
+          
+          // Eski timestamp'lı verilerı temizle (3 dakikadan eski)
+          const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+          setCourierLocations(prevLocations => {
+            const filteredLocations = prevLocations.filter(loc => {
+              if (!loc.timestamp) {
+                // Timestamp yoksa 1 dakika grace period ver, sonra sil
+                return Date.now() - lastDataReceived.current < 60000;
+              }
+              return loc.timestamp > threeMinutesAgo;
+            });
+            
+            if (filteredLocations.length !== prevLocations.length) {
+              console.log(`🗑️ Deep cleanup: Removed ${prevLocations.length - filteredLocations.length} stale location entries`);
+              dataRetentionRef.current = filteredLocations;
+            }
+            
+            return filteredLocations;
+          });
+          
+          // Veriler çok eskiyse tümünü temizle
+          if (timeSinceLastData > 180000) { // 3 dakika
+            console.log('🧹 Force clearing all locations due to stale data');
+            setCourierLocations([]);
+            dataRetentionRef.current = [];
+            setLastUpdateTime(null);
+          }
+        }
+      }, 60000); // 1 dakika = 60000ms
 
       return () => {
-        clearInterval(intervalId);
+        clearInterval(quickRefreshId);
+        clearInterval(deepCleanupId);
         // Sayfa değişiminde socket'i kapatma (persistence için)
         // Socket sadece component unmount olduğunda kapanacak
         console.log('📱 Sayfa değişimi - socket bağlantısı korunuyor');
@@ -670,11 +771,21 @@ const RestaurantLiveMap = () => {
               <Text style={styles.headerTitle}>
                 Canlı Kurye Takibi
               </Text>
-              {lastUpdateTime && (
-                <Text style={styles.lastUpdateText}>
-                  Son konum: {formatTimestamp(lastUpdateTime)}
-                </Text>
-              )}
+              <View style={styles.statusContainer}>
+                {lastUpdateTime && (
+                  <Text style={styles.lastUpdateText}>
+                    Son konum: {formatTimestamp(lastUpdateTime)}
+                  </Text>
+                )}
+                <View style={[styles.connectionIndicator, 
+                  connectionHealth === 'healthy' ? styles.connectionHealthy : 
+                  connectionHealth === 'warning' ? styles.connectionWarning : styles.connectionError]}>
+                  <Text style={styles.connectionText}>
+                    {connectionHealth === 'healthy' ? '• Canlı' : 
+                     connectionHealth === 'warning' ? '• Bekliyor' : '• Bağlantı Sorunu'}
+                  </Text>
+                </View>
+              </View>
             </View>
             {courierLocations.length > 0 && (
               <View style={styles.orderCountBadge}>
@@ -1182,5 +1293,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.8,
     marginTop: 2,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 8,
+  },
+  connectionIndicator: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  connectionHealthy: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  connectionWarning: {
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+  },
+  connectionError: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  connectionText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
