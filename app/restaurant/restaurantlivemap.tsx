@@ -250,10 +250,12 @@ const RestaurantLiveMap = () => {
 
       const firmId = user.publicMetadata?.firmId || user.id;
       
-      // Mevcut verileri geri yükle (sayfa değişiminde kaybolmasın)
-      if (dataRetentionRef.current.length > 0) {
+      // SADECE yeni bağlantıda saklanan verileri geri yükle, eski olabileceği için server'dan doğrula
+      const hasStoredData = dataRetentionRef.current.length > 0;
+      if (hasStoredData) {
+        console.log(`🔄 ${dataRetentionRef.current.length} saklanan veri var, server'dan doğrulanacak`);
+        // Geçici olarak göster ama hemen server'dan fresh data çek
         setCourierLocations(dataRetentionRef.current);
-        console.log(`💾 Saklanan ${dataRetentionRef.current.length} kurye verisi geri yüklendi`);
       }
       
       // Socket zaten bağlıysa tekrar bağlanma
@@ -276,11 +278,19 @@ const RestaurantLiveMap = () => {
         // Get user token for session management
         const token = await AsyncStorage.getItem('userToken');
         
-        // Otomatik olarak aktif siparişleri iste
+        // Otomatik olarak aktif siparişleri iste (her zaman fresh data için)
         socketRef.current.emit("requestActiveOrders", { firmId });
         
         // Restoran odasına katıl
         socketRef.current.emit("joinRestaurantRoom", { restaurantId: firmId, token });
+        
+        // Eğer saklanan veri varsa, 2 saniye sonra server'dan gelen ile karşılaştır
+        if (hasStoredData) {
+          setTimeout(() => {
+            console.log('🔄 Requesting fresh data to validate stored data');
+            socketRef.current.emit("requestActiveOrders", { firmId });
+          }, 2000);
+        }
         
         setIsLoading(false);
       });
@@ -300,6 +310,8 @@ const RestaurantLiveMap = () => {
         lastDataReceived.current = Date.now();
         setConnectionHealth('healthy');
         
+        console.log('💾 Fresh activeOrders data received from server');
+        
         if (data && data.length > 0) {
           const currentTime = new Date().toISOString();
           const locations = data.map((order: any) => ({
@@ -316,12 +328,18 @@ const RestaurantLiveMap = () => {
             speed: order.speed || 0,
             heading: order.heading || 0
           }));
+          
+          // Server'dan gelen fresh data ile mevcut stored data'yı değiştir
+          const activeOrderIds = new Set(locations.map(loc => loc.orderId));
+          console.log(`🔄 Server has ${activeOrderIds.size} active orders:`, Array.from(activeOrderIds));
+          
           setCourierLocations(locations);
-          // Verileri sakla (sayfa değişimlerinde kaybolmasın)
+          // Fresh server data'yı sakla
           dataRetentionRef.current = locations;
           setLastUpdateTime(new Date().toISOString());
-          console.log(`💾 ${locations.length} kurye verisi saklandı`);
+          console.log(`💾 ${locations.length} fresh kurye verisi güncellendi ve saklandı`);
         } else {
+          console.log('📵 No active orders from server - clearing all data');
           setCourierLocations([]);
           dataRetentionRef.current = [];
           setLastUpdateTime(null);
@@ -384,11 +402,12 @@ const RestaurantLiveMap = () => {
       });
       socketRef.current.on("trackingEnded", (data: any) => {
         if (data && data.orderId) {
-          console.log(`🛑 Tracking ended for order: ${data.orderId}`);
+          console.log(`🛑 Tracking ended for order: ${data.orderId} - removing from stored data too`);
           setCourierLocations((prevLocations) => {
             const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
-            // Filtrelenmiş verileri sakla
+            // Filtrelenmiş verileri sakla VE dataRetentionRef'i de temizle
             dataRetentionRef.current = filteredLocations;
+            console.log(`💾 Removed order ${data.orderId} from tracking and persistence`);
             return filteredLocations;
           });
         }
@@ -397,14 +416,22 @@ const RestaurantLiveMap = () => {
       // Sipariş silinince tracking'i durdur
       socketRef.current.on("orderDeleted", (data: any) => {
         if (data && data.orderId) {
-          console.log(`🗑️ Order deleted: ${data.orderId} - removing from tracking`);
+          console.log(`🗑️ Order deleted: ${data.orderId} - removing from tracking and stored data`);
           setCourierLocations((prevLocations) => {
             const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
-            // Filtrelenmiş verileri sakla
+            // Filtrelenmiş verileri sakla VE dataRetentionRef'i de temizle
             dataRetentionRef.current = filteredLocations;
-            console.log(`💾 Removed order ${data.orderId} from courier locations`);
+            console.log(`💾 Removed order ${data.orderId} from both active and stored locations`);
             return filteredLocations;
           });
+          
+          // 1 saniye sonra server'dan fresh data çekerek doğrula
+          setTimeout(() => {
+            if (socketRef.current && socketRef.current.connected) {
+              console.log('🔄 Validating data after order deletion');
+              socketRef.current.emit("requestActiveOrders", { firmId });
+            }
+          }, 1000);
         }
       });
 
