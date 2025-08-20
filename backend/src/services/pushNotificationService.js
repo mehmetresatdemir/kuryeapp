@@ -385,7 +385,7 @@ async function sendNewOrderNotificationToCouriers(orderData) {
     
     // Platform bazlı bildirim gönderimi
     const notificationPromises = courierTokens.map(async (courier) => {
-      const title = '🆕 Yeni Sipariş!';
+      const title = 'Yeni Sipariş';
       const body = `${orderData.mahalle} - ${orderData.courier_price || 0} ₺\n${orderData.firma_adi}`;
       
       return await sendPlatformSpecificNotification(
@@ -497,7 +497,7 @@ async function sendOrderAcceptedNotification(notificationData) {
       // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
-    const title = '✅ Sipariş Kabul Edildi!';
+    const title = 'Sipariş Kabul Edildi';
     const body = `${courierName} sipariş #${orderId} kabul etti.`;
     
     const payload = createPushNotificationPayload(
@@ -552,7 +552,7 @@ async function sendOrderCancelledNotification(notificationData) {
       return { success: false, error: 'No push token found' };
     }
     
-    const title = '❌ Sipariş İptal Edildi';
+    const title = 'Sipariş İptal Edildi';
     const body = `${restaurantName} sipariş #${orderId} iptal etti. Taşıma işlemi durduruldu.`;
     
     const payload = createPushNotificationPayload(
@@ -620,7 +620,7 @@ async function sendOrderDeliveredNotification(notificationData) {
       // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
-    const title = '✅ Sipariş Teslim Edildi!';
+    const title = 'Sipariş Teslim Edildi';
     const body = `${courierName} sipariş #${orderId} başarıyla teslim etti. Online/hediye çeki ödemesi tamamlandı.`;
     
     const payload = createPushNotificationPayload(
@@ -674,7 +674,7 @@ async function sendOrderApprovedNotification(notificationData) {
       return { success: false, error: 'No push token found' };
     }
     
-    const title = '✅ Sipariş Onaylandı!';
+    const title = 'Sipariş Onaylandı';
     const body = `${restaurantName} sipariş #${orderId} onayladı. ${paymentMethod} ödemesi tamamlandı.`;
     
     const payload = createPushNotificationPayload(
@@ -728,7 +728,7 @@ async function sendAdminTimeoutNotification(notificationData) {
       return { success: true, method: 'console_log', adminCount: 0 };
     }
     
-    const title = '⏰ Sipariş Timeout!';
+    const title = 'Sipariş Timeout';
     const body = `Sipariş #${orderId} ${waitingTime} dakikadır alınmadı.\n${restaurantName} - ${neighborhood}`;
     
     const notifications = adminTokens.map(admin => 
@@ -814,7 +814,7 @@ async function sendDeliveryApprovalNotification(notificationData) {
       // iOS'ta ses çıkması için online olsa bile push gönder
     }
     
-    const title = '⏳ Sipariş Onay Bekliyor';
+    const title = 'Sipariş Onay Bekliyor';
     const body = `${courierName} sipariş #${orderId} teslim etti. Nakit/kredi kartı ödemesi - onayınız bekleniyor.`;
     
     const payload = createPushNotificationPayload(
@@ -902,7 +902,7 @@ async function sendOrderCancelledByCarrierNotification(notificationData) {
       // iOS'ta ses çıkması için online olsa bile push gönder
     }
 
-    const title = '❌ Sipariş İptal Edildi!';
+    const title = 'Sipariş İptal Edildi';
     const body = `${courierName} sipariş #${orderId} iptal etti. Sebep: ${reason}`;
     
     console.log(`📤 Creating push notification payload...`);
