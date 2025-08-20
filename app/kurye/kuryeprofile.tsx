@@ -587,15 +587,51 @@ const KuryeProfile = () => {
         {
           text: "Çıkış Yap",
           style: "destructive",
-          onPress: () => {
-            AsyncStorage.removeItem('userData')
-              .then(() => AsyncStorage.removeItem('userId'))
-              .then(() => {
-                router.replace("/(auth)/sign-in");
-              })
-              .catch((error) => {
-                console.error('Error during logout:', error);
-              });
+          onPress: async () => {
+            try {
+              const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+              
+              // Push token'ı unregister et
+              if (expoPushToken && userData) {
+                try {
+                  await authedFetch(getFullUrl('/api/push-notifications/unregister'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: userData.id,
+                      userType: 'courier',
+                      expoPushToken: expoPushToken
+                    })
+                  });
+                  console.log('📱 Push token unregistered during logout');
+                } catch (tokenError) {
+                  console.warn('⚠️ Failed to unregister push token:', tokenError);
+                }
+              }
+              
+              // Logout API call
+              try {
+                await authedFetch(getFullUrl('/api/logout'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    expoPushToken: expoPushToken
+                  })
+                });
+              } catch (logoutError) {
+                console.warn('⚠️ Logout API call failed:', logoutError);
+              }
+              
+              // Clear local storage
+              await AsyncStorage.removeItem('userData');
+              await AsyncStorage.removeItem('userId');
+              
+              router.replace("/(auth)/sign-in");
+            } catch (error) {
+              console.error('Error during logout:', error);
+              // Hata olsa bile çıkış yap
+              router.replace("/(auth)/sign-in");
+            }
           },
         },
       ],

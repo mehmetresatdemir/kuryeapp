@@ -566,6 +566,19 @@ const logout = async (req, res) => {
         
         if (invalidatedSession) {
             console.log(`🔐 Kullanıcı çıkış yaptı - User: ${invalidatedSession.user_id}, Role: ${invalidatedSession.user_role}`);
+            
+            // Push token'ı devre dışı bırak
+            try {
+                const { sql } = require('../config/db-config');
+                await sql`
+                    UPDATE push_tokens 
+                    SET is_active = false, updated_at = NOW()
+                    WHERE user_id = ${invalidatedSession.user_id} AND user_type = ${invalidatedSession.user_role}
+                `;
+                console.log(`📱 Push token deactivated for logout - User: ${invalidatedSession.user_id}`);
+            } catch (pushError) {
+                console.warn('⚠️ Push token deactivation warning during logout:', pushError?.message || pushError);
+            }
         }
 
         return res.status(200).json({

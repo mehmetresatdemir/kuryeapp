@@ -95,10 +95,9 @@ function createPushNotificationPayload(expoPushToken, title, body, soundId = 'ri
   if (platform === 'ios') {
     payload.priority = 'high';
     payload.badge = 1;
-    payload.subtitle = 'KuryeX';
     // Expo için sadece temel alanlar
     payload._displayInForeground = true;
-    payload._category = 'kuryex';
+    payload._category = 'general';
   } else {
     // Android alanları
     payload.channelId = androidChannelId;
@@ -139,7 +138,7 @@ async function sendFCMNotification(fcmToken, title, body, soundId = 'ring_bell2'
       android: {
         notification: {
           sound: soundFile,
-          channelId: 'kuryex-notifications',
+          channelId: 'notifications',
           priority: 'high',
           defaultSound: soundFile === 'default',
           defaultVibrateTimings: false,

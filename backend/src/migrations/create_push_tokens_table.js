@@ -11,10 +11,11 @@ async function createPushTokensTable() {
         user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('courier', 'restaurant', 'admin')),
         token TEXT NOT NULL,
         platform VARCHAR(10) DEFAULT 'ios' CHECK (platform IN ('ios', 'android')),
+        device_id VARCHAR(255),
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, user_type)
+        UNIQUE(user_id, user_type, token)
       )
     `;
     

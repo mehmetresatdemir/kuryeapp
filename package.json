@@ -1,7 +1,7 @@
 {
   "name": "KuryeX",
   "main": "index.js",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -55,7 +55,7 @@
     "@formatjs/intl-pluralrules": "^5.4.4",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-community/datetimepicker": "8.4.1",
-    "@react-native-community/slider": "^4.5.7",
+    "@react-native-community/slider": "4.5.6",
     "@react-navigation/native": "^7.1.6",
     "babel-plugin-module-resolver": "^5.0.2",
     "expo": "^53.0.20",
@@ -74,6 +74,7 @@
     "expo-secure-store": "^14.2.3",
     "expo-server-sdk": "^3.15.0",
     "expo-splash-screen": "~0.30.10",
+    "expo-task-manager": "~13.1.6",
     "expo-updates": "~0.28.17",
     "intl": "^1.2.5",
     "nativewind": "4.1.23",

@@ -33,6 +33,14 @@ interface CourierLocation {
   heading?: number;
 }
 
+interface User {
+  id: string;
+  publicMetadata?: {
+    firmId?: string;
+  };
+  [key: string]: any;
+}
+
 const mapStyle = [
   {
     "elementType": "geometry",
@@ -68,15 +76,48 @@ const mapStyle = [
   }
 ];
 
+// Timestamp formatting fonksiyonu
+const formatTimestamp = (timestamp: string | undefined): string => {
+  try {
+    if (!timestamp) {
+      return 'Şimdi';
+    }
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return 'Şimdi';
+    }
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffSeconds < 60) {
+      return 'Şimdi';
+    } else if (diffSeconds < 3600) {
+      const minutes = Math.floor(diffSeconds / 60);
+      return `${minutes} dk önce`;
+    } else {
+      return date.toLocaleTimeString('tr-TR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  } catch (error) {
+    return 'Şimdi';
+  }
+};
+
 const RestaurantLiveMap = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [courierLocations, setCourierLocations] = useState<CourierLocation[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [expandedBubble, setExpandedBubble] = useState<string | null>(null);
+  const [autoFitEnabled, setAutoFitEnabled] = useState<boolean>(true);
+  const [socketConnected, setSocketConnected] = useState<boolean>(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const socketRef = useRef<any>(null);
   const lastUpdateRef = useRef<number>(0);
+  const dataRetentionRef = useRef<CourierLocation[]>([]);
   
   // Notification deduplication - track recent notifications
   const recentNotifications = useRef(new Set());
@@ -200,14 +241,27 @@ const RestaurantLiveMap = () => {
     })();
   }, []);
 
-  // Set up socket connection and subscribe to active orders and location updates.
+  // Sayfa odaklandığında veri saklamayı yönet
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
 
       const firmId = user.publicMetadata?.firmId || user.id;
       
-      setCourierLocations([]);
+      // Mevcut verileri geri yükle (sayfa değişiminde kaybolmasın)
+      if (dataRetentionRef.current.length > 0) {
+        setCourierLocations(dataRetentionRef.current);
+        console.log(`💾 Saklanan ${dataRetentionRef.current.length} kurye verisi geri yüklendi`);
+      }
+      
+      // Socket zaten bağlıysa tekrar bağlanma
+      if (socketRef.current && socketConnected) {
+        console.log('🔄 Mevcut socket bağlantısı korunuyor');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Yeni socket bağlantısı kur
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -215,6 +269,7 @@ const RestaurantLiveMap = () => {
       socketRef.current = io(API_CONFIG.SOCKET_URL, { transports: ["websocket"] });
       socketRef.current.on("connect", async () => {
         console.log(`🔌 Restoran socket bağlandı - FirmID: ${firmId}`);
+        setSocketConnected(true);
         
         // Get user token for session management
         const token = await AsyncStorage.getItem('userToken');
@@ -229,11 +284,18 @@ const RestaurantLiveMap = () => {
       });
       socketRef.current.on("connect_error", (err: any) => {
         console.error("Socket connection error:", err);
+        setSocketConnected(false);
         Alert.alert("Hata", "Socket bağlantısı kurulamadı.");
         setIsLoading(false);
       });
+      
+      socketRef.current.on("disconnect", () => {
+        console.log("🔌 Socket bağlantısı kesildi");
+        setSocketConnected(false);
+      });
       socketRef.current.on("activeOrders", (data: any) => {
         if (data && data.length > 0) {
+          const currentTime = new Date().toISOString();
           const locations = data.map((order: any) => ({
             courierId: order.kuryeid,
             orderId: order.id,
@@ -243,10 +305,20 @@ const RestaurantLiveMap = () => {
             phone: order.phone,
             courier_name: order.courier_name,
             courier_phone: order.courier_phone,
+            timestamp: order.timestamp || currentTime, // Fallback timestamp
+            accuracy: order.accuracy || null,
+            speed: order.speed || 0,
+            heading: order.heading || 0
           }));
           setCourierLocations(locations);
+          // Verileri sakla (sayfa değişimlerinde kaybolmasın)
+          dataRetentionRef.current = locations;
+          setLastUpdateTime(new Date().toISOString());
+          console.log(`💾 ${locations.length} kurye verisi saklandı`);
         } else {
           setCourierLocations([]);
+          dataRetentionRef.current = [];
+          setLastUpdateTime(null);
         }
       });
       socketRef.current.on("locationUpdate", (data: any) => {
@@ -284,20 +356,30 @@ const RestaurantLiveMap = () => {
             heading: data.heading || 0
           };
           
+          let newLocations;
           if (index !== -1) {
-            const newLocations = [...prevLocations];
+            newLocations = [...prevLocations];
             newLocations[index] = updatedLocation;
-            return newLocations;
           } else {
-            return [...prevLocations, updatedLocation];
+            newLocations = [...prevLocations, updatedLocation];
           }
+          
+          // Güncellenmiş verileri sakla ve son güncelleme zamanını kaydet
+          dataRetentionRef.current = newLocations;
+                  // Güncellenmiş verileri sakla ve son güncelleme zamanını kaydet
+        dataRetentionRef.current = newLocations;
+        setLastUpdateTime(new Date().toISOString());
+        return newLocations;
         });
       });
       socketRef.current.on("trackingEnded", (data: any) => {
         if (data && data.orderId) {
-          setCourierLocations((prevLocations) =>
-            prevLocations.filter((loc) => loc.orderId !== data.orderId)
-          );
+          setCourierLocations((prevLocations) => {
+            const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
+            // Filtrelenmiş verileri sakla
+            dataRetentionRef.current = filteredLocations;
+            return filteredLocations;
+          });
         }
       });
 
@@ -305,7 +387,9 @@ const RestaurantLiveMap = () => {
       socketRef.current.on("orderStatusUpdate", (data: any) => {
         console.log(`📋 Sipariş durumu güncellendi:`, data);
         // Sipariş durumu değiştiğinde aktif siparişleri tekrar al
-        socketRef.current.emit("requestActiveOrders", { firmId });
+        if (socketRef.current && socketRef.current.connected) {
+          socketRef.current.emit("requestActiveOrders", { firmId });
+        }
       });
 
       socketRef.current.on("orderAccepted", (data: any) => {
@@ -428,13 +512,24 @@ const RestaurantLiveMap = () => {
 
       return () => {
         clearInterval(intervalId);
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        }
+        // Sayfa değişiminde socket'i kapatma (persistence için)
+        // Socket sadece component unmount olduğunda kapanacak
+        console.log('📱 Sayfa değişimi - socket bağlantısı korunuyor');
       };
     }, [user])
   );
+
+  // Component unmount olduğunda socket'i kapat
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        console.log('📵 Component unmount - socket bağlantısı kapatılıyor');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocketConnected(false);
+      }
+    };
+  }, []);
 
   // Tüm kuryeleri ekrana sığdır (auto-fit bounds)
   const fitAllCouriers = useCallback(() => {
@@ -456,29 +551,69 @@ const RestaurantLiveMap = () => {
         }));
         
         mapRef.current.fitToCoordinates(coordinates, {
-          edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
+          edgePadding: { top: 150, right: 50, bottom: 100, left: 50 },
           animated: true,
         });
       }
-    } else if (mapRef.current && userLocation) {
-      // Kurye yoksa restoran konumunu göster
-      mapRef.current.animateToRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }, 1000);
+    }
+  }, [courierLocations]);
+
+  // Manuel kurye odaklama butonu için fonksiyon
+  const focusOnCouriers = useCallback(() => {
+    setAutoFitEnabled(true);
+    fitAllCouriers();
+  }, [fitAllCouriers]);
+
+  // Dinamik initial region hesaplama
+  const getInitialRegion = useCallback(() => {
+    if (courierLocations.length > 0) {
+      // Kurye varsa ilk kuryenin konumunu kullan
+      const firstCourier = courierLocations[0];
+      return {
+        latitude: firstCourier.latitude,
+        longitude: firstCourier.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+    } else {
+      // Kurye yoksa varsayılan konumu kullan
+      return {
+        latitude: userLocation ? userLocation.latitude : 37.06622,
+        longitude: userLocation ? userLocation.longitude : 37.38332,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
+      };
     }
   }, [courierLocations, userLocation]);
 
-  // Kurye konumları değiştiğinde otomatik fit yap
+  // Harita üzerinde kullanıcı etkileşimi olduğunda otomatik fit'i durdur
+  const handleMapInteraction = useCallback(() => {
+    setAutoFitEnabled(false);
+  }, []);
+
+  // İlk kurye verileri geldiğinde haritayı kuryelere odakla
+  const [initialFocusDone, setInitialFocusDone] = useState<boolean>(false);
+  
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fitAllCouriers();
-    }, 500); // 500ms bekle, ardından fit yap
-    
-    return () => clearTimeout(timeoutId);
-  }, [courierLocations, fitAllCouriers]);
+    if (courierLocations.length > 0 && !initialFocusDone) {
+      // İlk kez kurye verileri geldiğinde direkt odakla
+      setTimeout(() => {
+        fitAllCouriers();
+        setInitialFocusDone(true);
+      }, 800); // Harita render olduktan sonra odakla
+    }
+  }, [courierLocations, initialFocusDone, fitAllCouriers]);
+
+  // Kurye konumları değiştiğinde otomatik fit yap (sadece autoFit etkinse ve ilk odaklama yapıldıysa)
+  useEffect(() => {
+    if (autoFitEnabled && initialFocusDone) {
+      const timeoutId = setTimeout(() => {
+        fitAllCouriers();
+      }, 500); // 500ms bekle, ardından fit yap
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [courierLocations, fitAllCouriers, autoFitEnabled, initialFocusDone]);
 
   // Koşullu return, tüm hook'lardan sonra
   if (!isLoaded || !user) {
@@ -531,9 +666,16 @@ const RestaurantLiveMap = () => {
       <View style={styles.activeHeaderContainer}>
         <View style={styles.headerContent}>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>
-              Canlı Kurye Takibi
-            </Text>
+            <View>
+              <Text style={styles.headerTitle}>
+                Canlı Kurye Takibi
+              </Text>
+              {lastUpdateTime && (
+                <Text style={styles.lastUpdateText}>
+                  Son konum: {formatTimestamp(lastUpdateTime)}
+                </Text>
+              )}
+            </View>
             {courierLocations.length > 0 && (
               <View style={styles.orderCountBadge}>
                 <Text style={styles.orderCountText}>
@@ -548,7 +690,7 @@ const RestaurantLiveMap = () => {
               onPress={fitAllCouriers}
             >
                               <Ionicons name="scan-outline" size={16} color="#8B5CF6" />
-              <Text style={styles.fitAllButtonText}>Tümünü Göster</Text>
+              <Text style={styles.fitAllButtonText}>Kuryeleri Odakla</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -563,22 +705,19 @@ const RestaurantLiveMap = () => {
         </View>
       ) : (
         <>
-          <MapView
-            ref={mapRef}
-            provider={PROVIDER_DEFAULT}
-            style={StyleSheet.absoluteFill}
-            customMapStyle={mapStyle}
-            showsUserLocation={true}
-            showsMyLocationButton={false}
-            showsCompass={true}
-            rotateEnabled={true}
-            initialRegion={{
-              latitude: userLocation ? userLocation.latitude : 37.06622,
-              longitude: userLocation ? userLocation.longitude : 37.38332,
-              latitudeDelta: 0.1,
-              longitudeDelta: 0.1,
-            }}
-          >
+                      <MapView
+              ref={mapRef}
+              provider={PROVIDER_DEFAULT}
+              style={StyleSheet.absoluteFill}
+              customMapStyle={mapStyle}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+              showsCompass={true}
+              rotateEnabled={true}
+              onRegionChangeStart={handleMapInteraction}
+              onPanDrag={handleMapInteraction}
+              initialRegion={getInitialRegion()}
+            >
             {courierLocations.map((loc) => {
               if (Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
                 return (
@@ -601,12 +740,14 @@ const RestaurantLiveMap = () => {
           {/* Kurye Bilgi Balonları */}
           <View style={styles.orderBubblesContainer}>
             {courierLocations.map((loc, index) => {
+              // Unique key generation to prevent duplicate key warnings
               const bubbleKey = `${loc.courierId}-${loc.orderId}`;
+              const uniqueKey = `${bubbleKey}-${index}-${loc.timestamp || Date.now()}`;
               const isExpanded = expandedBubble === bubbleKey;
               
               return (
                 <TouchableOpacity
-                  key={`${bubbleKey}-${index}`}
+                  key={uniqueKey}
                   style={[
                     styles.courierInfoBubble,
                     isExpanded ? styles.expandedBubble : styles.collapsedBubble
@@ -675,11 +816,9 @@ const RestaurantLiveMap = () => {
                             </Text>
                           </TouchableOpacity>
                         )}
-                        {loc.timestamp && (
-                          <Text style={styles.timestampText}>
-                            Son güncelleme: {new Date(loc.timestamp).toLocaleTimeString('tr-TR')}
-                          </Text>
-                        )}
+                        <Text style={styles.timestampText}>
+                          Son güncelleme: {formatTimestamp(loc.timestamp)}
+                        </Text>
                         {loc.speed !== undefined && loc.speed > 0 && (
                           <Text style={styles.speedText}>
                             Hız: {Math.round(loc.speed * 3.6)} km/h
@@ -693,12 +832,12 @@ const RestaurantLiveMap = () => {
             })}
           </View>
 
-          {/* Konuma Git Butonu */}
+          {/* Kuryelere Odaklan Butonu */}
           <TouchableOpacity
             style={styles.locationButton}
-            onPress={centerOnUser}
+            onPress={focusOnCouriers}
           >
-                          <Ionicons name="locate" size={24} color="#8B5CF6" />
+            <Ionicons name="scan-outline" size={24} color="#8B5CF6" />
           </TouchableOpacity>
         </>
       )}
@@ -801,7 +940,7 @@ const styles = StyleSheet.create({
   },
   orderBubblesContainer: {
     position: 'absolute',
-    top: 96,
+    top: 130,
     right: 16,
     zIndex: 20,
     flexDirection: 'row',
@@ -1035,5 +1174,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  lastUpdateText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 2,
   },
 });

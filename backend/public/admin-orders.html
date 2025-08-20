@@ -25,7 +25,37 @@
         }
         .card { background: white; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-        .stat-item { background: #f7f7f7; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-item { background: #f7f7f7; padding: 1rem; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.3s ease; }
+        .stat-item:hover { background: #e5e7eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .stat-item.approval-pending { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; position: relative; }
+        .stat-item.approval-pending:hover { background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%); }
+        .stat-item.approval-pending .stat-value { color: #92400e; font-weight: bold; }
+        .stat-item.approval-pending .stat-label { color: #b45309; font-weight: 600; }
+        .stat-item.approval-pending.has-orders { animation: pulse 2s infinite; }
+        .stat-item.approval-pending.has-orders::before { 
+            content: ''; 
+            position: absolute; 
+            top: -2px; 
+            right: -2px; 
+            width: 12px; 
+            height: 12px; 
+            background: #ef4444; 
+            border-radius: 50%; 
+            animation: blink 1s infinite; 
+        }
+        .stat-item.completed { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border: 2px solid #10b981; }
+        .stat-item.completed:hover { background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%); }
+        .stat-item.completed .stat-value { color: #065f46; font-weight: bold; }
+        .stat-item.completed .stat-label { color: #047857; font-weight: 600; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
         .stat-value { font-size: 1.5rem; font-weight: bold; }
         .stat-label { font-size: 0.8rem; color: #666; }
         .table-container { overflow-x: auto; }
@@ -546,11 +576,24 @@
             });
             const platformProfit = totalRestaurant - totalCourier;
 
+            const approvalPendingCount = (statusCounts['onay bekliyor'] || statusCounts['onay_bekliyor']) || 0;
+            const completedCount = statusCounts['teslim edildi'] || 0;
             statsContainer.innerHTML = `
                 <div class="stat-item"><div class="stat-value">${orders.length}</div><div class="stat-label">Bugün Toplam</div></div>
                 <div class="stat-item"><div class="stat-value">${statusCounts['bekleniyor'] || 0}</div><div class="stat-label">Bekleyen</div></div>
                 <div class="stat-item"><div class="stat-value">${statusCounts['kuryede'] || 0}</div><div class="stat-label">Kuryede</div></div>
-                <div class="stat-item"><div class="stat-value">${statusCounts['teslim edildi'] || 0}</div><div class="stat-label">Tamamlanan</div></div>
+                <div class="stat-item approval-pending ${approvalPendingCount > 0 ? 'has-orders' : ''}" onclick="filterByStatus('onay bekliyor')" title="Onay bekleyen siparişleri görüntüle">
+                    <div class="stat-value">
+                        <i class="fas fa-hourglass-half" style="margin-right: 8px;"></i>${approvalPendingCount}
+                    </div>
+                    <div class="stat-label">⚠️ Onay Bekleyenler</div>
+                </div>
+                <div class="stat-item completed" onclick="filterByStatus('teslim edildi')" title="Tamamlanan siparişleri görüntüle">
+                    <div class="stat-value">
+                        <i class="fas fa-check-circle" style="margin-right: 8px;"></i>${completedCount}
+                    </div>
+                    <div class="stat-label">✅ Tamamlanan</div>
+                </div>
                 <div class="stat-item"><div class="stat-value">${statusCounts['iptal edildi'] || 0}</div><div class="stat-label">İptal</div></div>
                 <div class="stat-item"><div class="stat-value">₺${platformProfit.toFixed(2)}</div><div class="stat-label">Platform Karı</div></div>
             `;

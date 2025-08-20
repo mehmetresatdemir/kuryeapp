@@ -1052,17 +1052,35 @@ const KuryeOrders = () => {
         [
           {
             text: "Tamam",
-            onPress: () => {
-              // Clear all user data
-              AsyncStorage.multiRemove(['userData', 'userId', 'userToken'])
-                .then(() => {
-                  // Navigate to login screen
-                  router.replace("/(auth)/sign-in");
-                })
-                .catch((error) => {
-                  console.error("Force logout cleanup error:", error);
-                  router.replace("/(auth)/sign-in");
-                });
+            onPress: async () => {
+              try {
+                // Push token'ı unregister et (force logout için)
+                const expoPushToken = await AsyncStorage.getItem('expoPushToken');
+                if (expoPushToken && user) {
+                  try {
+                    await authedFetch(getFullUrl('/api/push-notifications/unregister'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        userId: user.id,
+                        userType: 'courier'
+                      })
+                    });
+                    console.log('📱 Push token unregistered during force logout');
+                  } catch (tokenError) {
+                    console.warn('⚠️ Failed to unregister push token during force logout:', tokenError);
+                  }
+                }
+                
+                // Clear all user data
+                await AsyncStorage.multiRemove(['userData', 'userId', 'userToken']);
+                
+                // Navigate to login screen
+                router.replace("/(auth)/sign-in");
+              } catch (error) {
+                console.error("Force logout cleanup error:", error);
+                router.replace("/(auth)/sign-in");
+              }
             }
           }
         ],

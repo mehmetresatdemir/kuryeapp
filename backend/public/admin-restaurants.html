@@ -100,6 +100,31 @@
         .btn-warning:hover { background: #d97706; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover { background: #dc2626; }
+        .status-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+            min-width: 80px;
+            text-align: center;
+        }
+        .status-badge.online {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #16a34a;
+            animation: pulse-green 2s infinite;
+        }
+        .status-badge.offline {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #dc2626;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
         .refresh-btn {
             padding: 0.5rem 1rem;
             background: #10b981;
@@ -237,6 +262,7 @@
                                     <tr>
                                         <th>ID</th>
                                         <th>Restoran Adı</th>
+                                        <th>🟢 Durum</th>
                                         <th>Email</th>
                                         <th>Şifre</th>
                                         <th>Phone</th>
@@ -247,7 +273,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="restaurantsTable">
-                                    <tr><td colspan="8" class="loading">Yükleniyor...</td></tr>
+                                    <tr><td colspan="10" class="loading">Yükleniyor...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -537,6 +563,7 @@
         let restaurantMarkers = [];
         let selectedLocation = null;
         let locationPickerMarker = null;
+        let onlineRestaurants = new Set(); // Track online restaurants
 
         // Function to fetch API_BASE from backend with HTTPS support
         async function fetchApiBase() {
@@ -600,6 +627,37 @@
             return { 'Content-Type': 'application/json' };
         }
 
+        // Socket events for online status tracking
+        socket.on('connect', () => {
+            console.log('🔗 Admin restaurants page connected to socket');
+            socket.emit('joinAdminRoom');
+        });
+
+        socket.on('restaurantOnlineStatusChanged', (data) => {
+            console.log('🏪 Restaurant online status changed:', data);
+            if (data.isOnline) {
+                onlineRestaurants.add(String(data.restaurantId));
+            } else {
+                onlineRestaurants.delete(String(data.restaurantId));
+            }
+            updateRestaurantStatus(data.restaurantId, data.isOnline);
+        });
+
+        socket.on('onlineStats', (data) => {
+            console.log('📊 Online stats received:', data);
+            // Update online restaurants from initial stats
+            onlineRestaurants.clear();
+            if (data.onlineRestaurants) {
+                data.onlineRestaurants.forEach(restaurant => {
+                    onlineRestaurants.add(String(restaurant.id));
+                });
+            }
+            // Refresh restaurant display if already loaded
+            if (document.getElementById('restaurantsTable').innerHTML !== '<tr><td colspan="10" class="loading">Yükleniyor...</td></tr>') {
+                loadRestaurants();
+            }
+        });
+
         // Sayfa yüklendiğinde
         document.addEventListener('DOMContentLoaded', async function() {
             await fetchApiBase(); // Fetch API_BASE first
@@ -636,7 +694,7 @@
                 .catch(error => {
                     console.error('Restoranlar yüklenirken hata:', error);
                     document.getElementById('restaurantsTable').innerHTML = 
-                        '<tr><td colspan="8" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
+                        '<tr><td colspan="10" style="color: red; text-align: center;">Yükleme hatası: ' + error.message + '</td></tr>';
                 });
         }
 
@@ -645,16 +703,22 @@
             const tbody = document.getElementById('restaurantsTable');
             
             if (restaurants.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="loading">Restoran bulunamadı</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="loading">Restoran bulunamadı</td></tr>';
                 return;
             }
 
             tbody.innerHTML = restaurants.map(restaurant => {
                 console.log('DEBUG: restaurant.id before parseInt:', restaurant.id, typeof restaurant.id);
+                const isOnline = onlineRestaurants.has(String(restaurant.id));
                 return `
                 <tr>
                     <td>${restaurant.id}</td>
                     <td>${restaurant.firma_adi}</td>
+                    <td>
+                        <span class="status-badge ${isOnline ? 'online' : 'offline'}" id="status-${restaurant.id}">
+                            ${isOnline ? '🟢 Çevrimiçi' : '🔴 Çevrimdışı'}
+                        </span>
+                    </td>
                     <td>${restaurant.email}</td>
                     <td>
                         <button class="btn" style="background: #667eea; color: white; padding: 3px 6px; font-size: 0.7rem;" onclick="showRestaurantPassword(${restaurant.id}, '${restaurant.password || 'Şifre yok'}')" title="Şifreyi Göster">👁️</button>
@@ -685,6 +749,15 @@
                     </td>
                 </tr>`
             }).join('');
+        }
+
+        // Update restaurant status in real-time
+        function updateRestaurantStatus(restaurantId, isOnline) {
+            const statusElement = document.getElementById(`status-${restaurantId}`);
+            if (statusElement) {
+                statusElement.className = `status-badge ${isOnline ? 'online' : 'offline'}`;
+                statusElement.textContent = isOnline ? '🟢 Çevrimiçi' : '🔴 Çevrimdışı';
+            }
         }
 
         // Teslimat alanları yönetimi

@@ -10,7 +10,7 @@
       "enabled": false,
       "favicon": "./assets/favicon.png"
     },
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "kuryex",
@@ -34,7 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kuryex.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -71,11 +71,13 @@
         "NSCameraUsageDescription": "Uygulama, profil fotoğrafı eklemeniz veya makbuz tarama gibi özellikler için kameranıza erişmek istiyor.",
         "NSPhotoLibraryUsageDescription": "Uygulama, sipariş görselleri ve profil fotoğrafları için galerinizdeki fotoğraflara erişmek istiyor.",
         "NSLocationWhenInUseUsageDescription": "Konumunuz, siparişleri harita üzerinde takip etmek ve size en yakın kuryeleri bulmak için kullanılır.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Uygulama kapalıyken bile siparişinizin durumunu ve kuryenin konumunu size bildirebilmek için konumunuza her zaman erişmemiz gerekiyor.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Bu uygulama, kurye olarak çalıştığınızda müşterilere gerçek zamanlı teslimat takibi sağlamak, size en yakın siparişleri önermek ve ETA hesaplamaları yapmak için konumunuzu kullanır. Bu özellik müşteri memnuniyetini artırır ve teslimat sürecini optimize eder.",
+        "NSLocationAlwaysUsageDescription": "Aktif teslimat sırasında müşteriye gerçek zamanlı kurye takibi sağlamak, otomatik teslim bildirimi göndermek ve güvenlik amaçlı acil durum tespit sistemi için arka plan konum erişimi gereklidir. Bu özellik sadece aktif sipariş sırasında çalışır.",
         "UIBackgroundModes": [
           "remote-notification",
           "processing",
-          "fetch"
+          "fetch",
+          "location"
         ],
         "BGTaskSchedulerPermittedIdentifiers": [
           "com.expo.modules.backgroundtask.processing",
@@ -101,9 +103,14 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE",
         "NOTIFICATIONS",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
-      "versionCode": 1,
+      "versionCode": 2,
       "package": "com.kuryex.app"
     },
     "plugins": [
@@ -167,7 +174,19 @@
           }
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Kurye olarak sipariş teslim ederken, uygulama arka planda çalışırken bile konumunuzu paylaşmamız gerekiyor.",
+          "locationAlwaysPermission": "Sipariş teslimatı sırasında sürekli konum takibi gerekiyor.",
+          "locationWhenInUsePermission": "Konumunuz, siparişleri harita üzerinde takip etmek için kullanılır.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager"
     ],
     "experiments": {
       "typedRoutes": true
@@ -185,7 +204,7 @@
       }
     },
     "jsEngine": "jsc",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.1.0",
     "updates": {
       "url": "https://u.expo.dev/2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
     }
