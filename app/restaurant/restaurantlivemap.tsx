@@ -718,11 +718,12 @@ const RestaurantLiveMap = () => {
               onPanDrag={handleMapInteraction}
               initialRegion={getInitialRegion()}
             >
-            {courierLocations.map((loc) => {
+            {courierLocations.map((loc, index) => {
               if (Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+                const markerKey = `marker-${loc.orderId}-${loc.courierId}-${index}-${Math.random().toString(36).substr(2, 5)}`;
                 return (
                   <Marker
-                    key={`${loc.orderId}-${loc.courierId}`}
+                    key={markerKey}
                     coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
                     title={loc.courier_name ? `Kurye: ${loc.courier_name}` : `Kurye ${loc.courierId}`}
                     description={loc.courier_phone ? `Tel: ${loc.courier_phone} | Sipariş: ${loc.orderId}` : `Sipariş: ${loc.orderId}`}
@@ -740,9 +741,10 @@ const RestaurantLiveMap = () => {
           {/* Kurye Bilgi Balonları */}
           <View style={styles.orderBubblesContainer}>
             {courierLocations.map((loc, index) => {
-              // Unique key generation to prevent duplicate key warnings
+              // Enhanced unique key generation to prevent duplicate key warnings
               const bubbleKey = `${loc.courierId}-${loc.orderId}`;
-              const uniqueKey = `${bubbleKey}-${index}-${loc.timestamp || Date.now()}`;
+              const randomSuffix = Math.random().toString(36).substr(2, 9);
+              const uniqueKey = `${bubbleKey}-${index}-${randomSuffix}-${Date.now()}`;
               const isExpanded = expandedBubble === bubbleKey;
               
               return (
