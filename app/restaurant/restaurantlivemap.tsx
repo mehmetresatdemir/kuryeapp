@@ -250,12 +250,23 @@ const RestaurantLiveMap = () => {
 
       const firmId = user.publicMetadata?.firmId || user.id;
       
-      // SADECE yeni bağlantıda saklanan verileri geri yükle, eski olabileceği için server'dan doğrula
+      // SADECE yeni bağlantıda saklanan verileri geri yükle - AGGRESSIVE VALIDATION
       const hasStoredData = dataRetentionRef.current.length > 0;
       if (hasStoredData) {
-        console.log(`🔄 ${dataRetentionRef.current.length} saklanan veri var, server'dan doğrulanacak`);
-        // Geçici olarak göster ama hemen server'dan fresh data çek
+        console.log(`🔄 ${dataRetentionRef.current.length} saklanan veri var - GEÇİCİ olarak gösterilecek`);
+        // Geçici olarak göster ama server validation ZORUNLU
         setCourierLocations(dataRetentionRef.current);
+        
+        // Saklanan veriyi 10 saniye sonra temizle (server response gelene kadar)
+        setTimeout(() => {
+          if (dataRetentionRef.current.length > 0) {
+            console.log('⚠️ TIMEOUT: Clearing stored data, server validation failed');
+            setCourierLocations([]);
+            dataRetentionRef.current = [];
+          }
+        }, 10000);
+      } else {
+        console.log('📵 No stored data - starting fresh');
       }
       
       // Socket zaten bağlıysa tekrar bağlanma
@@ -310,7 +321,15 @@ const RestaurantLiveMap = () => {
         lastDataReceived.current = Date.now();
         setConnectionHealth('healthy');
         
-        console.log('💾 Fresh activeOrders data received from server');
+        console.log('💾 Fresh activeOrders data received from server:', data?.length || 0, 'orders');
+        
+        // DEBUG: Server'dan gelen sipariş ID'lerini logla
+        if (data && data.length > 0) {
+          const serverOrderIds = data.map(order => order.id);
+          console.log('🔍 SERVER ORDER IDs:', serverOrderIds);
+        } else {
+          console.log('🔍 SERVER: No active orders returned');
+        }
         
         if (data && data.length > 0) {
           const currentTime = new Date().toISOString();
@@ -333,7 +352,13 @@ const RestaurantLiveMap = () => {
           const activeOrderIds = new Set(locations.map(loc => loc.orderId));
           console.log(`🔄 Server has ${activeOrderIds.size} active orders:`, Array.from(activeOrderIds));
           
-          setCourierLocations(locations);
+          // Mevcut data ile karşılaştır
+          setCourierLocations(prevLocations => {
+            const prevOrderIds = prevLocations.map(loc => loc.orderId);
+            console.log('🔍 BEFORE UPDATE - Current order IDs:', prevOrderIds);
+            console.log('🔍 AFTER UPDATE - New order IDs:', Array.from(activeOrderIds));
+            return locations;
+          });
           // Fresh server data'yı sakla
           dataRetentionRef.current = locations;
           setLastUpdateTime(new Date().toISOString());
@@ -402,36 +427,48 @@ const RestaurantLiveMap = () => {
       });
       socketRef.current.on("trackingEnded", (data: any) => {
         if (data && data.orderId) {
-          console.log(`🛑 Tracking ended for order: ${data.orderId} - removing from stored data too`);
-          setCourierLocations((prevLocations) => {
-            const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
-            // Filtrelenmiş verileri sakla VE dataRetentionRef'i de temizle
-            dataRetentionRef.current = filteredLocations;
-            console.log(`💾 Removed order ${data.orderId} from tracking and persistence`);
-            return filteredLocations;
-          });
+          console.log(`🛑 Tracking ended for order: ${data.orderId} - FORCE CLEARING ALL DATA`);
+          
+          // TÜM VERİYİ TEMİZLE
+          setCourierLocations([]);
+          dataRetentionRef.current = [];
+          setLastUpdateTime(null);
+          
+          console.log('🧹 FORCE CLEARED: All data after tracking ended');
+          
+          // Fresh data çek
+          if (socketRef.current && socketRef.current.connected) {
+            console.log('🔄 Requesting fresh data after tracking ended');
+            socketRef.current.emit("requestActiveOrders", { firmId });
+          }
         }
       });
       
-      // Sipariş silinince tracking'i durdur
+      // Sipariş silinince tracking'i durdur - AGGRESSIVE CLEANUP
       socketRef.current.on("orderDeleted", (data: any) => {
         if (data && data.orderId) {
-          console.log(`🗑️ Order deleted: ${data.orderId} - removing from tracking and stored data`);
-          setCourierLocations((prevLocations) => {
-            const filteredLocations = prevLocations.filter((loc) => loc.orderId !== data.orderId);
-            // Filtrelenmiş verileri sakla VE dataRetentionRef'i de temizle
-            dataRetentionRef.current = filteredLocations;
-            console.log(`💾 Removed order ${data.orderId} from both active and stored locations`);
-            return filteredLocations;
-          });
+          console.log(`🗑️ Order deleted: ${data.orderId} - FORCE CLEARING ALL DATA`);
           
-          // 1 saniye sonra server'dan fresh data çekerek doğrula
+          // TÜM VERİYİ TEMİZLE - hiç risk almayalim
+          setCourierLocations([]);
+          dataRetentionRef.current = [];
+          setLastUpdateTime(null);
+          
+          console.log('🧹 FORCE CLEARED: All location data removed after order deletion');
+          
+          // Hemen fresh data çek
+          if (socketRef.current && socketRef.current.connected) {
+            console.log('🔄 IMMEDIATE: Requesting fresh data after deletion');
+            socketRef.current.emit("requestActiveOrders", { firmId });
+          }
+          
+          // Double check - 2 saniye sonra bir kez daha
           setTimeout(() => {
             if (socketRef.current && socketRef.current.connected) {
-              console.log('🔄 Validating data after order deletion');
+              console.log('🔄 DOUBLE CHECK: Second fresh data request after deletion');
               socketRef.current.emit("requestActiveOrders", { firmId });
             }
-          }, 1000);
+          }, 2000);
         }
       });
 
@@ -691,6 +728,24 @@ const RestaurantLiveMap = () => {
     setAutoFitEnabled(true);
     fitAllCouriers();
   }, [fitAllCouriers]);
+  
+  // Manuel refresh butonu - TÜM VERİYİ TEMİZLE VE YENİDEN ÇEK
+  const forceRefresh = useCallback(() => {
+    console.log('🔄 FORCE REFRESH: Clearing all data and requesting fresh');
+    
+    // TÜM VERİYİ TEMİZLE
+    setCourierLocations([]);
+    dataRetentionRef.current = [];
+    setLastUpdateTime(null);
+    setConnectionHealth('warning');
+    
+    // Fresh data çek
+    if (socketRef.current && socketRef.current.connected) {
+      const firmId = user?.publicMetadata?.firmId || user?.id;
+      socketRef.current.emit("requestActiveOrders", { firmId });
+      console.log('💾 Force refresh: Fresh data requested');
+    }
+  }, [user]);
 
   // Dinamik initial region hesaplama
   const getInitialRegion = useCallback(() => {
@@ -822,15 +877,24 @@ const RestaurantLiveMap = () => {
               </View>
             )}
           </View>
-          {courierLocations.length > 0 && (
+          <View style={styles.headerButtonsContainer}>
+            {courierLocations.length > 0 && (
+              <TouchableOpacity
+                style={styles.fitAllButton}
+                onPress={fitAllCouriers}
+              >
+                <Ionicons name="scan-outline" size={16} color="#8B5CF6" />
+                <Text style={styles.fitAllButtonText}>Odakla</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={styles.fitAllButton}
-              onPress={fitAllCouriers}
+              style={[styles.fitAllButton, styles.refreshButton]}
+              onPress={forceRefresh}
             >
-                              <Ionicons name="scan-outline" size={16} color="#8B5CF6" />
-              <Text style={styles.fitAllButtonText}>Kuryeleri Odakla</Text>
+              <Ionicons name="refresh" size={16} color="#FFFFFF" />
+              <Text style={[styles.fitAllButtonText, styles.refreshButtonText]}>Yenile</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
       </View>
 
@@ -1346,5 +1410,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '600',
+  },
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  refreshButton: {
+    backgroundColor: '#EF4444',
+  },
+  refreshButtonText: {
+    color: '#FFFFFF',
   },
 });
