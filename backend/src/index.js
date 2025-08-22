@@ -210,6 +210,28 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Support pages routes (for App Store compliance)
+app.get('/support', (req, res) => {
+  res.sendFile(path.join(BACKEND_ROOT, 'public', 'support.html'));
+});
+
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(BACKEND_ROOT, 'public', 'privacy-policy.html'));
+});
+
+app.get('/terms-of-service', (req, res) => {
+  res.sendFile(path.join(BACKEND_ROOT, 'public', 'terms-of-service.html'));
+});
+
+app.get('/marketing', (req, res) => {
+  res.sendFile(path.join(BACKEND_ROOT, 'public', 'marketing.html'));
+});
+
+// Ana sayfa olarak marketing sayfasını göster
+app.get('/', (req, res) => {
+  res.sendFile(path.join(BACKEND_ROOT, 'public', 'marketing.html'));
+});
+
 // API Health check endpoint (used by admin panel)
 app.get('/api/health', async (req, res) => {
   const { healthCheck } = require('./config/db-config');

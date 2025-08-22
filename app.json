@@ -34,7 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kuryex.app",
-      "buildNumber": "2",
+      "buildNumber": "83",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -110,7 +110,7 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ],
-      "versionCode": 2,
+      "versionCode": 83,
       "package": "com.kuryex.app"
     },
     "plugins": [

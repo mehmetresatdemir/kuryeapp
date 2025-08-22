@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KuryeX - Kullanıcı Desteği</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 0;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.1em;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .section h2 {
+            color: #007bff;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        .section p {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        
+        .contact-info {
+            background-color: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .contact-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .contact-item strong {
+            min-width: 100px;
+            color: #007bff;
+        }
+        
+        .faq {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .faq-question {
+            padding: 15px;
+            font-weight: 600;
+            color: #007bff;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .faq-answer {
+            padding: 15px;
+            color: #495057;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            margin: 10px 5px;
+        }
+        
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            color: #6c757d;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .section {
+                padding: 15px;
+            }
+            
+            .logo {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">KuryeX</div>
+            <div class="subtitle">Kullanıcı Desteği ve Yardım Merkezi</div>
+        </div>
+
+        <div class="section">
+            <h2>📱 Uygulama Hakkında</h2>
+            <p>KuryeX, restoran sahipleri ve kurye hizmeti sağlayıcıları için geliştirilmiş bir mobil uygulamadır. Uygulamamız aracılığıyla sipariş yönetimi, kurye takibi ve kazanç raporlaması yapabilirsiniz.</p>
+        </div>
+
+        <div class="section">
+            <h2>📞 İletişim Bilgileri</h2>
+            <div class="contact-info">
+                <div class="contact-item">
+                    <strong>E-posta:</strong> destek@kuryex.com
+                </div>
+                <div class="contact-item">
+                    <strong>Telefon:</strong> +90 555 123 4567
+                </div>
+                <div class="contact-item">
+                    <strong>Çalışma Saatleri:</strong> Pazartesi - Cuma, 09:00 - 18:00
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>❓ Sıkça Sorulan Sorular</h2>
+            
+            <div class="faq">
+                <div class="faq-question">Uygulamaya nasıl kayıt olabilirim?</div>
+                <div class="faq-answer">
+                    Uygulamayı indirdikten sonra "Kayıt Ol" butonuna tıklayarak restoran sahibi veya kurye olarak kayıt olabilirsiniz. E-posta adresinizi doğruladıktan sonra hesabınız aktif hale gelecektir.
+                </div>
+            </div>
+
+            <div class="faq">
+                <div class="faq-question">Şifremi unuttum, ne yapmalıyım?</div>
+                <div class="faq-answer">
+                    Giriş ekranında "Şifremi Unuttum" linkine tıklayarak e-posta adresinize şifre sıfırlama bağlantısı gönderebilirsiniz.
+                </div>
+            </div>
+
+            <div class="faq">
+                <div class="faq-question">Kazançlarımı nasıl görüntüleyebilirim?</div>
+                <div class="faq-answer">
+                    Uygulamada "Kazançlar" bölümünden günlük, haftalık ve aylık kazanç raporlarınızı görüntüleyebilirsiniz.
+                </div>
+            </div>
+
+            <div class="faq">
+                <div class="faq-question">Teknik sorun yaşıyorum, ne yapmalıyım?</div>
+                <div class="faq-answer">
+                    Teknik sorunlar için destek@kuryex.com adresine yazabilir veya uygulamadaki "Destek" bölümünden ticket oluşturabilirsiniz.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🛠️ Destek Talepleri</h2>
+            <p>Herhangi bir sorun yaşıyorsanız veya yardıma ihtiyacınız varsa bizimle iletişime geçebilirsiniz:</p>
+            
+            <a href="mailto:destek@kuryex.com?subject=KuryeX%20Destek%20Talebi" class="btn">E-posta Gönder</a>
+            <a href="tel:+905551234567" class="btn btn-secondary">Telefon Et</a>
+        </div>
+
+        <div class="section">
+            <h2>📋 Gizlilik ve Kullanım Koşulları</h2>
+            <p>Kişisel verilerinizin korunması bizim için önemlidir. Gizlilik politikamızı ve kullanım koşullarımızı aşağıdaki linklerden inceleyebilirsiniz:</p>
+            <p>
+                <a href="/privacy-policy" class="btn">Gizlilik Politikası</a>
+                <a href="/terms-of-service" class="btn btn-secondary">Kullanım Koşulları</a>
+            </p>
+        </div>
+
+        <div class="section">
+            <h2>📱 Uygulama Bilgileri</h2>
+            <p><strong>Sürüm:</strong> 1.0.0</p>
+            <p><strong>Sistem Gereksinimleri:</strong> iOS 12.0+ / Android 6.0+</p>
+            <p><strong>Geliştirici:</strong> KuryeX Development Team</p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 KuryeX. Tüm hakları saklıdır.</p>
+            <p>Bu sayfa Apple App Store gereksinimlerine uygun olarak hazırlanmıştır.</p>
+        </div>
+    </div>
+</body>
+</html>
