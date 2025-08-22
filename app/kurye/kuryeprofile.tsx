@@ -1396,7 +1396,25 @@ const KuryeProfile = () => {
                     } else {
                       Alert.alert(
                         contentPages.privacy?.title || 'Gizlilik Politikası', 
-                        privacyContent || 'Gizlilik politikası yakında güncellenecektir.'
+                        privacyContent || 'Gizlilik politikası yakında güncellenecektir.',
+                        [
+                          { text: 'Tamam', style: 'cancel' },
+                          { 
+                            text: 'Web Sayfasını Aç', 
+                            onPress: () => {
+                              const privacyUrl = 'https://kurye-backend-production.up.railway.app/privacy-policy';
+                              Linking.canOpenURL(privacyUrl).then(supported => {
+                                if (supported) {
+                                  Linking.openURL(privacyUrl);
+                                } else {
+                                  Alert.alert('Hata', 'Bu link açılamadı: ' + privacyUrl);
+                                }
+                              }).catch(() => {
+                                Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + privacyUrl);
+                              });
+                            }
+                          }
+                        ]
                       );
                     }
                   }}
@@ -1434,7 +1452,25 @@ const KuryeProfile = () => {
                     } else {
                       Alert.alert(
                         contentPages.terms?.title || 'Kullanım Koşulları', 
-                        termsContent || 'Kullanım koşulları yakında güncellenecektir.'
+                        termsContent || 'Kullanım koşulları yakında güncellenecektir.',
+                        [
+                          { text: 'Tamam', style: 'cancel' },
+                          { 
+                            text: 'Web Sayfasını Aç', 
+                            onPress: () => {
+                              const termsUrl = 'https://kurye-backend-production.up.railway.app/terms-of-service';
+                              Linking.canOpenURL(termsUrl).then(supported => {
+                                if (supported) {
+                                  Linking.openURL(termsUrl);
+                                } else {
+                                  Alert.alert('Hata', 'Bu link açılamadı: ' + termsUrl);
+                                }
+                              }).catch(() => {
+                                Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + termsUrl);
+                              });
+                            }
+                          }
+                        ]
                       );
                     }
                   }}
@@ -1472,7 +1508,25 @@ const KuryeProfile = () => {
                     } else {
                       Alert.alert(
                         contentPages.support?.title || 'Destek', 
-                        supportContent || 'Destek bilgileri yakında güncellenecektir.'
+                        supportContent || 'Destek bilgileri yakında güncellenecektir.',
+                        [
+                          { text: 'Tamam', style: 'cancel' },
+                          { 
+                            text: 'Destek Sayfasını Aç', 
+                            onPress: () => {
+                              const supportUrl = 'https://kurye-backend-production.up.railway.app/support';
+                              Linking.canOpenURL(supportUrl).then(supported => {
+                                if (supported) {
+                                  Linking.openURL(supportUrl);
+                                } else {
+                                  Alert.alert('Hata', 'Bu link açılamadı: ' + supportUrl);
+                                }
+                              }).catch(() => {
+                                Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + supportUrl);
+                              });
+                            }
+                          }
+                        ]
                       );
                     }
                   }}
