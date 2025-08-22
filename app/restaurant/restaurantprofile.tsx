@@ -1854,7 +1854,7 @@ const RestaurantProfile = () => {
                           { 
                             text: 'Web Sayfasını Aç', 
                             onPress: () => {
-                              const privacyUrl = 'https://kurye-backend-production.up.railway.app/privacy-policy';
+                              const privacyUrl = 'https://kuryex.enucuzal.com/privacy-policy.html';
                               Linking.canOpenURL(privacyUrl).then(supported => {
                                 if (supported) {
                                   Linking.openURL(privacyUrl);
@@ -1910,7 +1910,7 @@ const RestaurantProfile = () => {
                           { 
                             text: 'Web Sayfasını Aç', 
                             onPress: () => {
-                              const termsUrl = 'https://kurye-backend-production.up.railway.app/terms-of-service';
+                              const termsUrl = 'https://kuryex.enucuzal.com/terms-of-service.html';
                               Linking.canOpenURL(termsUrl).then(supported => {
                                 if (supported) {
                                   Linking.openURL(termsUrl);
@@ -1966,7 +1966,7 @@ const RestaurantProfile = () => {
                           { 
                             text: 'Destek Sayfasını Aç', 
                             onPress: () => {
-                              const supportUrl = 'https://kurye-backend-production.up.railway.app/support';
+                              const supportUrl = 'https://kuryex.enucuzal.com/support.html';
                               Linking.canOpenURL(supportUrl).then(supported => {
                                 if (supported) {
                                   Linking.openURL(supportUrl);
