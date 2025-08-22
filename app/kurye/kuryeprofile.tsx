@@ -12,6 +12,7 @@ import {
   StyleSheet,
   StatusBar,
   Platform,
+  Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -1368,10 +1369,37 @@ const KuryeProfile = () => {
               <Text style={styles.footerTitle}>KuryeX</Text>
               <View style={styles.footerLinksContainer}>
                 <TouchableOpacity 
-                  onPress={() => Alert.alert(
-                    contentPages.privacy?.title || 'Gizlilik Politikası', 
-                    contentPages.privacy?.content || 'Gizlilik politikası yakında güncellenecektir.'
-                  )}
+                  onPress={() => {
+                    const privacyContent = contentPages.privacy?.content;
+                    
+                    // Content'te URL var mı kontrol et
+                    if (privacyContent && (privacyContent.includes('http://') || privacyContent.includes('https://'))) {
+                      // URL'yi extract et
+                      const urlMatch = privacyContent.match(/(https?:\/\/[^\s]+)/);
+                      if (urlMatch) {
+                        const url = urlMatch[0];
+                        Linking.canOpenURL(url).then(supported => {
+                          if (supported) {
+                            Linking.openURL(url);
+                          } else {
+                            Alert.alert('Hata', 'Bu link açılamadı. Lütfen tarayıcınızda manuel olarak açın: ' + url);
+                          }
+                        }).catch(() => {
+                          Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + url);
+                        });
+                      } else {
+                        Alert.alert(
+                          contentPages.privacy?.title || 'Gizlilik Politikası', 
+                          privacyContent
+                        );
+                      }
+                    } else {
+                      Alert.alert(
+                        contentPages.privacy?.title || 'Gizlilik Politikası', 
+                        privacyContent || 'Gizlilik politikası yakında güncellenecektir.'
+                      );
+                    }
+                  }}
                 >
                   <Text style={styles.footerLinkText}>Gizlilik Politikası</Text>
                 </TouchableOpacity>
@@ -1379,10 +1407,37 @@ const KuryeProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert(
-                    contentPages.terms?.title || 'Kullanım Koşulları', 
-                    contentPages.terms?.content || 'Kullanım koşulları yakında güncellenecektir.'
-                  )}
+                  onPress={() => {
+                    const termsContent = contentPages.terms?.content;
+                    
+                    // Content'te URL var mı kontrol et
+                    if (termsContent && (termsContent.includes('http://') || termsContent.includes('https://'))) {
+                      // URL'yi extract et
+                      const urlMatch = termsContent.match(/(https?:\/\/[^\s]+)/);
+                      if (urlMatch) {
+                        const url = urlMatch[0];
+                        Linking.canOpenURL(url).then(supported => {
+                          if (supported) {
+                            Linking.openURL(url);
+                          } else {
+                            Alert.alert('Hata', 'Bu link açılamadı. Lütfen tarayıcınızda manuel olarak açın: ' + url);
+                          }
+                        }).catch(() => {
+                          Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + url);
+                        });
+                      } else {
+                        Alert.alert(
+                          contentPages.terms?.title || 'Kullanım Koşulları', 
+                          termsContent
+                        );
+                      }
+                    } else {
+                      Alert.alert(
+                        contentPages.terms?.title || 'Kullanım Koşulları', 
+                        termsContent || 'Kullanım koşulları yakında güncellenecektir.'
+                      );
+                    }
+                  }}
                 >
                   <Text style={styles.footerLinkText}>Kullanım Koşulları</Text>
                 </TouchableOpacity>
@@ -1390,10 +1445,37 @@ const KuryeProfile = () => {
                 <Text style={styles.footerSeparator}>•</Text>
                 
                 <TouchableOpacity 
-                  onPress={() => Alert.alert(
-                    contentPages.support?.title || 'Destek', 
-                    contentPages.support?.content || 'Destek bilgileri yakında güncellenecektir.'
-                  )}
+                  onPress={() => {
+                    const supportContent = contentPages.support?.content;
+                    
+                    // Content'te URL var mı kontrol et
+                    if (supportContent && (supportContent.includes('http://') || supportContent.includes('https://'))) {
+                      // URL'yi extract et
+                      const urlMatch = supportContent.match(/(https?:\/\/[^\s]+)/);
+                      if (urlMatch) {
+                        const url = urlMatch[0];
+                        Linking.canOpenURL(url).then(supported => {
+                          if (supported) {
+                            Linking.openURL(url);
+                          } else {
+                            Alert.alert('Hata', 'Bu link açılamadı. Lütfen tarayıcınızda manuel olarak açın: ' + url);
+                          }
+                        }).catch(() => {
+                          Alert.alert('Hata', 'Link açılırken bir hata oluştu: ' + url);
+                        });
+                      } else {
+                        Alert.alert(
+                          contentPages.support?.title || 'Destek', 
+                          supportContent
+                        );
+                      }
+                    } else {
+                      Alert.alert(
+                        contentPages.support?.title || 'Destek', 
+                        supportContent || 'Destek bilgileri yakında güncellenecektir.'
+                      );
+                    }
+                  }}
                 >
                   <Text style={styles.footerLinkText}>Destek</Text>
                 </TouchableOpacity>
