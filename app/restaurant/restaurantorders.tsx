@@ -44,6 +44,7 @@ interface DeliveredOrder {
   courier_phone?: string; // Kurye telefonu
   preparation_time?: number; // Hazırlık süresi
   delivery_time_minutes?: number; // Teslimat süresi (dakika)
+  restaurant_price?: number; // Restoran fiyatı
 }
 
 const RestaurantOrders = () => {
@@ -145,12 +146,28 @@ const RestaurantOrders = () => {
   const [orderDetailModalVisible, setOrderDetailModalVisible] = useState<boolean>(false);
   const [selectedOrder, setSelectedOrder] = useState<DeliveredOrder | null>(null);
 
+  // Restaurant price hesaplama fonksiyonu
+  const calculateRestaurantPrice = (order: DeliveredOrder): number => {
+    const kuryeTutari = parseFloat(String(order.kurye_tutari || 0).replace(',', '.')) || 0;
+    let restoranTutari = parseFloat(String(order.restaurant_price || 0).replace(',', '.')) || 0;
+    if (restoranTutari === 0) {
+      const nakitTutari = parseFloat(String(order.nakit_tutari || 0).replace(',', '.')) || 0;
+      const bankaTutari = parseFloat(String(order.banka_tutari || 0).replace(',', '.')) || 0;
+      const hediyeTutari = parseFloat(String(order.hediye_tutari || 0).replace(',', '.')) || 0;
+      restoranTutari = (nakitTutari + bankaTutari + hediyeTutari) - kuryeTutari;
+      if (restoranTutari < 0) restoranTutari = 0; // Negatif olamaz
+    }
+    return restoranTutari;
+  };
+
   // Toplam değerleri hesapla
   const totals = deliveredOrders.reduce((acc, curr) => {
     const odemeTipi = curr.odeme_tipi?.toLowerCase() || '';
     const kuryeTutari = parseFloat(String(curr.kurye_tutari || 0).replace(',', '.')) || 0;
+    const restoranTutari = calculateRestaurantPrice(curr);
     
     acc.kurye += kuryeTutari;
+    acc.restoran += restoranTutari; // Restoran toplam fiyatı
     acc.totalOrders += 1;
 
     if (odemeTipi.includes('nakit')) {
@@ -169,7 +186,8 @@ const RestaurantOrders = () => {
     
     return acc;
   }, { 
-    kurye: 0, 
+    kurye: 0,
+    restoran: 0, // Restoran toplam fiyatı
     nakit: 0, 
     banka: 0, 
     hediye: 0, 
@@ -731,6 +749,7 @@ const RestaurantOrders = () => {
     };
 
     const paymentInfo = getPaymentTypeInfo(item.odeme_tipi);
+    const restoranTutari = calculateRestaurantPrice(item);
 
     return (
       <TouchableOpacity onPress={() => openOrderDetail(item)}>
@@ -750,7 +769,7 @@ const RestaurantOrders = () => {
           </View>
           <View style={styles.orderFooter}>
             <Text style={styles.paymentType}>{paymentInfo.label}</Text>
-            <Text style={styles.courierPrice}>{(parseFloat(String(item.kurye_tutari || 0).replace(',', '.')) || 0).toFixed(2)} ₺</Text>
+            <Text style={styles.courierPrice}>{restoranTutari.toFixed(2)} ₺</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -911,7 +930,7 @@ const RestaurantOrders = () => {
                 
                 <View style={[styles.summaryRow, styles.courierRow]}>
                   <Text style={styles.courierLabel}>Kurye Gideri</Text>
-                  <Text style={styles.courierValue}>{totals.kurye.toFixed(2)} ₺</Text>
+                  <Text style={styles.courierValue}>{totals.restoran.toFixed(2)} ₺</Text>
                 </View>
               </View>
 
@@ -1179,7 +1198,7 @@ const RestaurantOrders = () => {
                       
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Kurye Ücreti:</Text>
-                        <Text style={styles.courierFeeValue}>{parseFloat(String(selectedOrder.kurye_tutari).replace(',', '.')).toFixed(2)} ₺</Text>
+                        <Text style={styles.courierFeeValue}>{calculateRestaurantPrice(selectedOrder).toFixed(2)} ₺</Text>
                       </View>
                     </View>
 

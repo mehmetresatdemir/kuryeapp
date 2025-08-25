@@ -185,6 +185,7 @@ router.get('/restaurant/:restaurantId/details', protect, async (req, res) => {
         o.firma_adi as kurye_adi, 
         o.mahalle,
         o.courier_price as kurye_tutari,
+        COALESCE(o.restaurant_price, 0) as restaurant_price,
         o.nakit_tutari,
         o.banka_tutari,
         o.hediye_tutari,
