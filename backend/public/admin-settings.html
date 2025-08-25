@@ -848,6 +848,54 @@
                 </div>
             </div>
 
+            <!-- Kayıt Ayarları -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">🧩 Kayıt Ayarları (Feature Flags)</h3>
+                    <button class="btn btn-success" onclick="saveRegistrationSettings()">💾 Kaydet</button>
+                </div>
+                <div class="form-grid">
+                    <div class="settings-section">
+                        <h4>🍎 iOS</h4>
+                        <div class="form-group">
+                            <label>Kurye Kaydı Açık</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableCourierRegistrationIos">
+                                <span class="slider"></span>
+                            </label>
+                            <small>iOS için kurye kayıt butonunu göster.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Restoran Kaydı Açık</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableRestaurantRegistrationIos">
+                                <span class="slider"></span>
+                            </label>
+                            <small>App Store 3.1.1 sebebiyle tavsiye: kapalı.</small>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>🤖 Android</h4>
+                        <div class="form-group">
+                            <label>Kurye Kaydı Açık</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableCourierRegistrationAndroid" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <small>Android için kurye kayıt butonunu göster.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Restoran Kaydı Açık</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableRestaurantRegistrationAndroid" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <small>Android için restoran kayıt butonunu göster.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bildirim Gönderme -->
             <div class="card">
                 <div class="card-header">
@@ -1079,6 +1127,7 @@
             if (!checkSpecialPassword()) return;
             
             await fetchApiBase(); // Fetch API_BASE first
+            loadRegistrationSettings();
             loadNotificationSettings();
             loadMapSettings();
             loadCourierSettings();
@@ -1219,6 +1268,60 @@
                 document.getElementById('statusChangeNotification').checked = true;
                 document.getElementById('courierAssignNotification').checked = true;
                 document.getElementById('orderReminderTime').value = 10;
+            }
+        }
+
+        // Kayıt Ayarlarını Yükle
+        async function loadRegistrationSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/registration`, {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    document.getElementById('enableCourierRegistrationIos').checked = data.settings.enable_courier_registration_ios !== false;
+                    document.getElementById('enableRestaurantRegistrationIos').checked = data.settings.enable_restaurant_registration_ios === true;
+                    document.getElementById('enableCourierRegistrationAndroid').checked = data.settings.enable_courier_registration_android !== false;
+                    document.getElementById('enableRestaurantRegistrationAndroid').checked = data.settings.enable_restaurant_registration_android !== false;
+                } else {
+                    // Varsayılanlar: iOS restoran kapalı
+                    document.getElementById('enableCourierRegistrationIos').checked = true;
+                    document.getElementById('enableRestaurantRegistrationIos').checked = false;
+                    document.getElementById('enableCourierRegistrationAndroid').checked = true;
+                    document.getElementById('enableRestaurantRegistrationAndroid').checked = true;
+                }
+            } catch (error) {
+                console.error('Registration ayarları yüklenirken hata:', error);
+                document.getElementById('enableCourierRegistrationIos').checked = true;
+                document.getElementById('enableRestaurantRegistrationIos').checked = false;
+                document.getElementById('enableCourierRegistrationAndroid').checked = true;
+                document.getElementById('enableRestaurantRegistrationAndroid').checked = true;
+            }
+        }
+
+        // Kayıt Ayarlarını Kaydet
+        async function saveRegistrationSettings() {
+            const payload = {
+                enable_courier_registration_ios: document.getElementById('enableCourierRegistrationIos').checked,
+                enable_restaurant_registration_ios: document.getElementById('enableRestaurantRegistrationIos').checked,
+                enable_courier_registration_android: document.getElementById('enableCourierRegistrationAndroid').checked,
+                enable_restaurant_registration_android: document.getElementById('enableRestaurantRegistrationAndroid').checked
+            };
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/settings/registration`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Kayıt ayarları başarıyla kaydedildi!');
+                } else {
+                    alert('Ayarlar kaydedilirken hata: ' + (data.message || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Kayıt ayarları kaydedilirken ağ hatası:', error);
+                alert('Bir ağ hatası oluştu.');
             }
         }
 

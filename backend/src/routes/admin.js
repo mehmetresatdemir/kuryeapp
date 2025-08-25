@@ -1112,6 +1112,86 @@ router.put('/settings/courier', async (req, res) => {
     }
 });
 
+// Kayıt (registration) ayarları endpoints
+router.get('/settings/registration', async (req, res) => {
+    try {
+        const settings = await sql`
+            SELECT setting_value FROM admin_settings 
+            WHERE setting_key = 'registration_settings'
+        `;
+
+        // Varsayılanlar: iOS'te restoran kaydı kapalı (App Store uyumu)
+        let registrationSettings = {
+            enable_courier_registration_ios: true,
+            enable_restaurant_registration_ios: false,
+            enable_courier_registration_android: true,
+            enable_restaurant_registration_android: true
+        };
+
+        if (settings.length > 0) {
+            const saved = settings[0].setting_value;
+            registrationSettings = {
+                enable_courier_registration_ios: saved.enableCourierRegistrationIos !== false,
+                enable_restaurant_registration_ios: saved.enableRestaurantRegistrationIos === true, // iOS restoran default false
+                enable_courier_registration_android: saved.enableCourierRegistrationAndroid !== false,
+                enable_restaurant_registration_android: saved.enableRestaurantRegistrationAndroid !== false
+            };
+        }
+
+        res.json({
+            success: true,
+            settings: registrationSettings
+        });
+    } catch (error) {
+        console.error('Registration ayarları alınırken hata:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Registration ayarları alınamadı: ' + error.message 
+        });
+    }
+});
+
+router.put('/settings/registration', async (req, res) => {
+    try {
+        const { 
+            enable_courier_registration_ios,
+            enable_restaurant_registration_ios,
+            enable_courier_registration_android,
+            enable_restaurant_registration_android
+        } = req.body;
+
+        const settingsData = {
+            enableCourierRegistrationIos: Boolean(enable_courier_registration_ios !== false),
+            // App Store uyumu açısından iOS restoran kaydı default ve tavsiye edilen değer false
+            enableRestaurantRegistrationIos: Boolean(enable_restaurant_registration_ios === true),
+            enableCourierRegistrationAndroid: Boolean(enable_courier_registration_android !== false),
+            enableRestaurantRegistrationAndroid: Boolean(enable_restaurant_registration_android !== false),
+            lastUpdated: new Date().toISOString()
+        };
+
+        await sql`
+            INSERT INTO admin_settings (setting_key, setting_value, created_at, updated_at)
+            VALUES ('registration_settings', ${JSON.stringify(settingsData)}, NOW(), NOW())
+            ON CONFLICT (setting_key) 
+            DO UPDATE SET 
+                setting_value = EXCLUDED.setting_value,
+                updated_at = NOW()
+        `;
+
+        res.json({
+            success: true,
+            message: 'Registration ayarları başarıyla kaydedildi',
+            settings: settingsData
+        });
+    } catch (error) {
+        console.error('Registration ayarları kaydetme hatası:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Registration ayarları kaydedilirken bir hata oluştu'
+        });
+    }
+});
+
 // Sistem durumu endpoint'leri
 router.get('/status/database', async (req, res) => {
     try {

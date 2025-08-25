@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { healthCheck } = require('../config/db-config');
+const { healthCheck, sql } = require('../config/db-config');
 const adminRoutes = require('./admin');
 const orderRoutes = require('./orderRoutes');
 const courierRoutes = require('./courierRoutes');
@@ -54,6 +54,37 @@ router.get('/health', async (req, res) => {
       timestamp: new Date().toLocaleString('tr-TR'),
       error: error.message
     });
+  }
+});
+
+// Public registration settings (no auth) for mobile app
+router.get('/registration-settings', async (req, res) => {
+  try {
+    const settings = await sql`
+      SELECT setting_value FROM admin_settings 
+      WHERE setting_key = 'registration_settings'
+    `;
+
+    let registrationSettings = {
+      enable_courier_registration_ios: true,
+      enable_restaurant_registration_ios: false,
+      enable_courier_registration_android: true,
+      enable_restaurant_registration_android: false
+    };
+
+    if (settings.length > 0) {
+      const saved = settings[0].setting_value;
+      registrationSettings = {
+        enable_courier_registration_ios: saved.enableCourierRegistrationIos !== false,
+        enable_restaurant_registration_ios: saved.enableRestaurantRegistrationIos === true,
+        enable_courier_registration_android: saved.enableCourierRegistrationAndroid !== false,
+        enable_restaurant_registration_android: saved.enableRestaurantRegistrationAndroid !== false
+      };
+    }
+
+    res.json({ success: true, settings: registrationSettings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'registration_settings okunamadı: ' + error.message });
   }
 });
 
