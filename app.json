@@ -10,7 +10,7 @@
       "enabled": false,
       "favicon": "./assets/favicon.png"
     },
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "kuryex",
@@ -34,7 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kuryex.app",
-      "buildNumber": "83",
+      "buildNumber": "84",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
@@ -110,7 +110,7 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
       ],
-      "versionCode": 83,
+      "versionCode": 84,
       "package": "com.kuryex.app"
     },
     "plugins": [
@@ -198,7 +198,7 @@
       "API_HOST": "kuryex.enucuzal.com",
       "API_PORT": "80",
       "REMOTE_API_HOST": "https://kuryex.enucuzal.com",
-      "USE_REMOTE": true,
+      "USE_REMOTE": false,
       "eas": {
         "projectId": "2b9b6713-2a3b-4fc7-af89-b8b17f3a7e91"
       }
